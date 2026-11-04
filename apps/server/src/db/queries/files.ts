@@ -288,9 +288,9 @@ export function buildFileQueries(db: Db) {
     { month_key: string; total: number; latest_time: number }
   >(`
     SELECT
-      strftime('%Y-%m', datetime(CASE WHEN taken_at IS NOT NULL THEN taken_at/1000 ELSE modified_at/1000 END, 'unixepoch')) AS month_key,
+      strftime('%Y-%m', datetime(COALESCE(taken_at, modified_at)/1000, 'unixepoch')) AS month_key,
       COUNT(*) AS total,
-      MAX(CASE WHEN taken_at IS NOT NULL THEN taken_at ELSE modified_at END) AS latest_time
+      MAX(COALESCE(taken_at, modified_at)) AS latest_time
     FROM files
     WHERE account_id = ?
       AND ${MEDIA_STRICT_FILTER}
@@ -398,10 +398,10 @@ export function buildFileQueries(db: Db) {
       }
 
       if (opts.year) {
-        where += ` AND strftime('%Y', datetime(CASE WHEN taken_at IS NOT NULL THEN taken_at/1000 ELSE modified_at/1000 END, 'unixepoch')) = ?`;
+        where += ` AND strftime('%Y', datetime(COALESCE(taken_at, modified_at)/1000, 'unixepoch')) = ?`;
         params.push(String(opts.year));
       } else if (opts.month) {
-        where += ` AND strftime('%Y-%m', datetime(CASE WHEN taken_at IS NOT NULL THEN taken_at/1000 ELSE modified_at/1000 END, 'unixepoch')) = ?`;
+        where += ` AND strftime('%Y-%m', datetime(COALESCE(taken_at, modified_at)/1000, 'unixepoch')) = ?`;
         params.push(opts.month);
       }
 
@@ -412,8 +412,7 @@ export function buildFileQueries(db: Db) {
       const dataSql = `
         SELECT * FROM files
         ${where}
-        ORDER BY
-          CASE WHEN taken_at IS NOT NULL THEN taken_at ELSE modified_at END DESC
+        ORDER BY COALESCE(taken_at, modified_at) DESC
         LIMIT ? OFFSET ?
       `;
       params.push(opts.limit, opts.offset);

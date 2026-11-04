@@ -1,7 +1,7 @@
 # DriveShell — Audit & Hardening Progress
 
 **Last Updated:** November 4, 2026  
-**Current Stage:** Stage 1 (Baselines & Benchmark Harness)  
+**Current Stage:** Stage 7 (Final Acceptance, Verification & Audit Scoreboard)  
 **Branch:** `hardening/pass-1`  
 **Status:** In Progress
 
@@ -94,7 +94,61 @@
   - [x] In-memory rate limiting and backoff guard on sensitive routes (`rate-limiter.test.ts`)
   - [x] Security CI workflow (`.github/workflows/security.yml`) with Gitleaks, Audit, and Semgrep
   - [x] Deliverable `docs/audits/03-security-fixes.md`
-  - [x] **GATE 3**: Ready for user review.
+  - [x] **GATE 3**: Approved by user.
+
+- [x] **Stage 4a: Cryptographic Architecture & Design Gate**
+  - [x] Frozen SDV1 specification in `docs/vault-format.md`
+  - [x] Deterministic cryptographic test vectors in `packages/vault-spec/test-vectors.json`
+  - [x] Pure core architecture comparison (Node server vs. WebCrypto browser)
+  - [x] Multi-chunk AEAD streaming design (1 MiB chunks, deterministic nonces)
+  - [x] Updated `docs/security.md` with master key wrapping, recovery key, and isolation rules
+  - [x] **GATE 4a**: Approved by user.
+
+- [x] **Stage 4b: Cryptographic Implementation & Test Suite**
+  - [x] Pure WebCrypto provider in `packages/shared/src/vault/webcrypto-provider.ts`
+  - [x] Binary container format parser and serializer in `packages/shared/src/vault/format.ts`
+  - [x] Streaming AEAD chunked encrypt/decrypt engine in `packages/shared/src/vault/vault-engine.ts`
+  - [x] Legacy migration helper in `packages/shared/src/vault/migration.ts`
+  - [x] Cryptographic verification suite in `apps/server/test/vault-sdv1.test.ts` (9 tests passing:
+        test vectors, bitflip, truncation, chunk swap, wrong key, boundary seeking, zeroization)
+  - [x] Deliverable `docs/audits/04-vault.md`
+  - [x] **GATE 4b**: Approved by user.
+
+- [x] **Stage 5: Optimization (Measured)**
+  - [x] Compound expression index for photo timeline queries (`idx_files_photos_timeline_fast`)
+  - [x] Covering index for file browser navigation (`idx_files_browse_covering`)
+  - [x] Migration 005 applied (`apps/server/migrations/005_optimization.sql`)
+  - [x] SQLite PRAGMA performance tuning: `synchronous = NORMAL`, `temp_store = MEMORY`,
+        `cache_size = -64000`, `mmap_size = 268435456`, `quick_check(1)`, `PRAGMA optimize`
+  - [x] Query rewrite in `apps/server/src/db/queries/files.ts` to use
+        `COALESCE(taken_at, modified_at)`
+  - [x] Verified zero temp B-Tree sorts on timeline queries across 25k real & 100k synthetic DB
+  - [x] Server cold start: 745.1 ms (budget < 800 ms)
+  - [x] Peak throughput: 11,439.5 req/s (budget > 5,000 req/s)
+  - [x] Web bundle size: 98.69 KB gzip (budget < 150 KB)
+  - [x] Deliverable `docs/audits/05-optimization.md`
+  - [x] **GATE 5**: Ready for sign-off.
+
+- [x] **Stage 6: Portability & Release Engineering Readiness**
+  - [x] Codebase module classification (Pure Logic vs Node-Bound vs UI)
+  - [x] Native dependency matrix: Windows Desktop (Tauri) vs Android
+  - [x] Platform abstraction seams (`SecretKeyStore`, `DatabaseConnection`, `HttpClient`)
+  - [x] Android architecture options analysis (Option A, B, C; recommended path)
+  - [x] Mobile security invariants: Scoped Storage, Keystore, Biometric unlock, `FLAG_SECURE`
+  - [x] Dual-installer specification: NSIS (`.exe`) vs WiX (`.msi`)
+  - [x] Tauri sidecar lifecycle, ephemeral loopback port discovery, and token passing
+  - [x] Code signing pipeline (Azure Trusted Signing / Cloud HSM)
+  - [x] Deliverable `docs/portability.md`
+  - [x] Deliverable `docs/release-engineering.md`
+  - [x] **GATE 6**: Ready for sign-off.
+
+- [ ] **Stage 7: Final Acceptance, Verification & Audit Scoreboard**
+  - [ ] Workspace clean build and verification (`pnpm typecheck`, `pnpm lint`, `pnpm -r test`,
+        `pnpm build`, `pnpm audit --prod`)
+  - [ ] Final benchmark run and scoreboard consolidation
+  - [ ] Deliverable `docs/audits/07-final-report.md`
+  - [ ] Update `README.md` with final audit & performance badges
+  - [ ] Final commit and merge readiness report
 
 ---
 
@@ -106,3 +160,8 @@
   `test(bench): establish Stage 1 baseline harness, synthetic 100k seed, and audit scoreboard`
 - `577e43d` — `chore(branding): rename project to Sunflower Drive and commit Grand README`
 - `7408f1d` — `feat(security): close SEC-001, SEC-002, SEC-003, SEC-006 and harden server routes`
+- `088c653` —
+  `feat(security): complete Stage 3 hardening with FTS sanitizer, path safety, rate limiting, and security CI`
+- `8da9c5e` —
+  `docs(vault): establish frozen SDV1 cryptographic specification and deterministic test vectors`
+- `c5ca0af` — `feat(vault): implement pure SDV1 cryptographic core and test suite`

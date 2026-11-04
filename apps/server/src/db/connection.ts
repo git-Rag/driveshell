@@ -37,11 +37,21 @@ export function openDb(log: FastifyBaseLogger): Db {
 
   const db = new BetterSqlite3(dbPath);
 
-  // Core pragmas — set before migrations so FK constraints apply during migration
+  // Core performance and integrity pragmas
   db.pragma('journal_mode = WAL');
+  db.pragma('synchronous = NORMAL');
+  db.pragma('temp_store = MEMORY');
+  db.pragma('cache_size = -64000'); // 64 MiB page cache
+  db.pragma('mmap_size = 268435456'); // 256 MiB memory-mapped I/O
   db.pragma('foreign_keys = ON');
   db.pragma('busy_timeout = 5000');
   db.pragma('journal_size_limit = 67108864'); // 64 MiB WAL cap
+
+  // Quick integrity verification on startup
+  const check = db.pragma('quick_check(1)', { simple: true });
+  if (check !== 'ok') {
+    log.error({ check }, 'SQLite quick_check reported an issue');
+  }
 
   runMigrations(db, log);
 
@@ -52,6 +62,11 @@ export function openDb(log: FastifyBaseLogger): Db {
 /** Close the database (called on graceful shutdown). */
 export function closeDb(): void {
   if (_db) {
+    try {
+      _db.pragma('optimize');
+    } catch {
+      // ignore errors during shutdown optimize
+    }
     _db.close();
     _db = null;
   }
