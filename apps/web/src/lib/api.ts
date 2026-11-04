@@ -193,8 +193,36 @@ export interface FilesListResponse {
 
 export interface PhotosListResponse {
   files: FileRecord[];
+  total: number;
   offset: number;
   limit: number;
+}
+
+export interface PhotoMonthBucket {
+  monthKey: string; // e.g. "2026-09"
+  label: string;    // e.g. "September 2026"
+  year: number;
+  count: number;
+  latestTime: number;
+}
+
+export interface MonthsResponse {
+  months: PhotoMonthBucket[];
+  total: number;
+}
+
+export interface BreadcrumbItem {
+  id: string;
+  name: string;
+}
+
+export interface BrowseResponse {
+  files: FileRecord[];
+  total: number;
+  offset: number;
+  limit: number;
+  breadcrumbs: BreadcrumbItem[];
+  parentId: string | null;
 }
 
 export interface SearchResponse {
@@ -227,6 +255,61 @@ export function getPhotos(opts: {
   return request<PhotosListResponse>(`/api/files/photos?${params.toString()}`);
 }
 
+export function getPhotoMonths(accountId?: string): Promise<MonthsResponse> {
+  const params = new URLSearchParams();
+  if (accountId) params.set('accountId', accountId);
+  return request<MonthsResponse>(`/api/files/months?${params.toString()}`);
+}
+
+export function browseFiles(opts: {
+  parentId?: string | null | undefined;
+  offset?: number | undefined;
+  limit?: number | undefined;
+  search?: string | undefined;
+  sortBy?: 'name' | 'modified_at' | 'size_bytes' | undefined;
+  sortDir?: 'asc' | 'desc' | undefined;
+  accountId?: string | undefined;
+}): Promise<BrowseResponse> {
+  const params = new URLSearchParams();
+  if (opts.parentId) params.set('parentId', opts.parentId);
+  if (opts.offset != null) params.set('offset', String(opts.offset));
+  if (opts.limit != null) params.set('limit', String(opts.limit));
+  if (opts.search) params.set('search', opts.search);
+  if (opts.sortBy) params.set('sortBy', opts.sortBy);
+  if (opts.sortDir) params.set('sortDir', opts.sortDir);
+  if (opts.accountId) params.set('accountId', opts.accountId);
+  return request<BrowseResponse>(`/api/files/browse?${params.toString()}`);
+}
+
+export function updateFile(
+  fileId: string,
+  updates: {
+    name?: string | undefined;
+    starred?: number | undefined;
+    trashed?: number | undefined;
+    parentId?: string | null | undefined;
+  },
+  accountId?: string | undefined,
+): Promise<{ ok: boolean; file: FileRecord }> {
+  const params = new URLSearchParams();
+  if (accountId) params.set('accountId', accountId);
+  return request<{ ok: boolean; file: FileRecord }>(`/api/files/${encodeURIComponent(fileId)}?${params.toString()}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
+}
+
+export function createFolder(
+  name: string,
+  parentId?: string | null,
+  accountId?: string,
+): Promise<{ ok: boolean; folder: FileRecord }> {
+  return request<{ ok: boolean; folder: FileRecord }>('/api/files/folder', {
+    method: 'POST',
+    body: JSON.stringify({ name, parentId, accountId }),
+  });
+}
+
 export function searchFiles(opts: {
   q: string;
   accountId?: string;
@@ -236,4 +319,26 @@ export function searchFiles(opts: {
   if (opts.accountId) params.set('accountId', opts.accountId);
   if (opts.limit != null) params.set('limit', String(opts.limit));
   return request<SearchResponse>(`/api/files/search?${params.toString()}`);
+}
+
+// ---------------------------------------------------------------------------
+// Media URLs
+// ---------------------------------------------------------------------------
+
+export function getMediaThumbUrl(fileId: string, size = 400, accountId?: string): string {
+  const params = new URLSearchParams({ size: String(size) });
+  if (accountId) params.set('accountId', accountId);
+  return `/api/media/${encodeURIComponent(fileId)}/thumb?${params.toString()}`;
+}
+
+export function getMediaStreamUrl(fileId: string, accountId?: string): string {
+  const params = new URLSearchParams();
+  if (accountId) params.set('accountId', accountId);
+  return `/api/media/${encodeURIComponent(fileId)}/stream?${params.toString()}`;
+}
+
+export function getMediaDownloadUrl(fileId: string, accountId?: string): string {
+  const params = new URLSearchParams();
+  if (accountId) params.set('accountId', accountId);
+  return `/api/media/${encodeURIComponent(fileId)}/download?${params.toString()}`;
 }

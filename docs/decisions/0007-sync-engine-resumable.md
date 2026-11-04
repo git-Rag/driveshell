@@ -92,3 +92,4 @@ and `reply.raw` to write `data: {...}\n\n` frames directly.
 - FTS5 is always consistent with the files table via triggers (no manual sync required).
 - Short queries degrade gracefully to LIKE instead of returning empty results.
 - SSE requires Nginx/proxy `X-Accel-Buffering: no` header to prevent buffering (set in route).
+

@@ -6,6 +6,7 @@ import { registerSessionMiddleware, setSessionCookie } from './auth/session';
 import { registerAuthRoutes } from './routes/auth';
 import { registerSyncRoutes } from './routes/sync';
 import { registerFileRoutes } from './routes/files';
+import { registerMediaRoutes } from './routes/media';
 import { createSyncScheduler } from './sync/scheduler';
 import { buildAccountQueries } from './db/queries/accounts';
 import { buildFileQueries } from './db/queries/files';
@@ -116,6 +117,7 @@ async function main(): Promise<void> {
 
   await registerSyncRoutes(app, db, scheduler);
   await registerFileRoutes(app, db);
+  await registerMediaRoutes(app, db, port);
 
   // -------------------------------------------------------------------------
   // Graceful shutdown

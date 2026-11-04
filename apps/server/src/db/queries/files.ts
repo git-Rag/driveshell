@@ -62,6 +62,26 @@ export interface ListFilesOpts {
   trashed?: boolean;
 }
 
+export interface PhotoMonthBucket {
+  monthKey: string; // e.g. "2026-09"
+  label: string;    // e.g. "September 2026"
+  year: number;     // 2026
+  count: number;
+  latestTime: number;
+}
+
+export interface BreadcrumbItem {
+  id: string;
+  name: string;
+}
+
+export interface UpdateFileInput {
+  name?: string | null | undefined;
+  starred?: number | undefined;
+  trashed?: number | undefined;
+  parent_id?: string | null | undefined;
+}
+
 // ---------------------------------------------------------------------------
 // Queries
 // ---------------------------------------------------------------------------
@@ -165,6 +185,42 @@ export function buildFileQueries(db: Db) {
     LIMIT ? OFFSET ?
   `);
 
+  const countPhotos = db.prepare<[string], { total: number }>(`
+    SELECT COUNT(*) AS total FROM files
+    WHERE account_id = ?
+      AND (mime_type LIKE 'image/%' OR mime_type LIKE 'video/%')
+      AND trashed = 0
+  `);
+
+  const photoMonthsStmt = db.prepare<[string], { month_key: string; total: number; latest_time: number }>(`
+    SELECT
+      strftime('%Y-%m', datetime(CASE WHEN taken_at IS NOT NULL THEN taken_at/1000 ELSE modified_at/1000 END, 'unixepoch')) AS month_key,
+      COUNT(*) AS total,
+      MAX(CASE WHEN taken_at IS NOT NULL THEN taken_at ELSE modified_at END) AS latest_time
+    FROM files
+    WHERE account_id = ?
+      AND (mime_type LIKE 'image/%' OR mime_type LIKE 'video/%')
+      AND trashed = 0
+    GROUP BY month_key
+    ORDER BY latest_time DESC
+  `);
+
+  const updateMetaStmt = db.prepare<{
+    account_id: string;
+    id: string;
+    name?: string | null;
+    starred?: number | null;
+    trashed?: number | null;
+    parent_id?: string | null;
+  }>(`
+    UPDATE files SET
+      name = COALESCE(@name, name),
+      starred = COALESCE(@starred, starred),
+      trashed = COALESCE(@trashed, trashed),
+      parent_id = CASE WHEN @parent_id IS NOT NULL THEN @parent_id ELSE parent_id END
+    WHERE account_id = @account_id AND id = @id
+  `);
+
   return {
     /** Insert or update a file row. FTS triggers fire automatically. */
     upsertFile(input: UpsertFileInput): void {
@@ -216,6 +272,124 @@ export function buildFileQueries(db: Db) {
     /** Paginated photo listing (image/* + video/*), by taken_at then modified_at. */
     listPhotos(accountId: string, opts: { offset: number; limit: number }): FileRow[] {
       return listPhotos.all(accountId, opts.limit, opts.offset);
+    },
+
+    /** Total count of photos and videos. */
+    countPhotos(accountId: string): number {
+      return countPhotos.get(accountId)?.total ?? 0;
+    },
+
+    /** Group photos by month for timeline scrubber and section headers. */
+    getPhotoMonths(accountId: string): PhotoMonthBucket[] {
+      const rows = photoMonthsStmt.all(accountId);
+      const MONTH_NAMES = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+      ];
+      return rows.map((r) => {
+        const [yearStr, monthStr] = r.month_key.split('-');
+        const year = parseInt(yearStr ?? '2026', 10);
+        const monthNum = parseInt(monthStr ?? '1', 10);
+        const monthName = MONTH_NAMES[monthNum - 1] ?? monthStr;
+        return {
+          monthKey: r.month_key,
+          label: `${monthName} ${year}`,
+          year,
+          count: r.total,
+          latestTime: r.latest_time,
+        };
+      });
+    },
+
+    /**
+     * List files and folders inside a given parent folder.
+     * Orders folders first, then files, sorted by chosen field.
+     */
+    listByParent(
+      accountId: string,
+      parentId: string | null,
+      opts: {
+        offset: number;
+        limit: number;
+        search?: string | undefined;
+        sortBy?: 'name' | 'modified_at' | 'size_bytes' | undefined;
+        sortDir?: 'asc' | 'desc' | undefined;
+      },
+    ): { files: FileRow[]; total: number } {
+      const sortField =
+        opts.sortBy === 'name' ? 'name' : opts.sortBy === 'size_bytes' ? 'size_bytes' : 'modified_at';
+      const sortDirection = opts.sortDir === 'asc' ? 'ASC' : 'DESC';
+
+      let sql = `
+        SELECT * FROM files
+        WHERE account_id = ? AND trashed = 0
+      `;
+      const params: (string | number)[] = [accountId];
+
+      if (parentId === null) {
+        // Root files: either parent_id IS NULL or parent_id = ''
+        sql += ` AND (parent_id IS NULL OR parent_id = '')`;
+      } else {
+        sql += ` AND parent_id = ?`;
+        params.push(parentId);
+      }
+
+      if (opts.search?.trim()) {
+        sql += ` AND name LIKE ? ESCAPE '\\'`;
+        const escaped =
+          '%' + opts.search.trim().replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_') + '%';
+        params.push(escaped);
+      }
+
+      // Count query before ordering & limit
+      const countSql = `SELECT COUNT(*) AS total FROM (${sql})`;
+      const totalRow = db.prepare<typeof params, { total: number }>(countSql).get(...params);
+      const total = totalRow?.total ?? 0;
+
+      // Folders always at the top, then sort by chosen column
+      sql += `
+        ORDER BY
+          CASE WHEN mime_type = 'application/vnd.google-apps.folder' THEN 0 ELSE 1 END ASC,
+          ${sortField} ${sortDirection}
+        LIMIT ? OFFSET ?
+      `;
+      params.push(opts.limit, opts.offset);
+
+      const files = db.prepare<typeof params, FileRow>(sql).all(...params);
+      return { files, total };
+    },
+
+    /**
+     * Recursively resolve breadcrumb trail from a current folder up to root.
+     */
+    getBreadcrumbs(accountId: string, currentFolderId: string | null): BreadcrumbItem[] {
+      if (!currentFolderId) return [];
+
+      const trail: BreadcrumbItem[] = [];
+      let curId: string | null = currentFolderId;
+      const visited = new Set<string>();
+
+      while (curId && !visited.has(curId)) {
+        visited.add(curId);
+        const folder = findById.get(accountId, curId);
+        if (!folder) break;
+        trail.unshift({ id: folder.id, name: folder.name });
+        curId = folder.parent_id;
+      }
+
+      return trail;
+    },
+
+    /** Update file metadata in SQLite (starred, trashed, rename, parent). */
+    updateFileMeta(accountId: string, id: string, updates: UpdateFileInput): void {
+      updateMetaStmt.run({
+        account_id: accountId,
+        id,
+        name: updates.name ?? null,
+        starred: updates.starred ?? null,
+        trashed: updates.trashed ?? null,
+        parent_id: updates.parent_id ?? null,
+      });
     },
 
     /** Paginated non-media file listing, by modified_at. */
