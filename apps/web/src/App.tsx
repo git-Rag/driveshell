@@ -1,8 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Sidebar } from './app/shell/Sidebar';
 import { TopBar } from './app/shell/TopBar';
-import { WelcomeScreen } from './features/setup/WelcomeScreen';
 import { SetupWizard } from './features/setup/SetupWizard';
+import { GalleryView } from './features/gallery/GalleryView';
+import { FilesView } from './features/files/FilesView';
+import { VaultView } from './features/vault/VaultView';
+import { SettingsView } from './features/settings/SettingsView';
 import { useSetupStatus } from './hooks/useSetupStatus';
 
 // Phase 1: Setup wizard + auth flow wired up.
@@ -120,8 +123,25 @@ export function App() {
           }}
           aria-label="Main content"
         >
-          {/* TODO(phase-2): Replace WelcomeScreen with routed gallery/files views */}
-          <WelcomeScreen />
+          {['gallery', 'moments', 'albums', 'favorites', 'people', 'photos'].includes(activeId) && (
+            <GalleryView
+              account={status.state === 'ready' ? (status.data.accounts[0] ?? null) : null}
+              activeTab={activeId === 'photos' ? 'gallery' : activeId}
+              onTabChange={setActiveId}
+            />
+          )}
+
+          {activeId === 'files' && <FilesView />}
+
+          {activeId === 'vault' && <VaultView />}
+
+          {activeId === 'settings' && (
+            <SettingsView
+              account={status.state === 'ready' ? (status.data.accounts[0] ?? null) : null}
+              isDark={isDark}
+              onThemeToggle={() => setIsDark((d) => !d)}
+            />
+          )}
         </main>
       </div>
     </div>

@@ -41,6 +41,7 @@ interface PendingAuth {
   codeVerifier: string;
   scope: ScopeLevel;
   expiresAt: number;
+  clientUrl?: string;
 }
 
 const pendingAuth = new Map<string, PendingAuth>();
@@ -134,8 +135,26 @@ export async function registerAuthRoutes(
     const { codeVerifier, codeChallenge } = generatePkce();
     const state = generateState();
 
+    const referer = (req.headers['referer'] as string | undefined) ?? '';
+    let clientUrl = `http://127.0.0.1:${port}/?auth_success=1`;
+    if (referer) {
+      try {
+        const u = new URL(referer);
+        if (/^(127\.0\.0\.1|localhost)$/.test(u.hostname)) {
+          clientUrl = `${u.origin}/?auth_success=1`;
+        }
+      } catch {
+        /* ignore invalid referer */
+      }
+    }
+
     purgePkceExpired();
-    pendingAuth.set(state, { codeVerifier, scope, expiresAt: Date.now() + PKCE_TTL_MS });
+    pendingAuth.set(state, {
+      codeVerifier,
+      scope,
+      expiresAt: Date.now() + PKCE_TTL_MS,
+      clientUrl,
+    });
 
     const oAuth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
     const url = oAuth2Client.generateAuthUrl({
@@ -257,6 +276,7 @@ export async function registerAuthRoutes(
 
     // Redirect back to the app; web will poll /api/setup/status
     setSessionCookie(reply, port);
-    return reply.redirect(`http://127.0.0.1:${port}/?auth_success=1`);
+    const returnUrl = pending.clientUrl ?? `http://127.0.0.1:${port}/?auth_success=1`;
+    return reply.redirect(returnUrl);
   });
 }
