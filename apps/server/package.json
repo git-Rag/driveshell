@@ -15,6 +15,7 @@
     "seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
+    "@driveshell/shared": "workspace:*",
     "@fastify/cookie": "^11.1.5",
     "@fastify/cors": "^10.0.1",
     "@napi-rs/keyring": "^2.1.2",
