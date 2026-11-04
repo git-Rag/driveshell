@@ -103,3 +103,137 @@ export function saveCredentials(clientId: string, clientSecret: string): Promise
 export function startAuth(scope: 'readonly' | 'full' = 'readonly'): void {
   window.location.href = `/api/auth/start?scope=${scope}`;
 }
+
+// ---------------------------------------------------------------------------
+// Sync
+// ---------------------------------------------------------------------------
+
+export interface SyncAccountStatus {
+  id: string;
+  email: string;
+  displayName: string;
+  status: 'ok' | 'syncing' | 'needs_reauth' | 'error';
+  fullSyncStage: string | null;
+  lastFullSyncAt: number | null;
+  lastIncrementalAt: number | null;
+  fileCount: number;
+}
+
+export interface SyncStatus {
+  accounts: SyncAccountStatus[];
+}
+
+export function getSyncStatus(): Promise<SyncStatus> {
+  return request<SyncStatus>('/api/sync/status');
+}
+
+export function triggerSync(accountId: string): Promise<{ ok: boolean; message: string }> {
+  return request<{ ok: boolean; message: string }>(`/api/sync/start/${accountId}`, {
+    method: 'POST',
+  });
+}
+
+export interface SyncProgressEvent {
+  type: 'progress' | 'done' | 'error' | 'connected';
+  accountId?: string;
+  indexed?: number;
+  stage?: string;
+  message?: string;
+}
+
+/** Subscribe to sync progress SSE events. Returns an unsubscribe function. */
+export function subscribeSyncProgress(onEvent: (e: SyncProgressEvent) => void): () => void {
+  const es = new EventSource('/api/sync/progress', { withCredentials: true });
+  es.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data as string) as SyncProgressEvent;
+      onEvent(data);
+    } catch {
+      /* ignore malformed events */
+    }
+  };
+  es.onerror = () => {
+    // EventSource auto-reconnects; just emit an error event so UI can react
+    onEvent({ type: 'error', message: 'SSE connection lost — reconnecting…' });
+  };
+  return () => es.close();
+}
+
+// ---------------------------------------------------------------------------
+// Files
+// ---------------------------------------------------------------------------
+
+export interface FileRecord {
+  rowid: number;
+  account_id: string;
+  id: string;
+  name: string;
+  mime_type: string;
+  parent_id: string | null;
+  size_bytes: number | null;
+  modified_at: number;
+  created_at_ms: number;
+  starred: number;
+  trashed: number;
+  thumbnail_url: string | null;
+  web_view_link: string | null;
+  image_width: number | null;
+  image_height: number | null;
+  taken_at: number | null;
+  camera_make: string | null;
+  camera_model: string | null;
+}
+
+export interface FilesListResponse {
+  files: FileRecord[];
+  total: number;
+  offset: number;
+  limit: number;
+}
+
+export interface PhotosListResponse {
+  files: FileRecord[];
+  offset: number;
+  limit: number;
+}
+
+export interface SearchResponse {
+  files: FileRecord[];
+  query: string;
+  limit: number;
+}
+
+export function getFiles(opts: {
+  accountId?: string;
+  offset?: number;
+  limit?: number;
+}): Promise<FilesListResponse> {
+  const params = new URLSearchParams();
+  if (opts.accountId) params.set('accountId', opts.accountId);
+  if (opts.offset != null) params.set('offset', String(opts.offset));
+  if (opts.limit != null) params.set('limit', String(opts.limit));
+  return request<FilesListResponse>(`/api/files/list?${params.toString()}`);
+}
+
+export function getPhotos(opts: {
+  accountId?: string;
+  offset?: number;
+  limit?: number;
+}): Promise<PhotosListResponse> {
+  const params = new URLSearchParams();
+  if (opts.accountId) params.set('accountId', opts.accountId);
+  if (opts.offset != null) params.set('offset', String(opts.offset));
+  if (opts.limit != null) params.set('limit', String(opts.limit));
+  return request<PhotosListResponse>(`/api/files/photos?${params.toString()}`);
+}
+
+export function searchFiles(opts: {
+  q: string;
+  accountId?: string;
+  limit?: number;
+}): Promise<SearchResponse> {
+  const params = new URLSearchParams({ q: opts.q });
+  if (opts.accountId) params.set('accountId', opts.accountId);
+  if (opts.limit != null) params.set('limit', String(opts.limit));
+  return request<SearchResponse>(`/api/files/search?${params.toString()}`);
+}

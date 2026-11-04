@@ -73,6 +73,23 @@ export function buildAccountQueries(db: Db) {
     DELETE FROM accounts WHERE id = ?
   `);
 
+  const updateSyncCursors = db.prepare<{
+    full_sync_page_token: string | null;
+    full_sync_stage: string | null;
+    changes_page_token?: string | null;
+    last_full_sync_at?: number | null;
+    last_incremental_at?: number | null;
+    id: string;
+  }>(`
+    UPDATE accounts SET
+      full_sync_page_token = @full_sync_page_token,
+      full_sync_stage      = @full_sync_stage,
+      changes_page_token   = COALESCE(@changes_page_token, changes_page_token),
+      last_full_sync_at    = COALESCE(@last_full_sync_at, last_full_sync_at),
+      last_incremental_at  = COALESCE(@last_incremental_at, last_incremental_at)
+    WHERE id = @id
+  `);
+
   return {
     /** Upsert an account from Google's about.get response. */
     upsert(input: UpsertAccountInput): void {
@@ -101,6 +118,30 @@ export function buildAccountQueries(db: Db) {
      */
     remove(id: string): void {
       remove.run(id);
+    },
+
+    /**
+     * Update sync cursors after each sync page or upon completion.
+     * Uses COALESCE so passing `undefined` leaves existing values intact.
+     */
+    updateSyncCursors(
+      id: string,
+      opts: {
+        full_sync_page_token?: string | null;
+        full_sync_stage?: string | null;
+        changes_page_token?: string | null;
+        last_full_sync_at?: number | null;
+        last_incremental_at?: number | null;
+      },
+    ): void {
+      updateSyncCursors.run({
+        id,
+        full_sync_page_token: opts.full_sync_page_token ?? null,
+        full_sync_stage: opts.full_sync_stage ?? null,
+        changes_page_token: opts.changes_page_token ?? null,
+        last_full_sync_at: opts.last_full_sync_at ?? null,
+        last_incremental_at: opts.last_incremental_at ?? null,
+      });
     },
   };
 }

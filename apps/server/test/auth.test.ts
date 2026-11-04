@@ -82,7 +82,12 @@ describe('Keychain — encrypted-file fallback', () => {
     } else {
       process.env['DATA_DIR'] = originalDataDir;
     }
-    fs.rmSync(tmpDir, { recursive: true, force: true });
+    // Windows: give the FS a tick to release file locks before rmSync
+    try {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    } catch {
+      // On Windows, locked WAL files may resist immediate deletion — ignore
+    }
   });
 
   it('stores and retrieves a secret via the file fallback', async () => {
@@ -157,7 +162,12 @@ describe('DB migrations', () => {
     } else {
       process.env['DATA_DIR'] = originalDataDir;
     }
-    fs.rmSync(tmpDir, { recursive: true, force: true });
+    // Windows: give the FS a tick to release file locks before rmSync
+    try {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    } catch {
+      // On Windows, locked WAL files may resist immediate deletion — ignore
+    }
   });
 
   it('opens the DB and runs migration 001 successfully', async () => {
@@ -165,11 +175,11 @@ describe('DB migrations', () => {
     const { openDb, closeDb } = await import('../src/db/connection');
     const db = openDb(log as never);
 
-    // schema_version must have one row with version = 1
+    // schema_version must have rows — version 1 at minimum (002 may also be applied)
     const row = db
       .prepare<[], { version: number }>(`SELECT MAX(version) AS version FROM schema_version`)
       .get();
-    expect(row?.version).toBe(1);
+    expect(row?.version).toBeGreaterThanOrEqual(1);
 
     // accounts and settings tables must exist
     const tables = db

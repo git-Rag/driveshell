@@ -4,6 +4,12 @@ import { findAvailablePort } from './utils/port';
 import { openDb, closeDb } from './db/connection';
 import { registerSessionMiddleware, setSessionCookie } from './auth/session';
 import { registerAuthRoutes } from './routes/auth';
+import { registerSyncRoutes } from './routes/sync';
+import { registerFileRoutes } from './routes/files';
+import { createSyncScheduler } from './sync/scheduler';
+import { buildAccountQueries } from './db/queries/accounts';
+import { buildFileQueries } from './db/queries/files';
+import { createKeychain } from './auth/keychain';
 
 const DEFAULT_PORT = Number(process.env['SERVER_PORT'] ?? 3001);
 const LOG_LEVEL = process.env['LOG_LEVEL'] ?? 'info';
@@ -99,14 +105,24 @@ async function main(): Promise<void> {
   // Auth + setup routes (Phase 1)
   await registerAuthRoutes(app, db, port);
 
-  // TODO(phase-2): Register sync routes
-  // TODO(phase-3): Register timeline / media routes
+  // -------------------------------------------------------------------------
+  // Sync engine (Phase 2)
+  // -------------------------------------------------------------------------
+  const keychain = createKeychain(app.log);
+  const accountQ = buildAccountQueries(db);
+  const fileQ = buildFileQueries(db);
+
+  const scheduler = createSyncScheduler(db, keychain, accountQ, fileQ, port, app.log);
+
+  await registerSyncRoutes(app, db, scheduler);
+  await registerFileRoutes(app, db);
 
   // -------------------------------------------------------------------------
   // Graceful shutdown
   // -------------------------------------------------------------------------
   const shutdown = (): void => {
     app.log.info('Shutting down…');
+    scheduler.shutdown();
     app
       .close()
       .then(() => {

@@ -1,84 +1,107 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Folder,
   FileText,
   FileCode,
   FileSpreadsheet,
   Image as ImageIcon,
+  FileVideo,
+  File,
   MoreVertical,
   ArrowUpDown,
-  Search,
   Upload,
   FolderPlus,
   HardDrive,
   Share2,
+  Search,
+  Loader2,
+  RefreshCw,
 } from 'lucide-react';
+import { getFiles, searchFiles } from '../../lib/api';
+import type { FileRecord } from '../../lib/api';
+import { useSyncStatus } from '../../hooks/useSyncStatus';
+
+function formatBytes(bytes: number | null): string {
+  if (bytes == null) return '—';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1_048_576) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1_073_741_824) return `${(bytes / 1_048_576).toFixed(1)} MB`;
+  return `${(bytes / 1_073_741_824).toFixed(2)} GB`;
+}
+
+function formatDate(ms: number): string {
+  const d = new Date(ms);
+  const now = new Date();
+  const delta = Date.now() - ms;
+  if (delta < 86_400_000 && d.getDate() === now.getDate()) {
+    return `Today, ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  }
+  if (delta < 172_800_000) return 'Yesterday';
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function MimeIcon({ mime, size = 18 }: { mime: string; size?: number }) {
+  if (mime.startsWith('image/')) return <ImageIcon size={size} className="text-blue-400" />;
+  if (mime.startsWith('video/')) return <FileVideo size={size} className="text-purple-400" />;
+  if (mime === 'application/vnd.google-apps.folder') return <Folder size={size} className="text-amber-400" />;
+  if (mime.includes('spreadsheet') || mime.includes('excel') || mime.includes('csv')) return <FileSpreadsheet size={size} className="text-emerald-400" />;
+  if (mime.includes('document') || mime.includes('pdf') || mime.includes('text')) return <FileText size={size} className="text-rose-400" />;
+  if (mime.includes('javascript') || mime.includes('json') || mime.includes('xml')) return <FileCode size={size} className="text-violet-400" />;
+  return <File size={size} className="text-ds-text-muted" />;
+}
 
 export function FilesView() {
   const [search, setSearch] = useState('');
+  const [files, setFiles] = useState<FileRecord[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [offset, setOffset] = useState(0);
+  const LIMIT = 50;
 
-  const mockFiles = [
-    {
-      id: '1',
-      name: 'Camera Uploads',
-      type: 'folder',
-      modified: 'Nov 4, 2026',
-      size: '24.8 GB',
-      sharing: 'Private',
-      icon: Folder,
-      color: 'text-amber-400',
-    },
-    {
-      id: '2',
-      name: 'Documents & Receipts',
-      type: 'folder',
-      modified: 'Nov 1, 2026',
-      size: '1.2 GB',
-      sharing: 'Private',
-      icon: Folder,
-      color: 'text-amber-400',
-    },
-    {
-      id: '3',
-      name: 'Design Assets',
-      type: 'folder',
-      modified: 'Oct 28, 2026',
-      size: '8.4 GB',
-      sharing: 'Shared (3)',
-      icon: Folder,
-      color: 'text-blue-400',
-    },
-    {
-      id: '4',
-      name: 'Annual_Financial_Summary_2026.xlsx',
-      type: 'sheet',
-      modified: 'Today, 11:30 AM',
-      size: '340 KB',
-      sharing: 'Private',
-      icon: FileSpreadsheet,
-      color: 'text-emerald-400',
-    },
-    {
-      id: '5',
-      name: 'Project_Specification_v2.pdf',
-      type: 'doc',
-      modified: 'Yesterday, 4:10 PM',
-      size: '2.8 MB',
-      sharing: 'Shared (1)',
-      icon: FileText,
-      color: 'text-rose-400',
-    },
-    {
-      id: '6',
-      name: 'driveshell-config.json',
-      type: 'code',
-      modified: 'Nov 3, 2026',
-      size: '12 KB',
-      sharing: 'Private',
-      icon: FileCode,
-      color: 'text-violet-400',
-    },
-  ];
+  const { syncStatus } = useSyncStatus();
+  const fileCount = syncStatus?.accounts[0]?.fileCount ?? 0;
+  const syncDone = syncStatus?.accounts[0]?.fullSyncStage === 'done';
+
+  const fetchFiles = useCallback(async (q: string, off: number) => {
+    setLoading(true);
+    setError(null);
+    try {
+      if (q.trim()) {
+        const res = await searchFiles({ q: q.trim(), limit: LIMIT });
+        setFiles(res.files);
+        setTotal(res.files.length);
+      } else {
+        const res = await getFiles({ offset: off, limit: LIMIT });
+        setFiles(res.files);
+        setTotal(res.total);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load files');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Initial load
+  useEffect(() => {
+    void fetchFiles('', 0);
+  }, [fetchFiles, syncDone]); // re-fetch when sync completes
+
+  // Search with debounce
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setOffset(0);
+      void fetchFiles(search, 0);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [search, fetchFiles]);
+
+  function loadMore() {
+    const nextOffset = offset + LIMIT;
+    setOffset(nextOffset);
+    void fetchFiles(search, nextOffset);
+  }
 
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-ds-bg text-ds-text-primary">
@@ -88,7 +111,7 @@ export function FilesView() {
           <button
             disabled
             className="btn-primary opacity-60 cursor-not-allowed flex items-center gap-1.5 text-xs py-1.5 px-3"
-            title="Write operations will be enabled in Phase 5"
+            title="Write operations — Phase 5"
           >
             <Upload size={13} />
             Upload
@@ -103,9 +126,32 @@ export function FilesView() {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Live search */}
+          <div className="relative">
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-ds-text-muted pointer-events-none" />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search files…"
+              className="pl-8 pr-3 py-1.5 text-xs rounded-lg bg-ds-bg-elevated border border-ds-border focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand/30 w-52 text-ds-text-primary placeholder:text-ds-text-muted transition-all"
+            />
+            {loading && (
+              <Loader2 size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-ds-text-muted animate-spin" />
+            )}
+          </div>
+
+          <button
+            onClick={() => void fetchFiles(search, offset)}
+            className="p-1.5 rounded-lg bg-ds-bg-elevated border border-ds-border text-ds-text-muted hover:text-ds-text-primary hover:border-brand/50 transition-all"
+            title="Refresh"
+          >
+            <RefreshCw size={13} />
+          </button>
+
           <div className="flex items-center gap-2 bg-ds-bg-elevated px-3 py-1 rounded-lg border border-ds-border/60 text-xs text-ds-text-muted">
             <HardDrive size={13} className="text-brand" />
-            <span>SQLite Metadata Index</span>
+            <span>{fileCount > 0 ? `${fileCount.toLocaleString()} files in SQLite` : 'SQLite Metadata Index'}</span>
           </div>
         </div>
       </div>
@@ -116,12 +162,20 @@ export function FilesView() {
           <div>
             <h2 className="text-lg font-bold tracking-tight text-ds-text-primary">All Files</h2>
             <p className="text-xs text-ds-text-muted mt-0.5">
-              Phase 5 Files View — reads metadata directly from local SQLite database
+              {syncDone
+                ? `${total.toLocaleString()} files from local SQLite index${search ? ` matching "${search}"` : ''}`
+                : 'Reads metadata from local SQLite — start a Drive sync to populate'}
             </p>
           </div>
         </div>
 
-        {/* Clean Table */}
+        {error && (
+          <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400">
+            {error}
+          </div>
+        )}
+
+        {/* Table */}
         <div className="card overflow-hidden">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
@@ -134,43 +188,95 @@ export function FilesView() {
                 </th>
                 <th className="py-3 px-4">Modified</th>
                 <th className="py-3 px-4">Size</th>
-                <th className="py-3 px-4">Sharing</th>
+                <th className="py-3 px-4">Type</th>
                 <th className="py-3 px-4 w-10"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-ds-border/50">
-              {mockFiles.map((file) => {
-                const Icon = file.icon;
-                return (
-                  <tr
-                    key={file.id}
-                    className="hover:bg-ds-bg-hover transition-colors cursor-pointer group"
-                  >
-                    <td className="py-3 px-4">
-                      <Icon size={18} className={file.color} />
-                    </td>
-                    <td className="py-3 px-4 font-medium text-ds-text-primary">{file.name}</td>
-                    <td className="py-3 px-4 text-ds-text-muted">{file.modified}</td>
-                    <td className="py-3 px-4 font-mono text-ds-text-muted">{file.size}</td>
-                    <td className="py-3 px-4 text-ds-text-secondary">
-                      <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-ds-bg-elevated border border-ds-border/60">
-                        {file.sharing.includes('Shared') && (
-                          <Share2 size={10} className="text-brand" />
-                        )}
-                        {file.sharing}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right">
+              {files.length === 0 && !loading ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-ds-text-muted text-xs">
+                    {syncDone
+                      ? search
+                        ? `No files match "${search}"`
+                        : 'No files found'
+                      : 'Start a Drive sync to see your files here'}
+                  </td>
+                </tr>
+              ) : null}
+
+              {files.map((file) => (
+                <tr
+                  key={file.rowid}
+                  className="hover:bg-ds-bg-hover transition-colors cursor-pointer group"
+                >
+                  <td className="py-3 px-4">
+                    <MimeIcon mime={file.mime_type} />
+                  </td>
+                  <td className="py-3 px-4 font-medium text-ds-text-primary max-w-xs">
+                    <span className="truncate block max-w-[300px]" title={file.name}>
+                      {file.name}
+                    </span>
+                    {file.starred === 1 && (
+                      <span className="text-[10px] text-amber-400 font-mono">★ Starred</span>
+                    )}
+                  </td>
+                  <td className="py-3 px-4 text-ds-text-muted whitespace-nowrap">
+                    {formatDate(file.modified_at)}
+                  </td>
+                  <td className="py-3 px-4 font-mono text-ds-text-muted">
+                    {formatBytes(file.size_bytes)}
+                  </td>
+                  <td className="py-3 px-4 text-ds-text-secondary">
+                    <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-ds-bg-elevated border border-ds-border/60">
+                      {file.mime_type.split('/').pop()?.toUpperCase().slice(0, 10) ?? '—'}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-right">
+                    {file.web_view_link ? (
+                      <a
+                        href={file.web_view_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="p-1 rounded hover:bg-ds-bg-elevated text-ds-text-muted hover:text-ds-text-primary inline-flex"
+                        title="Open in Drive"
+                      >
+                        <Share2 size={13} />
+                      </a>
+                    ) : (
                       <button className="text-ds-text-muted hover:text-ds-text-primary p-1 rounded hover:bg-ds-bg-elevated">
                         <MoreVertical size={14} />
                       </button>
-                    </td>
-                  </tr>
-                );
-              })}
+                    )}
+                  </td>
+                </tr>
+              ))}
+
+              {loading && files.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center">
+                    <Loader2 size={20} className="animate-spin text-brand mx-auto" />
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
+
+        {/* Load more */}
+        {!search && total > files.length + offset && (
+          <div className="mt-4 text-center">
+            <button
+              onClick={loadMore}
+              disabled={loading}
+              className="btn-ghost text-xs flex items-center gap-2 mx-auto"
+            >
+              {loading ? <Loader2 size={13} className="animate-spin" /> : null}
+              Load more ({total - files.length - offset} remaining)
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
 import { Search, RefreshCw, Moon, Sun, Bell } from 'lucide-react';
 import { useState } from 'react';
+import { useSyncStatus } from '../../hooks/useSyncStatus';
 
 interface TopBarProps {
   onThemeToggle?: () => void;
@@ -16,6 +17,28 @@ export function TopBar({
 }: TopBarProps) {
   const initials = account?.displayName?.[0]?.toUpperCase() ?? '?';
   const [searchFocused, setSearchFocused] = useState(false);
+
+  // Live sync state from the scheduler
+  const { isSyncing, syncStatus } = useSyncStatus();
+  const accountSync = syncStatus?.accounts[0];
+  const liveSyncState: TopBarProps['syncState'] = isSyncing
+    ? 'syncing'
+    : accountSync?.status === 'needs_reauth'
+    ? 'needs_reauth'
+    : accountSync?.status === 'error'
+    ? 'error'
+    : syncState;
+
+  const lastSyncLabel =
+    !isSyncing && accountSync?.lastFullSyncAt
+      ? (() => {
+          const delta = Date.now() - accountSync.lastFullSyncAt;
+          if (delta < 60_000) return 'Synced just now';
+          if (delta < 3_600_000) return `Synced ${Math.floor(delta / 60_000)}m ago`;
+          if (delta < 86_400_000) return `Synced ${Math.floor(delta / 3_600_000)}h ago`;
+          return `Synced ${Math.floor(delta / 86_400_000)}d ago`;
+        })()
+      : null;
 
   return (
     <header
@@ -110,7 +133,7 @@ export function TopBar({
         style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto', flexShrink: 0 }}
       >
         {/* Sync chip */}
-        <SyncChip state={syncState} />
+        <SyncChip state={liveSyncState} lastSyncLabel={lastSyncLabel} />
 
         {/* Notifications */}
         <TopBarIconButton icon={<Bell size={16} />} label="Notifications" />
@@ -162,13 +185,13 @@ export function TopBar({
   );
 }
 
-function SyncChip({ state }: { state: TopBarProps['syncState'] }) {
+function SyncChip({ state, lastSyncLabel }: { state: TopBarProps['syncState']; lastSyncLabel?: string | null }) {
   const configs = {
     idle: {
       color: 'var(--ds-text-disabled)',
       bg: 'transparent',
       icon: null,
-      label: null,
+      label: lastSyncLabel ?? null,
     },
     syncing: {
       color: 'var(--ds-accent)',
