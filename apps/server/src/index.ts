@@ -2,7 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { findAvailablePort } from './utils/port';
 import { openDb, closeDb } from './db/connection';
-import { registerSessionMiddleware } from './auth/session';
+import { registerSessionMiddleware, setSessionCookie } from './auth/session';
 import { registerAuthRoutes } from './routes/auth';
 
 const DEFAULT_PORT = Number(process.env['SERVER_PORT'] ?? 3001);
@@ -79,11 +79,21 @@ async function main(): Promise<void> {
   // -------------------------------------------------------------------------
 
   /**
-   * Health check — unauthenticated, used by CI and dev tooling.
+   * Health check — unauthenticated, sets session cookie for web client bootstrap.
    */
   // eslint-disable-next-line @typescript-eslint/require-await -- Fastify route handlers must be async
-  app.get('/health', async () => {
+  app.get('/health', async (_req, reply) => {
+    setSessionCookie(reply, port);
     return { status: 'ok', version: '0.1.0' };
+  });
+
+  /**
+   * Root ping / bootstrap.
+   */
+  // eslint-disable-next-line @typescript-eslint/require-await -- Fastify route handlers must be async
+  app.get('/', async (_req, reply) => {
+    setSessionCookie(reply, port);
+    return { status: 'ok', message: 'DriveShell API server' };
   });
 
   // Auth + setup routes (Phase 1)

@@ -36,6 +36,9 @@ export const SESSION_COOKIE = 'ds_session';
 /** Routes that do NOT require the session token. */
 const EXEMPT_PATHS = new Set(['/auth/callback']);
 
+const LOOPBACK_HOST_REGEX = /^(127\.0\.0\.1|localhost)(:\d+)?$/;
+const LOOPBACK_ORIGIN_REGEX = /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/;
+
 /**
  * Register:
  *  1. `onRequest` hook — DNS rebinding + Origin checks + session validation.
@@ -45,21 +48,17 @@ const EXEMPT_PATHS = new Set(['/auth/callback']);
  */
 // eslint-disable-next-line @typescript-eslint/require-await -- Fastify plugin convention: addHook is synchronous, async used for consistency
 export async function registerSessionMiddleware(app: FastifyInstance, port: number): Promise<void> {
-  const allowedHost = `127.0.0.1:${port}`;
-  const allowedOrigin = `http://127.0.0.1:${port}`;
-
   app.addHook(
     'onRequest',
     (req: FastifyRequest, reply: FastifyReply, done: HookHandlerDoneFunction) => {
       const { url, method } = req;
 
       // -----------------------------------------------------------------------
-      // 1. DNS rebinding protection — Host must be the loopback address we bound.
-      //    Browsers always send the Host header; curl and other clients may not.
-      //    We only enforce this on requests that carry a Host header.
+      // 1. DNS rebinding protection — Host must be a loopback address.
+      //    Protects against attacker domains resolving to 127.0.0.1.
       // -----------------------------------------------------------------------
       const host = req.headers['host'];
-      if (host && host !== allowedHost) {
+      if (host && !LOOPBACK_HOST_REGEX.test(host)) {
         req.log.warn({ host }, 'Rejected: Host header mismatch (DNS rebinding guard)');
         void reply.code(400).send({ error: 'Bad Host header' });
         return;
@@ -71,7 +70,7 @@ export async function registerSessionMiddleware(app: FastifyInstance, port: numb
       const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
       if (MUTATING.has(method ?? '')) {
         const origin = req.headers['origin'];
-        if (origin && origin !== allowedOrigin) {
+        if (origin && !LOOPBACK_ORIGIN_REGEX.test(origin)) {
           req.log.warn({ origin }, 'Rejected: Origin mismatch');
           void reply.code(403).send({ error: 'Forbidden origin' });
           return;

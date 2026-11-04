@@ -20,15 +20,15 @@ export default defineConfig({
       // Forward API calls and OAuth redirect to the Fastify server
       '/api': {
         target: 'http://127.0.0.1:3001',
-        changeOrigin: false,
+        changeOrigin: true,
       },
       '/auth': {
         target: 'http://127.0.0.1:3001',
-        changeOrigin: false,
+        changeOrigin: true,
       },
       '/health': {
         target: 'http://127.0.0.1:3001',
-        changeOrigin: false,
+        changeOrigin: true,
       },
     },
   },

@@ -16,8 +16,25 @@ export class ApiError extends Error {
   }
 }
 
+let sessionPromise: Promise<void> | null = null;
+
+export async function ensureSession(): Promise<void> {
+  if (!sessionPromise) {
+    sessionPromise = fetch('/health', { credentials: 'same-origin' })
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to bootstrap session');
+      })
+      .catch((err: unknown) => {
+        sessionPromise = null;
+        throw err;
+      });
+  }
+  return sessionPromise;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
+  await ensureSession();
+  let res = await fetch(path, {
     credentials: 'same-origin', // always send cookies
     ...init,
     headers: {
@@ -25,6 +42,21 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       ...(init?.headers ?? {}),
     },
   });
+
+  // If unauthorized, re-bootstrap session once (e.g. server restarted and token changed)
+  if (res.status === 401) {
+    sessionPromise = null;
+    await ensureSession();
+    res = await fetch(path, {
+      credentials: 'same-origin',
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(init?.headers ?? {}),
+      },
+    });
+  }
+
   if (!res.ok) {
     let message = res.statusText;
     try {
