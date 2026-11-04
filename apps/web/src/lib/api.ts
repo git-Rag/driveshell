@@ -200,7 +200,7 @@ export interface PhotosListResponse {
 
 export interface PhotoMonthBucket {
   monthKey: string; // e.g. "2026-09"
-  label: string;    // e.g. "September 2026"
+  label: string; // e.g. "September 2026"
   year: number;
   count: number;
   latestTime: number;
@@ -261,6 +261,8 @@ export function getPhotos(opts: {
   return request<PhotosListResponse>(`/api/files/photos?${params.toString()}`);
 }
 
+export const listPhotos = getPhotos;
+
 export function getPhotoMonths(accountId?: string): Promise<MonthsResponse> {
   const params = new URLSearchParams();
   if (accountId) params.set('accountId', accountId);
@@ -295,14 +297,17 @@ export function updateFile(
     trashed?: number | undefined;
     parentId?: string | null | undefined;
   },
-  accountId?: string | undefined,
+  accountId?: string,
 ): Promise<{ ok: boolean; file: FileRecord }> {
   const params = new URLSearchParams();
   if (accountId) params.set('accountId', accountId);
-  return request<{ ok: boolean; file: FileRecord }>(`/api/files/${encodeURIComponent(fileId)}?${params.toString()}`, {
-    method: 'PATCH',
-    body: JSON.stringify(updates),
-  });
+  return request<{ ok: boolean; file: FileRecord }>(
+    `/api/files/${encodeURIComponent(fileId)}?${params.toString()}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    },
+  );
 }
 
 export function createFolder(
@@ -347,4 +352,204 @@ export function getMediaDownloadUrl(fileId: string, accountId?: string): string 
   const params = new URLSearchParams();
   if (accountId) params.set('accountId', accountId);
   return `/api/media/${encodeURIComponent(fileId)}/download?${params.toString()}`;
+}
+
+// ---------------------------------------------------------------------------
+// Albums (Phase 6)
+// ---------------------------------------------------------------------------
+
+export interface Album {
+  id: string;
+  account_id: string;
+  title: string;
+  description: string | null;
+  cover_file_id: string | null;
+  created_at: number;
+  modified_at: number;
+  item_count?: number;
+  cover_thumbnail_url?: string | null;
+}
+
+export function listAlbums(accountId?: string): Promise<{ albums: Album[] }> {
+  const params = new URLSearchParams();
+  if (accountId) params.set('accountId', accountId);
+  return request<{ albums: Album[] }>(`/api/albums?${params.toString()}`);
+}
+
+export function createAlbum(
+  title: string,
+  description?: string,
+  fileIds?: string[],
+  accountId?: string,
+): Promise<{ album: Album }> {
+  const params = new URLSearchParams();
+  if (accountId) params.set('accountId', accountId);
+  return request<{ album: Album }>(`/api/albums?${params.toString()}`, {
+    method: 'POST',
+    body: JSON.stringify({ title, description, fileIds }),
+  });
+}
+
+export function getAlbum(
+  albumId: string,
+  accountId?: string,
+): Promise<{ album: Album; files: FileRecord[] }> {
+  const params = new URLSearchParams();
+  if (accountId) params.set('accountId', accountId);
+  return request<{ album: Album; files: FileRecord[] }>(
+    `/api/albums/${encodeURIComponent(albumId)}?${params.toString()}`,
+  );
+}
+
+export function updateAlbum(
+  albumId: string,
+  updates: { title?: string; description?: string; coverFileId?: string },
+  accountId?: string,
+): Promise<{ album: Album }> {
+  const params = new URLSearchParams();
+  if (accountId) params.set('accountId', accountId);
+  return request<{ album: Album }>(
+    `/api/albums/${encodeURIComponent(albumId)}?${params.toString()}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    },
+  );
+}
+
+export function deleteAlbum(albumId: string, accountId?: string): Promise<{ ok: boolean }> {
+  const params = new URLSearchParams();
+  if (accountId) params.set('accountId', accountId);
+  return request<{ ok: boolean }>(
+    `/api/albums/${encodeURIComponent(albumId)}?${params.toString()}`,
+    {
+      method: 'DELETE',
+    },
+  );
+}
+
+export function addItemsToAlbum(
+  albumId: string,
+  fileIds: string[],
+  accountId?: string,
+): Promise<{ ok: boolean; added: number }> {
+  const params = new URLSearchParams();
+  if (accountId) params.set('accountId', accountId);
+  return request<{ ok: boolean; added: number }>(
+    `/api/albums/${encodeURIComponent(albumId)}/items?${params.toString()}`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ fileIds }),
+    },
+  );
+}
+
+export function removeItemFromAlbum(
+  albumId: string,
+  fileId: string,
+  accountId?: string,
+): Promise<{ ok: boolean; removed: boolean }> {
+  const params = new URLSearchParams();
+  if (accountId) params.set('accountId', accountId);
+  return request<{ ok: boolean; removed: boolean }>(
+    `/api/albums/${encodeURIComponent(albumId)}/items/${encodeURIComponent(fileId)}?${params.toString()}`,
+    {
+      method: 'DELETE',
+    },
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Private Vault (Phase 8 & 9)
+// ---------------------------------------------------------------------------
+
+export interface VaultFile {
+  id: string;
+  account_id: string;
+  name: string;
+  mime_type: string;
+  size_bytes: number;
+  iv: string;
+  created_at: number;
+  encryptedPayloadBase64?: string;
+}
+
+export interface VaultStatus {
+  initialized: boolean;
+  salt?: string;
+  canaryCiphertext?: string;
+  canaryIv?: string;
+  createdAt?: number;
+}
+
+export function getVaultStatus(accountId?: string): Promise<VaultStatus> {
+  const params = new URLSearchParams();
+  if (accountId) params.set('accountId', accountId);
+  return request<VaultStatus>(`/api/vault/status?${params.toString()}`);
+}
+
+export function setupVault(
+  salt: string,
+  canaryCiphertext: string,
+  canaryIv: string,
+  accountId?: string,
+): Promise<{ ok: boolean }> {
+  const params = new URLSearchParams();
+  if (accountId) params.set('accountId', accountId);
+  return request<{ ok: boolean }>(`/api/vault/setup?${params.toString()}`, {
+    method: 'POST',
+    body: JSON.stringify({ salt, canaryCiphertext, canaryIv }),
+  });
+}
+
+export function listVaultFiles(accountId?: string): Promise<{ files: VaultFile[] }> {
+  const params = new URLSearchParams();
+  if (accountId) params.set('accountId', accountId);
+  return request<{ files: VaultFile[] }>(`/api/vault/files?${params.toString()}`);
+}
+
+export function uploadVaultFile(
+  data: {
+    id?: string;
+    name: string;
+    mimeType: string;
+    sizeBytes: number;
+    encryptedPayloadBase64: string;
+    iv: string;
+  },
+  accountId?: string,
+): Promise<{ ok: boolean; id: string }> {
+  const params = new URLSearchParams();
+  if (accountId) params.set('accountId', accountId);
+  return request<{ ok: boolean; id: string }>(`/api/vault/files?${params.toString()}`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export function getVaultFileData(fileId: string, accountId?: string): Promise<VaultFile> {
+  const params = new URLSearchParams();
+  if (accountId) params.set('accountId', accountId);
+  return request<VaultFile>(
+    `/api/vault/files/${encodeURIComponent(fileId)}/data?${params.toString()}`,
+  );
+}
+
+export function deleteVaultFile(fileId: string, accountId?: string): Promise<{ ok: boolean }> {
+  const params = new URLSearchParams();
+  if (accountId) params.set('accountId', accountId);
+  return request<{ ok: boolean }>(
+    `/api/vault/files/${encodeURIComponent(fileId)}?${params.toString()}`,
+    {
+      method: 'DELETE',
+    },
+  );
+}
+
+export function resetVault(accountId?: string): Promise<{ ok: boolean }> {
+  const params = new URLSearchParams();
+  if (accountId) params.set('accountId', accountId);
+  return request<{ ok: boolean }>(`/api/vault/reset?${params.toString()}`, {
+    method: 'POST',
+  });
 }

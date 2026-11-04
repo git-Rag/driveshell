@@ -36,11 +36,11 @@ const NAV_SECTIONS: NavItem[] = [
     label: 'Photos',
     icon: <Images size={16} />,
     children: [
-      { id: 'moments', label: 'Moments', icon: <Clock size={14} /> },
       { id: 'gallery', label: 'Gallery', icon: <Grid3x3 size={14} /> },
       { id: 'albums', label: 'Albums', icon: <BookImage size={14} /> },
       { id: 'favorites', label: 'Favorites', icon: <Heart size={14} /> },
-      { id: 'people', label: 'People', icon: <Users size={14} />, badge: 'Soon' },
+      { id: 'moments', label: 'Moments', icon: <Clock size={14} />, badge: 'Soon', disabled: true },
+      { id: 'people', label: 'People', icon: <Users size={14} />, badge: 'Soon', disabled: true },
     ],
   },
   {

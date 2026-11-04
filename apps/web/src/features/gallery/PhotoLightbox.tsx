@@ -15,9 +15,20 @@ import {
   FileText,
   Play,
   RotateCw,
+  FolderPlus,
+  Check,
+  Plus,
 } from 'lucide-react';
-import type { FileRecord } from '../../lib/api';
-import { getMediaThumbUrl, getMediaStreamUrl, getMediaDownloadUrl, updateFile } from '../../lib/api';
+import type { FileRecord, Album } from '../../lib/api';
+import {
+  getMediaThumbUrl,
+  getMediaStreamUrl,
+  getMediaDownloadUrl,
+  updateFile,
+  listAlbums,
+  createAlbum,
+  addItemsToAlbum,
+} from '../../lib/api';
 
 interface PhotoLightboxProps {
   files: FileRecord[];
@@ -46,47 +57,75 @@ function formatFullDate(ms: number | null): string {
   });
 }
 
-export function PhotoLightbox({
-  files,
-  initialIndex,
-  onClose,
-  onFileUpdated,
-}: PhotoLightboxProps) {
+export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: PhotoLightboxProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [showInfo, setShowInfo] = useState(false);
   const [isZoomed, setIsZoomed] = useState(false);
   const [rotation, setRotation] = useState(0);
+  const [highResLoaded, setHighResLoaded] = useState(false);
+
+  // Album Picker modal state
+  const [showAlbumPicker, setShowAlbumPicker] = useState(false);
+  const [albums, setAlbums] = useState<Album[]>([]);
+  const [loadingAlbums, setLoadingAlbums] = useState(false);
+  const [newAlbumTitle, setNewAlbumTitle] = useState('');
+  const [showCreateInline, setShowCreateInline] = useState(false);
+  const [addedAlbumId, setAddedAlbumId] = useState<string | null>(null);
 
   const file = files[currentIndex];
   const isVideo = file?.mime_type?.startsWith('video/') ?? false;
 
+  // Reset display states on image switch
+  useEffect(() => {
+    setHighResLoaded(false);
+    setIsZoomed(false);
+    setRotation(0);
+    setAddedAlbumId(null);
+  }, [currentIndex]);
+
+  // Intelligent pre-fetching: load high-res for next & previous photos
+  useEffect(() => {
+    const toPrefetch = [currentIndex + 1, currentIndex - 1, currentIndex + 2];
+    for (const idx of toPrefetch) {
+      if (idx >= 0 && idx < files.length) {
+        const f = files[idx];
+        if (f && !f.mime_type.startsWith('video/')) {
+          const img = new Image();
+          img.src = getMediaThumbUrl(f.id, 1200);
+        }
+      }
+    }
+  }, [currentIndex, files]);
+
   const goToNext = useCallback(() => {
     if (currentIndex < files.length - 1) {
       setCurrentIndex((i) => i + 1);
-      setIsZoomed(false);
-      setRotation(0);
     }
   }, [currentIndex, files.length]);
 
   const goToPrev = useCallback(() => {
     if (currentIndex > 0) {
       setCurrentIndex((i) => i - 1);
-      setIsZoomed(false);
-      setRotation(0);
     }
   }, [currentIndex]);
 
   // Keyboard navigation
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-      else if (e.key === 'ArrowRight') goToNext();
-      else if (e.key === 'ArrowLeft') goToPrev();
-      else if (e.key === 'i' || e.key === 'I') setShowInfo((s) => !s);
+      if (e.key === 'Escape') {
+        if (showAlbumPicker) setShowAlbumPicker(false);
+        else onClose();
+      } else if (e.key === 'ArrowRight') {
+        goToNext();
+      } else if (e.key === 'ArrowLeft') {
+        goToPrev();
+      } else if (e.key === 'i' || e.key === 'I') {
+        setShowInfo((s) => !s);
+      }
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose, goToNext, goToPrev]);
+  }, [onClose, goToNext, goToPrev, showAlbumPicker]);
 
   if (!file) return null;
 
@@ -100,6 +139,44 @@ export function PhotoLightbox({
       }
     } catch {
       // optimistic update fallback
+    }
+  }
+
+  async function handleOpenAlbumPicker() {
+    setShowAlbumPicker(true);
+    setLoadingAlbums(true);
+    try {
+      const res = await listAlbums();
+      setAlbums(res.albums);
+    } catch {
+      // fallback
+    } finally {
+      setLoadingAlbums(false);
+    }
+  }
+
+  async function handleAddToAlbum(albumId: string) {
+    if (!file) return;
+    try {
+      await addItemsToAlbum(albumId, [file.id]);
+      setAddedAlbumId(albumId);
+      setTimeout(() => setShowAlbumPicker(false), 800);
+    } catch (err) {
+      console.error('Failed to add to album', err);
+    }
+  }
+
+  async function handleCreateAndAdd() {
+    if (!file || !newAlbumTitle.trim()) return;
+    try {
+      const res = await createAlbum(newAlbumTitle.trim(), undefined, [file.id]);
+      setAlbums((prev) => [res.album, ...prev]);
+      setAddedAlbumId(res.album.id);
+      setNewAlbumTitle('');
+      setShowCreateInline(false);
+      setTimeout(() => setShowAlbumPicker(false), 800);
+    } catch (err) {
+      console.error('Failed to create album', err);
     }
   }
 
@@ -123,7 +200,8 @@ export function PhotoLightbox({
                 {file.name}
               </span>
               <span className="text-[11px] text-white/60 font-mono">
-                {currentIndex + 1} of {files.length} • {formatFullDate(file.taken_at || file.modified_at)}
+                {currentIndex + 1} of {files.length} •{' '}
+                {formatFullDate(file.taken_at ?? file.modified_at)}
               </span>
             </div>
           </div>
@@ -141,6 +219,15 @@ export function PhotoLightbox({
               title={file.starred === 1 ? 'Remove from favorites' : 'Add to favorites'}
             >
               <Heart size={16} fill={file.starred === 1 ? 'currentColor' : 'none'} />
+            </button>
+
+            {/* Add to Album */}
+            <button
+              onClick={handleOpenAlbumPicker}
+              className="w-8 h-8 rounded-full text-white/80 hover:text-white hover:bg-white/10 flex items-center justify-center transition-all"
+              title="Add to Album"
+            >
+              <FolderPlus size={15} />
             </button>
 
             {/* Rotate */}
@@ -206,7 +293,7 @@ export function PhotoLightbox({
         {/* Media Canvas Area */}
         <div className="flex-1 flex items-center justify-center p-4 relative overflow-hidden">
           {isVideo ? (
-            /* Phase 4: High performance video streaming with seek range support */
+            /* High performance video streaming with seek range support */
             <div className="relative max-h-[85vh] max-w-[85vw] flex items-center justify-center">
               <video
                 controls
@@ -219,20 +306,41 @@ export function PhotoLightbox({
               </video>
             </div>
           ) : (
-            /* Phase 3: High resolution photo presentation */
+            /* High resolution photo presentation with Instant Blur-Up + Crossfade */
             <div
-              className={`relative transition-transform duration-200 cursor-zoom-in ${
-                isZoomed ? 'scale-150 cursor-zoom-out' : ''
+              className={`relative flex items-center justify-center transition-transform duration-200 ${
+                isZoomed ? 'scale-150 cursor-zoom-out' : 'cursor-zoom-in'
               }`}
               onClick={() => setIsZoomed((z) => !z)}
               style={{ transform: `rotate(${rotation}deg)` }}
             >
+              {/* Layer 1: Instant Blur-Up Placeholder from cached 400px thumbnail */}
               <img
-                src={getMediaThumbUrl(file.id, 1600)}
-                alt={file.name}
-                className="max-h-[82vh] max-w-[85vw] object-contain rounded-lg shadow-2xl transition-all duration-300"
-                loading="eager"
+                src={getMediaThumbUrl(file.id, 400)}
+                alt=""
+                aria-hidden="true"
+                className={`max-h-[82vh] max-w-[85vw] object-contain rounded-lg filter blur-sm transition-opacity duration-500 select-none ${
+                  highResLoaded ? 'opacity-0 absolute pointer-events-none' : 'opacity-100'
+                }`}
               />
+
+              {/* Layer 2: High-Resolution (1200px) Smooth Crossfade */}
+              <img
+                key={file.id}
+                src={getMediaThumbUrl(file.id, 1200)}
+                alt={file.name}
+                onLoad={() => setHighResLoaded(true)}
+                className={`max-h-[82vh] max-w-[85vw] object-contain rounded-lg shadow-2xl transition-opacity duration-300 ease-out select-none ${
+                  highResLoaded ? 'opacity-100' : 'opacity-0 absolute'
+                }`}
+              />
+
+              {/* Discreet spinner during initial sharp render */}
+              {!highResLoaded && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="w-8 h-8 rounded-full border-2 border-white/20 border-t-white/80 animate-spin" />
+                </div>
+              )}
             </div>
           )}
 
@@ -275,8 +383,6 @@ export function PhotoLightbox({
                 key={f.id}
                 onClick={() => {
                   setCurrentIndex(idx);
-                  setIsZoomed(false);
-                  setRotation(0);
                 }}
                 className={`h-12 w-12 rounded-lg overflow-hidden border-2 transition-all flex-shrink-0 relative ${
                   active
@@ -339,7 +445,7 @@ export function PhotoLightbox({
               <Calendar size={16} className="text-brand flex-shrink-0 mt-0.5" />
               <div className="flex flex-col">
                 <span className="font-medium text-white/90">
-                  {formatFullDate(file.taken_at || file.modified_at)}
+                  {formatFullDate(file.taken_at ?? file.modified_at)}
                 </span>
                 <span className="text-white/50 text-[11px] mt-0.5">
                   {file.taken_at ? 'Captured timestamp (EXIF)' : 'Drive file modified date'}
@@ -382,7 +488,111 @@ export function PhotoLightbox({
           </div>
         </div>
       )}
+
+      {/* Add to Album Modal */}
+      {showAlbumPicker && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4"
+          onClick={() => setShowAlbumPicker(false)}
+        >
+          <div
+            className="w-full max-w-md bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl p-6 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                <FolderPlus size={18} className="text-brand" />
+                Add to Album
+              </h3>
+              <button
+                onClick={() => setShowAlbumPicker(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {loadingAlbums ? (
+              <div className="py-8 flex items-center justify-center text-white/50 text-xs">
+                Loading albums…
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2 max-h-60 overflow-y-auto pr-1">
+                {albums.length === 0 && !showCreateInline && (
+                  <div className="text-center py-6 text-white/50 text-xs">
+                    No albums yet. Create your first album below!
+                  </div>
+                )}
+
+                {albums.map((alb) => {
+                  const isAdded = addedAlbumId === alb.id;
+                  return (
+                    <button
+                      key={alb.id}
+                      onClick={() => handleAddToAlbum(alb.id)}
+                      className={`w-full flex items-center justify-between p-3 rounded-xl border text-left transition-all ${
+                        isAdded
+                          ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                          : 'bg-white/5 border-white/10 hover:bg-white/10 text-white'
+                      }`}
+                    >
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium">{alb.title}</span>
+                        <span className="text-[11px] text-white/50">
+                          {alb.item_count ?? 0} items
+                        </span>
+                      </div>
+                      {isAdded ? (
+                        <Check size={18} className="text-emerald-400" />
+                      ) : (
+                        <Plus size={16} className="text-white/40" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Inline create new album */}
+            {showCreateInline ? (
+              <div className="flex items-center gap-2 pt-2 border-t border-white/10">
+                <input
+                  type="text"
+                  placeholder="Album title…"
+                  value={newAlbumTitle}
+                  onChange={(e) => setNewAlbumTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void handleCreateAndAdd();
+                  }}
+                  autoFocus
+                  className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-brand"
+                />
+                <button
+                  onClick={handleCreateAndAdd}
+                  disabled={!newAlbumTitle.trim()}
+                  className="px-4 py-2 bg-brand disabled:opacity-50 hover:bg-brand/90 text-white rounded-lg text-sm font-medium transition-all"
+                >
+                  Create
+                </button>
+                <button
+                  onClick={() => setShowCreateInline(false)}
+                  className="px-2 py-2 text-white/60 hover:text-white text-xs"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowCreateInline(true)}
+                className="w-full py-2.5 px-4 rounded-xl border border-dashed border-white/20 hover:border-brand/60 text-white/70 hover:text-white text-xs font-medium flex items-center justify-center gap-2 hover:bg-brand/10 transition-all"
+              >
+                <Plus size={14} />
+                Create New Album
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-

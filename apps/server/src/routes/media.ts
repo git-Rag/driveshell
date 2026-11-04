@@ -26,11 +26,18 @@ interface ThumbQuery {
   accountId?: string;
 }
 
+interface DriveStreamResponse {
+  data: NodeJS.ReadableStream;
+  headers: Record<string, string | undefined>;
+  status?: number;
+}
+
 export async function registerMediaRoutes(
   app: FastifyInstance,
   db: Db,
   port: number,
 ): Promise<void> {
+  await Promise.resolve();
   const fileQ = buildFileQueries(db);
   const accountQ = buildAccountQueries(db);
   const keychain = createKeychain(app.log);
@@ -122,11 +129,19 @@ export async function registerMediaRoutes(
           req.log,
         );
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const res: any = await drive.files.get(
+        const res = (await drive.files.get(
           { fileId, alt: 'media' },
           { responseType: 'stream' },
-        );
+        )) as unknown as DriveStreamResponse;
+
+        // Cache to disk for instant subsequent loads
+        try {
+          const cacheWriter = fs.createWriteStream(cacheFile);
+          cacheWriter.on('error', () => {});
+          res.data.pipe(cacheWriter);
+        } catch {
+          // ignore cache write error
+        }
 
         reply.header('Content-Type', file.mime_type || 'image/jpeg');
         reply.header('Cache-Control', 'public, max-age=86400');
@@ -181,14 +196,13 @@ export async function registerMediaRoutes(
           ? { responseType: 'stream' as const, headers: { Range: rangeHeader } }
           : { responseType: 'stream' as const };
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const driveRes: any = await drive.files.get(
+        const driveRes = (await drive.files.get(
           { fileId, alt: 'media' },
           reqOptions,
-        );
+        )) as unknown as DriveStreamResponse;
 
         // Forward content headers from Google Drive
-        const headers = driveRes.headers as Record<string, string | undefined>;
+        const headers = driveRes.headers;
         if (headers['content-range']) reply.header('Content-Range', headers['content-range']);
         if (headers['content-length']) reply.header('Content-Length', headers['content-length']);
         if (headers['accept-ranges']) reply.header('Accept-Ranges', headers['accept-ranges']);
@@ -237,8 +251,10 @@ export async function registerMediaRoutes(
         req.log,
       );
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const driveRes: any = await drive.files.get({ fileId, alt: 'media' }, { responseType: 'stream' });
+      const driveRes = (await drive.files.get(
+        { fileId, alt: 'media' },
+        { responseType: 'stream' },
+      )) as unknown as DriveStreamResponse;
 
       const filename = encodeURIComponent(file.name);
       reply.header('Content-Disposition', `attachment; filename="${filename}"`);

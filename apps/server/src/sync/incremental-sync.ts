@@ -53,7 +53,7 @@ export async function runIncrementalSync(
 
   accountQ.setStatus(accountId, 'syncing');
 
-  let { drive } = await getAuthenticatedDrive(
+  const { drive } = await getAuthenticatedDrive(
     accountId,
     keychain,
     accountQ,
@@ -131,4 +131,3 @@ export async function runIncrementalSync(
     throw err;
   }
 }
-

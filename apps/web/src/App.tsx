@@ -3,6 +3,8 @@ import { Sidebar } from './app/shell/Sidebar';
 import { TopBar } from './app/shell/TopBar';
 import { SetupWizard } from './features/setup/SetupWizard';
 import { GalleryView } from './features/gallery/GalleryView';
+import { AlbumsView } from './features/albums/AlbumsView';
+import { FavoritesView } from './features/favorites/FavoritesView';
 import { FilesView } from './features/files/FilesView';
 import { VaultView } from './features/vault/VaultView';
 import { SettingsView } from './features/settings/SettingsView';
@@ -17,7 +19,7 @@ export function App() {
   const [isDark, setIsDark] = useState<boolean>(true);
   const [setupDone, setSetupDone] = useState<boolean>(false);
 
-  const isGallery = ['gallery', 'moments', 'albums', 'favorites', 'people', 'photos'].includes(activeId);
+  const isGallery = ['gallery', 'photos'].includes(activeId);
 
   // In Gallery, sidebar and topbar are defaulted OFF for immersive photo experience
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
@@ -25,7 +27,7 @@ export function App() {
 
   const handleNavigate = useCallback((id: string) => {
     setActiveId(id);
-    const targetIsGallery = ['gallery', 'moments', 'albums', 'favorites', 'people', 'photos'].includes(id);
+    const targetIsGallery = ['gallery', 'photos'].includes(id);
     if (targetIsGallery) {
       setSidebarOpen(false);
       setTopBarOpen(false);
@@ -168,7 +170,7 @@ export function App() {
           {isGallery && (
             <GalleryView
               account={status.state === 'ready' ? (status.data.accounts[0] ?? null) : null}
-              activeTab={activeId === 'photos' ? 'gallery' : activeId}
+              activeTab="gallery"
               onTabChange={handleNavigate}
               sidebarOpen={sidebarOpen}
               onToggleSidebar={() => setSidebarOpen((s) => !s)}
@@ -176,6 +178,10 @@ export function App() {
               onToggleTopBar={() => setTopBarOpen((t) => !t)}
             />
           )}
+
+          {activeId === 'albums' && <AlbumsView />}
+
+          {activeId === 'favorites' && <FavoritesView />}
 
           {activeId === 'files' && <FilesView />}
 

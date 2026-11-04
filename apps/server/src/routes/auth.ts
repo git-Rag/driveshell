@@ -135,7 +135,7 @@ export async function registerAuthRoutes(
     const { codeVerifier, codeChallenge } = generatePkce();
     const state = generateState();
 
-    const referer = (req.headers['referer'] as string | undefined) ?? '';
+    const referer = req.headers['referer'] ?? '';
     let clientUrl = `http://127.0.0.1:${port}/?auth_success=1`;
     if (referer) {
       try {

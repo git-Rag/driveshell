@@ -59,7 +59,7 @@ export async function runFullSync(
   accountQ.setStatus(accountId, 'syncing');
   log.info({ accountId }, 'Full sync starting');
 
-  let { drive } = await getAuthenticatedDrive(
+  const { drive } = await getAuthenticatedDrive(
     accountId,
     keychain,
     accountQ,
@@ -71,8 +71,7 @@ export async function runFullSync(
 
   // Resume from previous page token if available
   const account = accountQ.findById(accountId);
-  let pageToken: string | undefined =
-    account?.full_sync_page_token ?? undefined;
+  let pageToken: string | undefined = account?.full_sync_page_token ?? undefined;
   let totalIndexed = fileQ.countByAccount(accountId); // already-indexed count for resume display
   let page = 0;
 
@@ -125,4 +124,3 @@ export async function runFullSync(
     throw err;
   }
 }
-

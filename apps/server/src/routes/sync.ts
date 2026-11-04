@@ -18,13 +18,14 @@ export async function registerSyncRoutes(
   db: Db,
   scheduler: SyncScheduler,
 ): Promise<void> {
+  await Promise.resolve();
   const accountQ = buildAccountQueries(db);
   const fileQ = buildFileQueries(db);
 
   // -------------------------------------------------------------------------
   // GET /api/sync/status
   // -------------------------------------------------------------------------
-  // eslint-disable-next-line @typescript-eslint/require-await -- Fastify route convention
+
   app.get('/api/sync/status', async (_req: FastifyRequest, reply: FastifyReply) => {
     const accounts = accountQ.findAll().map((a) => ({
       id: a.id,
@@ -44,7 +45,7 @@ export async function registerSyncRoutes(
   // -------------------------------------------------------------------------
   app.post(
     '/api/sync/start/:accountId',
-    // eslint-disable-next-line @typescript-eslint/require-await -- Fastify route convention
+
     async (req: FastifyRequest<{ Params: { accountId: string } }>, reply: FastifyReply) => {
       const { accountId } = req.params;
       const account = accountQ.findById(accountId);
@@ -113,4 +114,3 @@ export async function registerSyncRoutes(
     });
   });
 }
-

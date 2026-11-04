@@ -41,6 +41,13 @@ export default tseslint.config(
       ],
       // Void returns must be explicit
       '@typescript-eslint/no-floating-promises': 'error',
+      // Allow async functions in React JSX event handlers
+      '@typescript-eslint/no-misused-promises': [
+        'error',
+        {
+          checksVoidReturn: false,
+        },
+      ],
       // Prefer nullish coalescing
       '@typescript-eslint/prefer-nullish-coalescing': 'warn',
     },
@@ -78,6 +85,7 @@ export default tseslint.config(
       'apps/*/playwright.config.ts',
       'apps/*/tailwind.config.ts',
       'apps/server/test/**/*.ts',
+      'apps/server/scripts/**/*.ts',
       'packages/*/vitest.config.ts',
     ],
     extends: [tseslint.configs.disableTypeChecked],

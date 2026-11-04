@@ -7,6 +7,8 @@ import { registerAuthRoutes } from './routes/auth';
 import { registerSyncRoutes } from './routes/sync';
 import { registerFileRoutes } from './routes/files';
 import { registerMediaRoutes } from './routes/media';
+import { registerAlbumRoutes } from './routes/albums';
+import { registerVaultRoutes } from './routes/vault';
 import { createSyncScheduler } from './sync/scheduler';
 import { buildAccountQueries } from './db/queries/accounts';
 import { buildFileQueries } from './db/queries/files';
@@ -88,7 +90,7 @@ async function main(): Promise<void> {
   /**
    * Health check — unauthenticated, sets session cookie for web client bootstrap.
    */
-  // eslint-disable-next-line @typescript-eslint/require-await -- Fastify route handlers must be async
+
   app.get('/health', async (_req, reply) => {
     setSessionCookie(reply, port);
     return { status: 'ok', version: '0.1.0' };
@@ -97,7 +99,7 @@ async function main(): Promise<void> {
   /**
    * Root ping / bootstrap.
    */
-  // eslint-disable-next-line @typescript-eslint/require-await -- Fastify route handlers must be async
+
   app.get('/', async (_req, reply) => {
     setSessionCookie(reply, port);
     return { status: 'ok', message: 'DriveShell API server' };
@@ -118,6 +120,8 @@ async function main(): Promise<void> {
   await registerSyncRoutes(app, db, scheduler);
   await registerFileRoutes(app, db);
   await registerMediaRoutes(app, db, port);
+  await registerAlbumRoutes(app, db);
+  await registerVaultRoutes(app, db);
 
   // -------------------------------------------------------------------------
   // Graceful shutdown

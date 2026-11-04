@@ -76,105 +76,121 @@ export async function registerFileRoutes(app: FastifyInstance, db: Db): Promise<
   // -------------------------------------------------------------------------
   // GET /api/files/list
   // -------------------------------------------------------------------------
-  // eslint-disable-next-line @typescript-eslint/require-await
-  app.get('/api/files/list', async (req: FastifyRequest<{ Querystring: ListQuery }>, reply: FastifyReply) => {
-    const accountId = resolveAccountId(req.query.accountId);
-    if (!accountId) return reply.code(404).send({ error: 'No account found' });
 
-    const offset = Math.max(0, parseInt(req.query.offset ?? '0', 10) || 0);
-    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit ?? '50', 10) || 50));
+  app.get(
+    '/api/files/list',
+    async (req: FastifyRequest<{ Querystring: ListQuery }>, reply: FastifyReply) => {
+      const accountId = resolveAccountId(req.query.accountId);
+      if (!accountId) return reply.code(404).send({ error: 'No account found' });
 
-    const files = fileQ.listFiles(accountId, { offset, limit });
-    const total = fileQ.countByAccount(accountId);
+      const offset = Math.max(0, parseInt(req.query.offset ?? '0', 10) || 0);
+      const limit = Math.min(200, Math.max(1, parseInt(req.query.limit ?? '50', 10) || 50));
 
-    return reply.send({ files, total, offset, limit });
-  });
+      const files = fileQ.listFiles(accountId, { offset, limit });
+      const total = fileQ.countByAccount(accountId);
+
+      return reply.send({ files, total, offset, limit });
+    },
+  );
 
   // -------------------------------------------------------------------------
   // GET /api/files/photos — Progressive loading & filtering
   // -------------------------------------------------------------------------
-  // eslint-disable-next-line @typescript-eslint/require-await
-  app.get('/api/files/photos', async (req: FastifyRequest<{ Querystring: PhotosQuery }>, reply: FastifyReply) => {
-    const accountId = resolveAccountId(req.query.accountId);
-    if (!accountId) return reply.code(404).send({ error: 'No account found' });
 
-    const offset = Math.max(0, parseInt(req.query.offset ?? '0', 10) || 0);
-    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit ?? '120', 10) || 120));
-    const year = req.query.year ? parseInt(req.query.year, 10) : undefined;
-    const month = req.query.month;
-    const type = req.query.type ?? 'all';
+  app.get(
+    '/api/files/photos',
+    async (req: FastifyRequest<{ Querystring: PhotosQuery }>, reply: FastifyReply) => {
+      const accountId = resolveAccountId(req.query.accountId);
+      if (!accountId) return reply.code(404).send({ error: 'No account found' });
 
-    const { files, total } = fileQ.listPhotos(accountId, {
-      offset,
-      limit,
-      type,
-      year: isNaN(year ?? NaN) ? undefined : year,
-      month,
-    });
+      const offset = Math.max(0, parseInt(req.query.offset ?? '0', 10) || 0);
+      const limit = Math.min(200, Math.max(1, parseInt(req.query.limit ?? '120', 10) || 120));
+      const year = req.query.year ? parseInt(req.query.year, 10) : undefined;
+      const month = req.query.month;
+      const type = req.query.type ?? 'all';
 
-    return reply.send({ files, total, offset, limit });
-  });
+      const { files, total } = fileQ.listPhotos(accountId, {
+        offset,
+        limit,
+        type,
+        year: isNaN(year ?? NaN) ? undefined : year,
+        month,
+      });
+
+      return reply.send({ files, total, offset, limit });
+    },
+  );
 
   // -------------------------------------------------------------------------
   // GET /api/files/months — Timeline groupings
   // -------------------------------------------------------------------------
-  // eslint-disable-next-line @typescript-eslint/require-await
-  app.get('/api/files/months', async (req: FastifyRequest<{ Querystring: { accountId?: string } }>, reply: FastifyReply) => {
-    const accountId = resolveAccountId(req.query.accountId);
-    if (!accountId) return reply.code(404).send({ error: 'No account found' });
 
-    const months = fileQ.getPhotoMonths(accountId);
-    const total = fileQ.countPhotos(accountId);
+  app.get(
+    '/api/files/months',
+    async (req: FastifyRequest<{ Querystring: { accountId?: string } }>, reply: FastifyReply) => {
+      const accountId = resolveAccountId(req.query.accountId);
+      if (!accountId) return reply.code(404).send({ error: 'No account found' });
 
-    return reply.send({ months, total });
-  });
+      const months = fileQ.getPhotoMonths(accountId);
+      const total = fileQ.countPhotos(accountId);
+
+      return reply.send({ months, total });
+    },
+  );
 
   // -------------------------------------------------------------------------
   // GET /api/files/browse — Folder drilldown with sorting & count
   // -------------------------------------------------------------------------
-  // eslint-disable-next-line @typescript-eslint/require-await
-  app.get('/api/files/browse', async (req: FastifyRequest<{ Querystring: BrowseQuery }>, reply: FastifyReply) => {
-    const accountId = resolveAccountId(req.query.accountId);
-    if (!accountId) return reply.code(404).send({ error: 'No account found' });
 
-    const parentId = req.query.parentId && req.query.parentId !== 'root' ? req.query.parentId : null;
-    const offset = Math.max(0, parseInt(req.query.offset ?? '0', 10) || 0);
-    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit ?? '50', 10) || 50));
+  app.get(
+    '/api/files/browse',
+    async (req: FastifyRequest<{ Querystring: BrowseQuery }>, reply: FastifyReply) => {
+      const accountId = resolveAccountId(req.query.accountId);
+      if (!accountId) return reply.code(404).send({ error: 'No account found' });
 
-    const { files, total } = fileQ.listByParent(accountId, parentId, {
-      offset,
-      limit,
-      search: req.query.search,
-      sortBy: req.query.sortBy,
-      sortDir: req.query.sortDir,
-    });
+      const parentId =
+        req.query.parentId && req.query.parentId !== 'root' ? req.query.parentId : null;
+      const offset = Math.max(0, parseInt(req.query.offset ?? '0', 10) || 0);
+      const limit = Math.min(200, Math.max(1, parseInt(req.query.limit ?? '50', 10) || 50));
 
-    const breadcrumbs = fileQ.getBreadcrumbs(accountId, parentId);
+      const { files, total } = fileQ.listByParent(accountId, parentId, {
+        offset,
+        limit,
+        search: req.query.search,
+        sortBy: req.query.sortBy,
+        sortDir: req.query.sortDir,
+      });
 
-    return reply.send({ files, total, offset, limit, breadcrumbs, parentId });
-  });
+      const breadcrumbs = fileQ.getBreadcrumbs(accountId, parentId);
+
+      return reply.send({ files, total, offset, limit, breadcrumbs, parentId });
+    },
+  );
 
   // -------------------------------------------------------------------------
   // GET /api/files/search
   // -------------------------------------------------------------------------
-  // eslint-disable-next-line @typescript-eslint/require-await
-  app.get('/api/files/search', async (req: FastifyRequest<{ Querystring: SearchQuery }>, reply: FastifyReply) => {
-    const accountId = resolveAccountId(req.query.accountId);
-    if (!accountId) return reply.code(404).send({ error: 'No account found' });
 
-    const q = (req.query.q ?? '').trim();
-    if (!q) return reply.send({ files: [], query: q, limit: 50 });
+  app.get(
+    '/api/files/search',
+    async (req: FastifyRequest<{ Querystring: SearchQuery }>, reply: FastifyReply) => {
+      const accountId = resolveAccountId(req.query.accountId);
+      if (!accountId) return reply.code(404).send({ error: 'No account found' });
 
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit ?? '50', 10) || 50));
-    const files = fileQ.searchFiles(accountId, q, limit);
+      const q = (req.query.q ?? '').trim();
+      if (!q) return reply.send({ files: [], query: q, limit: 50 });
 
-    return reply.send({ files, query: q, limit });
-  });
+      const limit = Math.min(100, Math.max(1, parseInt(req.query.limit ?? '50', 10) || 50));
+      const files = fileQ.searchFiles(accountId, q, limit);
+
+      return reply.send({ files, query: q, limit });
+    },
+  );
 
   // -------------------------------------------------------------------------
   // PATCH /api/files/:fileId — Star, Rename, Trash
   // -------------------------------------------------------------------------
-  // eslint-disable-next-line @typescript-eslint/require-await
+
   app.patch(
     '/api/files/:fileId',
     async (
@@ -191,7 +207,9 @@ export async function registerFileRoutes(app: FastifyInstance, db: Db): Promise<
 
       const parsed = UpdateFileSchema.safeParse(req.body);
       if (!parsed.success) {
-        return reply.code(400).send({ error: 'Invalid update payload', details: parsed.error.format() });
+        return reply
+          .code(400)
+          .send({ error: 'Invalid update payload', details: parsed.error.format() });
       }
 
       fileQ.updateFileMeta(accountId, fileId, {
@@ -209,7 +227,7 @@ export async function registerFileRoutes(app: FastifyInstance, db: Db): Promise<
   // -------------------------------------------------------------------------
   // POST /api/files/folder — Create local folder record
   // -------------------------------------------------------------------------
-  // eslint-disable-next-line @typescript-eslint/require-await
+
   app.post(
     '/api/files/folder',
     async (
@@ -232,7 +250,8 @@ export async function registerFileRoutes(app: FastifyInstance, db: Db): Promise<
         id: folderId,
         name: parsed.data.name.trim(),
         mime_type: 'application/vnd.google-apps.folder',
-        parent_id: parsed.data.parentId && parsed.data.parentId !== 'root' ? parsed.data.parentId : null,
+        parent_id:
+          parsed.data.parentId && parsed.data.parentId !== 'root' ? parsed.data.parentId : null,
         size_bytes: null,
         modified_at: now,
         created_at_ms: now,
