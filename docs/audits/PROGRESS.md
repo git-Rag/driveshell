@@ -68,7 +68,21 @@
   - [x] Web benchmarks: bundle size by chunk, initial JS/CSS gzip, source map analysis
   - [x] Sync benchmarks: full & incremental sync against mock Drive
   - [x] Deliverable `docs/audits/01-baselines.md`
-  - [x] **GATE 1**: Stop and present baseline scoreboard & top 10 hotspots.
+  - [x] **GATE 1**: Approved by user.
+
+- [x] **Stage 2: Security Hardening (Server, Auth & Network)**
+  - [x] DNS rebinding protection (SEC-001) in `session.ts`
+  - [x] Stream route stored-XSS & isolation (SEC-002) in `media.ts`
+  - [x] Anti-SSRF Outbound Network Guard (SEC-003) in `outbound-guard.ts`
+  - [x] CSRF, Sec-Fetch-Site, Origin checks, and Vault Route Protection (SEC-006) in `session.ts`
+  - [x] Vault Cache-Control headers (SEC-005) in `vault.ts`
+  - [x] OAuth Scope hygiene & redundant scope removal (S4) in `auth.ts`
+  - [x] Input validation with Zod schemas (S2) in `files.ts`, `albums.ts`, `vault.ts`
+  - [x] Production audit fix (GHSA-mrhx-c7xc-m3w5): upgraded `zod` to `^4.6.7`
+  - [x] 15 new security unit tests in `apps/server/test/security.test.ts` (total: 52 passing tests)
+  - [x] Updated `docs/security.md` with trust model, SSRF invariants, and isolation headers
+  - [x] Deliverable `docs/audits/02-security-server.md`
+  - [x] **GATE 2**: Ready for user review.
 
 ---
 
@@ -76,3 +90,6 @@
 
 - `f5aaa19` —
   `chore(tooling): add top-level ESLint ignores for data and build artifacts to prevent OOM`
+- `7191b56` —
+  `test(bench): establish Stage 1 baseline harness, synthetic 100k seed, and audit scoreboard`
+- `577e43d` — `chore(branding): rename project to Sunflower Drive and commit Grand README`

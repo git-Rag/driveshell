@@ -59,11 +59,8 @@ function purgePkceExpired(): void {
 // Drive OAuth scopes
 // ---------------------------------------------------------------------------
 
-const SCOPES: Record<ScopeLevel, string[]> = {
-  readonly: [
-    'https://www.googleapis.com/auth/drive.readonly',
-    'https://www.googleapis.com/auth/drive.metadata.readonly',
-  ],
+export const SCOPES: Record<ScopeLevel, string[]> = {
+  readonly: ['https://www.googleapis.com/auth/drive.readonly'],
   full: ['https://www.googleapis.com/auth/drive'],
 };
 

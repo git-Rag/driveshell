@@ -37,21 +37,27 @@ export const SESSION_COOKIE = 'ds_session';
 const EXEMPT_PATHS = new Set(['/auth/callback']);
 
 const LOOPBACK_HOST_REGEX = /^(127\.0\.0\.1|localhost)(:\d+)?$/;
-const LOOPBACK_ORIGIN_REGEX = /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/;
+/** Allowed loopback and Tauri desktop origins */
+export const ALLOWED_ORIGIN_REGEX =
+  /^(https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?|tauri:\/\/localhost|https?:\/\/tauri\.localhost)$/;
 
 /**
  * Register:
- *  1. `onRequest` hook — DNS rebinding + Origin checks + session validation.
+ *  1. `onRequest` hook — DNS rebinding + Origin checks + Sec-Fetch-Site + session validation.
  *  2. `GET /` passthrough that stamps the session cookie on the first browser load.
  *
  * Call this BEFORE registering any API route plugins.
  */
 // eslint-disable-next-line @typescript-eslint/require-await -- Fastify plugin convention: addHook is synchronous, async used for consistency
-export async function registerSessionMiddleware(app: FastifyInstance, port: number): Promise<void> {
+export async function registerSessionMiddleware(
+  app: FastifyInstance,
+  _port: number,
+): Promise<void> {
   app.addHook(
     'onRequest',
     (req: FastifyRequest, reply: FastifyReply, done: HookHandlerDoneFunction) => {
       const { url, method } = req;
+      const path = url?.split('?')[0] ?? '/';
 
       // -----------------------------------------------------------------------
       // 1. DNS rebinding protection — Host must be a loopback address.
@@ -65,22 +71,52 @@ export async function registerSessionMiddleware(app: FastifyInstance, port: numb
       }
 
       // -----------------------------------------------------------------------
-      // 2. Origin check on state-mutating requests.
+      // 2. Sec-Fetch-Site check — reject cross-site requests.
+      //    Defends against remote malicious sites issuing requests to localhost.
+      // -----------------------------------------------------------------------
+      const secFetchSite = req.headers['sec-fetch-site'];
+      if (secFetchSite === 'cross-site') {
+        req.log.warn({ secFetchSite, path }, 'Rejected: Cross-site fetch detected');
+        void reply.code(403).send({ error: 'Forbidden cross-site request' });
+        return;
+      }
+
+      // -----------------------------------------------------------------------
+      // 3. Origin check on state-mutating requests (POST, PUT, PATCH, DELETE).
       // -----------------------------------------------------------------------
       const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+      const origin = req.headers['origin'];
       if (MUTATING.has(method ?? '')) {
-        const origin = req.headers['origin'];
-        if (origin && !LOOPBACK_ORIGIN_REGEX.test(origin)) {
-          req.log.warn({ origin }, 'Rejected: Origin mismatch');
+        if (origin && !ALLOWED_ORIGIN_REGEX.test(origin)) {
+          req.log.warn({ origin, path }, 'Rejected: Forbidden origin on mutating route');
           void reply.code(403).send({ error: 'Forbidden origin' });
           return;
         }
       }
 
       // -----------------------------------------------------------------------
-      // 3. Session token check — all /api/* routes except the exempt list.
+      // 4. Strict Vault Route Protection (/api/vault/*).
+      //    - Reject direct browser navigation (sec-fetch-mode: navigate).
+      //    - Require valid Origin on all requests when Origin header is present.
+      //    - Ensure encrypted payloads are never cached.
       // -----------------------------------------------------------------------
-      const path = url?.split('?')[0] ?? '/';
+      if (path.startsWith('/api/vault')) {
+        const secFetchMode = req.headers['sec-fetch-mode'];
+        if (secFetchMode === 'navigate') {
+          req.log.warn({ path }, 'Rejected: Direct navigation forbidden on vault route');
+          void reply.code(403).send({ error: 'Forbidden direct navigation on vault routes' });
+          return;
+        }
+        if (origin && !ALLOWED_ORIGIN_REGEX.test(origin)) {
+          req.log.warn({ origin, path }, 'Rejected: Forbidden origin on vault route');
+          void reply.code(403).send({ error: 'Forbidden origin on vault route' });
+          return;
+        }
+      }
+
+      // -----------------------------------------------------------------------
+      // 5. Session token check — all /api/* routes except the exempt list.
+      // -----------------------------------------------------------------------
       const needsSession = path.startsWith('/api/') && !EXEMPT_PATHS.has(path);
 
       if (needsSession) {

@@ -19,16 +19,14 @@ export class ApiError extends Error {
 let sessionPromise: Promise<void> | null = null;
 
 export async function ensureSession(): Promise<void> {
-  if (!sessionPromise) {
-    sessionPromise = fetch('/health', { credentials: 'same-origin' })
-      .then((res) => {
-        if (!res.ok) throw new Error('Failed to bootstrap session');
-      })
-      .catch((err: unknown) => {
-        sessionPromise = null;
-        throw err;
-      });
-  }
+  sessionPromise ??= fetch('/health', { credentials: 'same-origin' })
+    .then((res) => {
+      if (!res.ok) throw new Error('Failed to bootstrap session');
+    })
+    .catch((err: unknown) => {
+      sessionPromise = null;
+      throw err;
+    });
   return sessionPromise;
 }
 

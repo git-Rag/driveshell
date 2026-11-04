@@ -10,17 +10,11 @@ import {
   Calendar,
   Sparkles,
   Film,
-  Menu,
   Search,
   PanelLeft,
 } from 'lucide-react';
 import type { AccountSummary, FileRecord, PhotoMonthBucket } from '../../lib/api';
-import {
-  getPhotos,
-  getPhotoMonths,
-  getMediaThumbUrl,
-  subscribeSyncProgress,
-} from '../../lib/api';
+import { getPhotos, getPhotoMonths, getMediaThumbUrl, subscribeSyncProgress } from '../../lib/api';
 import { useSyncStatus } from '../../hooks/useSyncStatus';
 import { PhotoLightbox } from './PhotoLightbox';
 
@@ -37,8 +31,16 @@ interface GalleryViewProps {
 type ZoomLevel = 1 | 2 | 3 | 4;
 
 const ZOOM_CONFIGS: Record<ZoomLevel, { cols: string; aspect: string; size: number }> = {
-  1: { cols: 'grid-cols-5 sm:grid-cols-7 md:grid-cols-9 lg:grid-cols-11', aspect: 'aspect-square', size: 200 },
-  2: { cols: 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6', aspect: 'aspect-square', size: 400 },
+  1: {
+    cols: 'grid-cols-5 sm:grid-cols-7 md:grid-cols-9 lg:grid-cols-11',
+    aspect: 'aspect-square',
+    size: 200,
+  },
+  2: {
+    cols: 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6',
+    aspect: 'aspect-square',
+    size: 400,
+  },
   3: { cols: 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4', aspect: 'aspect-[4/3]', size: 800 },
   4: { cols: 'grid-cols-1 sm:grid-cols-2', aspect: 'aspect-[16/10]', size: 1200 },
 };
@@ -51,10 +53,14 @@ function formatMonthYear(ms: number): string {
 function isStrictMedia(file: FileRecord): boolean {
   if (file.mime_type === 'application/vnd.google-apps.folder') return false;
   if (file.mime_type.startsWith('application/vnd.google-apps.')) return false;
-  const isDocExt = /\.(pdf|docx?|xlsx?|pptx?|zip|rar|tar|json|txt|html|css|js|ts|exe|apk)$/i.test(file.name);
+  const isDocExt = /\.(pdf|docx?|xlsx?|pptx?|zip|rar|tar|json|txt|html|css|js|ts|exe|apk)$/i.test(
+    file.name,
+  );
   if (isDocExt) return false;
   if (file.mime_type.startsWith('image/') || file.mime_type.startsWith('video/')) return true;
-  return /\.(jpg|jpeg|png|gif|webp|heic|heif|bmp|tiff|avif|raw|dng|cr2|nef|arw|mp4|mov|avi|mkv|webm|3gp|m4v)$/i.test(file.name);
+  return /\.(jpg|jpeg|png|gif|webp|heic|heif|bmp|tiff|avif|raw|dng|cr2|nef|arw|mp4|mov|avi|mkv|webm|3gp|m4v)$/i.test(
+    file.name,
+  );
 }
 
 const PAGE_SIZE = 120;
@@ -72,7 +78,9 @@ export function GalleryView({
   const [months, setMonths] = useState<PhotoMonthBucket[]>([]);
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [activeFilter, setActiveFilter] = useState<'all' | 'photos' | 'videos' | 'favorites'>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'photos' | 'videos' | 'favorites'>(
+    'all',
+  );
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [currentVisibleMonth, setCurrentVisibleMonth] = useState<string>('');
 
@@ -98,7 +106,7 @@ export function GalleryView({
       setTotalPhotos(photosRes.total);
 
       if (photosRes.files.length > 0 && photosRes.files[0]) {
-        const firstTime = photosRes.files[0].taken_at || photosRes.files[0].modified_at;
+        const firstTime = photosRes.files[0].taken_at ?? photosRes.files[0].modified_at;
         setCurrentVisibleMonth(formatMonthYear(firstTime));
       } else if (monthsRes.months.length > 0 && monthsRes.months[0]) {
         setCurrentVisibleMonth(monthsRes.months[0].label);
@@ -174,7 +182,7 @@ export function GalleryView({
     const groups = new Map<string, FileRecord[]>();
 
     for (const photo of photos) {
-      const time = photo.taken_at || photo.modified_at;
+      const time = photo.taken_at ?? photo.modified_at;
       const key = formatMonthYear(time);
       const existing = groups.get(key) ?? [];
       existing.push(photo);
@@ -227,11 +235,11 @@ export function GalleryView({
   }
 
   function handleZoomIn() {
-    setZoom((z) => (Math.min(4, z + 1) as ZoomLevel));
+    setZoom((z) => Math.min(4, z + 1) as ZoomLevel);
   }
 
   function handleZoomOut() {
-    setZoom((z) => (Math.max(1, z - 1) as ZoomLevel));
+    setZoom((z) => Math.max(1, z - 1) as ZoomLevel);
   }
 
   return (
@@ -366,7 +374,8 @@ export function GalleryView({
             <Sparkles size={28} className="text-brand mx-auto mb-3" />
             <h3 className="text-base font-bold text-white mb-1">Your Photo Library</h3>
             <p className="text-xs text-zinc-400 mb-4 max-w-md mx-auto">
-              Connect and sync your Google Drive to index all photos and videos with EXIF metadata into high-speed local SQLite.
+              Connect and sync your Google Drive to index all photos and videos with EXIF metadata
+              into high-speed local SQLite.
             </p>
             <button
               onClick={() => account && triggerSync(account.id)}
@@ -383,7 +392,9 @@ export function GalleryView({
         {loadingInitial && photos.length === 0 && (
           <div className="py-24 flex flex-col items-center justify-center gap-3">
             <Loader2 size={28} className="text-brand animate-spin" />
-            <span className="text-xs text-zinc-500 font-mono tracking-wider">Loading your library…</span>
+            <span className="text-xs text-zinc-500 font-mono tracking-wider">
+              Loading your library…
+            </span>
           </div>
         )}
 
@@ -400,9 +411,7 @@ export function GalleryView({
           >
             {/* Clean Section Header */}
             <div className="flex items-baseline justify-between mb-2.5 pt-2">
-              <h3 className="text-sm font-semibold tracking-wide text-zinc-200">
-                {monthLabel}
-              </h3>
+              <h3 className="text-sm font-semibold tracking-wide text-zinc-200">{monthLabel}</h3>
               <span className="text-[11px] font-mono text-zinc-500">
                 {items.length} {items.length === 1 ? 'item' : 'items'}
               </span>
@@ -434,7 +443,12 @@ export function GalleryView({
                       className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                       onError={(e) => {
                         e.currentTarget.style.display = 'none';
-                        e.currentTarget.parentElement?.classList.add('flex', 'items-center', 'justify-center', 'bg-zinc-800');
+                        e.currentTarget.parentElement?.classList.add(
+                          'flex',
+                          'items-center',
+                          'justify-center',
+                          'bg-zinc-800',
+                        );
                       }}
                     />
 
@@ -446,7 +460,9 @@ export function GalleryView({
                           <span className="p-1 rounded-full bg-rose-500/80 text-white backdrop-blur-sm">
                             <Heart size={11} fill="currentColor" />
                           </span>
-                        ) : <div />}
+                        ) : (
+                          <div />
+                        )}
                         {isVideo && (
                           <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-black/70 backdrop-blur-md text-white font-mono">
                             <Play size={8} fill="currentColor" /> Video
@@ -484,7 +500,9 @@ export function GalleryView({
           {loadingMore && (
             <div className="flex items-center gap-2 text-xs text-zinc-500 font-mono">
               <Loader2 size={16} className="animate-spin text-brand" />
-              <span>Loading more items… ({photos.length} of {totalPhotos})</span>
+              <span>
+                Loading more items… ({photos.length} of {totalPhotos})
+              </span>
             </div>
           )}
           {!loadingMore && photos.length >= totalPhotos && totalPhotos > 0 && (
@@ -498,9 +516,7 @@ export function GalleryView({
       {/* Right Timeline Year Scrubber Rail matching OneDrive Screenshot */}
       {timelineYears.length > 0 && (
         <div className="absolute right-2 top-20 bottom-24 w-8 flex flex-col items-center justify-between pointer-events-auto z-20 py-2 select-none">
-          <span className="text-[10px] font-mono font-bold text-zinc-400">
-            {timelineYears[0]}
-          </span>
+          <span className="text-[10px] font-mono font-bold text-zinc-400">{timelineYears[0]}</span>
 
           <div className="flex flex-col items-center gap-2.5 my-auto">
             {timelineYears.map((yr) => (

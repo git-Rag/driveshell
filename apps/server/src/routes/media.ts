@@ -16,6 +16,34 @@ import { buildFileQueries } from '../db/queries/files';
 import { buildAccountQueries } from '../db/queries/accounts';
 import { createKeychain, KC_CLIENT_ID, KC_CLIENT_SECRET, KC_SERVICE } from '../auth/keychain';
 import { getAuthenticatedDrive } from '../sync/oauth-client';
+import { fetchWithGuard } from '../utils/outbound-guard';
+
+export const SAFE_INLINE_MIME_PATTERNS = [
+  /^image\/(jpeg|png|webp|avif)$/i,
+  /^audio\/(mpeg|mp4|ogg|wav|webm|flac|aac)$/i,
+  /^video\/(mp4|webm|quicktime|ogg|x-matroska)$/i,
+];
+
+/** Check if a MIME type is safe to render inline without XSS risk (never allow SVG or HTML). */
+export function isSafeInlineMime(mime: string): boolean {
+  if (!mime) return false;
+  const lower = mime.toLowerCase().trim();
+  if (
+    lower.includes('svg') ||
+    lower.includes('html') ||
+    lower.includes('xml') ||
+    lower.includes('javascript')
+  ) {
+    return false;
+  }
+  return SAFE_INLINE_MIME_PATTERNS.some((p) => p.test(lower));
+}
+
+/** Sanitize filenames to prevent header injection or path traversal in Content-Disposition. */
+export function sanitizeFilename(name: string): string {
+  // eslint-disable-next-line no-control-regex
+  return name.replace(/[\x00-\x1f\x7f"/\\]/g, '_');
+}
 
 interface MediaParams {
   fileId: string;
@@ -96,6 +124,8 @@ export async function registerMediaRoutes(
             fs.closeSync(fd);
             if (isValidImage(head)) {
               reply.header('Content-Type', 'image/jpeg');
+              reply.header('X-Content-Type-Options', 'nosniff');
+              reply.header('Content-Security-Policy', "sandbox; default-src 'none'");
               reply.header('Cache-Control', 'public, max-age=604800, immutable');
               return reply.send(fs.createReadStream(cacheFile));
             }
@@ -128,19 +158,18 @@ export async function registerMediaRoutes(
             driveThumbUrl = `${driveThumbUrl}=s${size}`;
           }
 
-          const response = await fetch(driveThumbUrl);
-          if (response.ok) {
-            const arrayBuffer = await response.arrayBuffer();
-            const buffer = Buffer.from(arrayBuffer);
+          // Use outbound guard: HTTPS only, exact suffix match, size cap, no token forwarding
+          const { buffer } = await fetchWithGuard(driveThumbUrl);
 
-            if (isValidImage(buffer)) {
-              // Save to disk asynchronously
-              fs.writeFile(cacheFile, buffer, () => {});
+          if (isValidImage(buffer)) {
+            // Save to disk asynchronously
+            fs.writeFile(cacheFile, buffer, () => {});
 
-              reply.header('Content-Type', 'image/jpeg');
-              reply.header('Cache-Control', 'public, max-age=604800, immutable');
-              return reply.send(buffer);
-            }
+            reply.header('Content-Type', 'image/jpeg');
+            reply.header('X-Content-Type-Options', 'nosniff');
+            reply.header('Content-Security-Policy', "sandbox; default-src 'none'");
+            reply.header('Cache-Control', 'public, max-age=604800, immutable');
+            return reply.send(buffer);
           }
         } catch {
           // Fall through to Drive API if direct fetch fails
@@ -279,7 +308,23 @@ export async function registerMediaRoutes(
         if (headers['accept-ranges']) reply.header('Accept-Ranges', headers['accept-ranges']);
         else reply.header('Accept-Ranges', 'bytes');
 
-        reply.header('Content-Type', file.mime_type);
+        // SEC-002: Restrict inline rendering strictly to safe raster images and audio/video.
+        // Never render SVG, HTML, PDF, or active content inline.
+        const safeInline = isSafeInlineMime(file.mime_type);
+        if (safeInline) {
+          reply.header('Content-Type', file.mime_type);
+          reply.header('Content-Disposition', 'inline');
+        } else {
+          reply.header('Content-Type', 'application/octet-stream');
+          reply.header(
+            'Content-Disposition',
+            `attachment; filename="${sanitizeFilename(file.name)}"`,
+          );
+        }
+
+        reply.header('X-Content-Type-Options', 'nosniff');
+        reply.header('Content-Security-Policy', "sandbox; default-src 'none'");
+        reply.header('Cache-Control', 'private, max-age=86400');
         reply.code(driveRes.status ?? 200);
 
         return reply.send(driveRes.data);
@@ -327,9 +372,11 @@ export async function registerMediaRoutes(
         { responseType: 'stream' },
       )) as unknown as DriveStreamResponse;
 
-      const filename = encodeURIComponent(file.name);
-      reply.header('Content-Disposition', `attachment; filename="${filename}"`);
-      reply.header('Content-Type', file.mime_type || 'application/octet-stream');
+      const safeName = sanitizeFilename(file.name);
+      reply.header('Content-Disposition', `attachment; filename="${safeName}"`);
+      reply.header('Content-Type', 'application/octet-stream');
+      reply.header('X-Content-Type-Options', 'nosniff');
+      reply.header('Content-Security-Policy', "sandbox; default-src 'none'");
       if (file.size_bytes) reply.header('Content-Length', file.size_bytes);
 
       return reply.send(driveRes.data);
