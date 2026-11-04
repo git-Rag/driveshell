@@ -97,6 +97,7 @@ export default tseslint.config(
   // Run base TS rules only (no type-aware rules — they need parserOptions.project).
   {
     files: [
+      'scripts/**/*.ts',
       'apps/*/vitest.config.ts',
       'apps/*/vite.config.ts',
       'apps/*/playwright.config.ts',
