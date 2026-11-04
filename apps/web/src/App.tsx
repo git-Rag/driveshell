@@ -17,6 +17,36 @@ export function App() {
   const [isDark, setIsDark] = useState<boolean>(true);
   const [setupDone, setSetupDone] = useState<boolean>(false);
 
+  const isGallery = ['gallery', 'moments', 'albums', 'favorites', 'people', 'photos'].includes(activeId);
+
+  // In Gallery, sidebar and topbar are defaulted OFF for immersive photo experience
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
+  const [topBarOpen, setTopBarOpen] = useState<boolean>(false);
+
+  const handleNavigate = useCallback((id: string) => {
+    setActiveId(id);
+    const targetIsGallery = ['gallery', 'moments', 'albums', 'favorites', 'people', 'photos'].includes(id);
+    if (targetIsGallery) {
+      setSidebarOpen(false);
+      setTopBarOpen(false);
+    } else {
+      setSidebarOpen(true);
+      setTopBarOpen(true);
+    }
+  }, []);
+
+  // Keyboard shortcut Ctrl+B or [ to toggle sidebar
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        setSidebarOpen((s) => !s);
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   // Apply theme attribute to <html> so CSS [data-theme] selectors work
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
@@ -82,14 +112,25 @@ export function App() {
         background: 'var(--ds-bg)',
         color: 'var(--ds-text-primary)',
         fontFamily: 'var(--ds-font-sans)',
+        position: 'relative',
       }}
     >
-      {/* Left rail */}
+      {/* Left rail with toggle support */}
       <Sidebar
         activeId={activeId}
-        onNavigate={setActiveId}
+        onNavigate={handleNavigate}
         accounts={status.state === 'ready' ? status.data.accounts : []}
+        isOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen((s) => !s)}
       />
+
+      {/* Backdrop overlay when sidebar is opened over Gallery */}
+      {sidebarOpen && isGallery && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity"
+        />
+      )}
 
       {/* Main column */}
       <div
@@ -101,12 +142,14 @@ export function App() {
           overflow: 'hidden',
         }}
       >
-        {/* Sticky top bar (inside main column, not spanning sidebar) */}
+        {/* Sticky top bar — collapsible in Gallery */}
         <TopBar
           isDark={isDark}
           onThemeToggle={() => setIsDark((d) => !d)}
           syncState="idle"
           account={status.state === 'ready' ? (status.data.accounts[0] ?? null) : null}
+          visible={topBarOpen || !isGallery}
+          onToggleSidebar={() => setSidebarOpen((s) => !s)}
         />
 
         {/* Content region */}
@@ -122,11 +165,15 @@ export function App() {
           }}
           aria-label="Main content"
         >
-          {['gallery', 'moments', 'albums', 'favorites', 'people', 'photos'].includes(activeId) && (
+          {isGallery && (
             <GalleryView
               account={status.state === 'ready' ? (status.data.accounts[0] ?? null) : null}
               activeTab={activeId === 'photos' ? 'gallery' : activeId}
-              onTabChange={setActiveId}
+              onTabChange={handleNavigate}
+              sidebarOpen={sidebarOpen}
+              onToggleSidebar={() => setSidebarOpen((s) => !s)}
+              topBarOpen={topBarOpen}
+              onToggleTopBar={() => setTopBarOpen((t) => !t)}
             />
           )}
 

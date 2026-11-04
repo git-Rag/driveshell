@@ -67,9 +67,17 @@ interface SidebarProps {
   activeId?: string;
   onNavigate?: (id: string) => void;
   accounts?: AccountInfo[];
+  isOpen?: boolean;
+  onToggle?: () => void;
 }
 
-export function Sidebar({ activeId = 'gallery', onNavigate, accounts = [] }: SidebarProps) {
+export function Sidebar({
+  activeId = 'gallery',
+  onNavigate,
+  accounts = [],
+  isOpen = true,
+  onToggle,
+}: SidebarProps) {
   const account = accounts[0] ?? null;
   const [expanded, setExpanded] = useState<Record<string, boolean>>({ photos: true });
 
@@ -78,15 +86,21 @@ export function Sidebar({ activeId = 'gallery', onNavigate, accounts = [] }: Sid
   return (
     <aside
       style={{
-        width: 'var(--ds-sidebar-width)',
+        width: isOpen ? 'var(--ds-sidebar-width)' : 0,
+        minWidth: isOpen ? 'var(--ds-sidebar-width)' : 0,
+        maxWidth: isOpen ? 'var(--ds-sidebar-width)' : 0,
         minHeight: '100%',
         background: 'var(--ds-sidebar-bg)',
-        borderRight: '1px solid var(--ds-sidebar-border)',
+        borderRight: isOpen ? '1px solid var(--ds-sidebar-border)' : 'none',
         display: 'flex',
         flexDirection: 'column',
         flexShrink: 0,
         overflowY: 'auto',
         overflowX: 'hidden',
+        opacity: isOpen ? 1 : 0,
+        visibility: isOpen ? 'visible' : 'hidden',
+        transition: 'width 240ms cubic-bezier(0.16, 1, 0.3, 1), opacity 200ms ease',
+        zIndex: 45,
       }}
       aria-label="Main navigation"
     >
@@ -96,12 +110,22 @@ export function Sidebar({ activeId = 'gallery', onNavigate, accounts = [] }: Sid
           height: 'var(--ds-topbar-height)',
           display: 'flex',
           alignItems: 'center',
+          justifyContent: 'space-between',
           padding: '0 16px',
           borderBottom: '1px solid var(--ds-sidebar-border)',
           flexShrink: 0,
         }}
       >
         <Logo />
+        {onToggle && (
+          <button
+            onClick={onToggle}
+            className="p-1 rounded-md text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+            title="Collapse sidebar"
+          >
+            <ChevronRight size={14} className="rotate-180" />
+          </button>
+        )}
       </div>
 
       {/* Navigation */}

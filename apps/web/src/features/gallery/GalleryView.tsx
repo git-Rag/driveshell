@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
-  Grid,
   Heart,
   RefreshCw,
   Image as ImageIcon,
@@ -11,6 +10,9 @@ import {
   Calendar,
   Sparkles,
   Film,
+  Menu,
+  Search,
+  PanelLeft,
 } from 'lucide-react';
 import type { AccountSummary, FileRecord, PhotoMonthBucket } from '../../lib/api';
 import {
@@ -26,6 +28,10 @@ interface GalleryViewProps {
   account?: AccountSummary | null;
   activeTab?: string;
   onTabChange?: (tab: string) => void;
+  sidebarOpen?: boolean;
+  onToggleSidebar?: () => void;
+  topBarOpen?: boolean;
+  onToggleTopBar?: () => void;
 }
 
 type ZoomLevel = 1 | 2 | 3 | 4;
@@ -42,9 +48,24 @@ function formatMonthYear(ms: number): string {
   return d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 }
 
+function isStrictMedia(file: FileRecord): boolean {
+  if (file.mime_type === 'application/vnd.google-apps.folder') return false;
+  if (file.mime_type.startsWith('application/vnd.google-apps.')) return false;
+  const isDocExt = /\.(pdf|docx?|xlsx?|pptx?|zip|rar|tar|json|txt|html|css|js|ts|exe|apk)$/i.test(file.name);
+  if (isDocExt) return false;
+  if (file.mime_type.startsWith('image/') || file.mime_type.startsWith('video/')) return true;
+  return /\.(jpg|jpeg|png|gif|webp|heic|heif|bmp|tiff|avif|raw|dng|cr2|nef|arw|mp4|mov|avi|mkv|webm|3gp|m4v)$/i.test(file.name);
+}
+
 const PAGE_SIZE = 120;
 
-export function GalleryView({ account }: GalleryViewProps) {
+export function GalleryView({
+  account,
+  sidebarOpen,
+  onToggleSidebar,
+  topBarOpen,
+  onToggleTopBar,
+}: GalleryViewProps) {
   const [zoom, setZoom] = useState<ZoomLevel>(2);
   const [photos, setPhotos] = useState<FileRecord[]>([]);
   const [totalPhotos, setTotalPhotos] = useState(0);
@@ -73,7 +94,7 @@ export function GalleryView({ account }: GalleryViewProps) {
         getPhotos({ offset: 0, limit: PAGE_SIZE, type: activeFilter }),
       ]);
       setMonths(monthsRes.months);
-      setPhotos(photosRes.files);
+      setPhotos(photosRes.files.filter(isStrictMedia));
       setTotalPhotos(photosRes.total);
 
       if (photosRes.files.length > 0 && photosRes.files[0]) {
@@ -106,9 +127,9 @@ export function GalleryView({ account }: GalleryViewProps) {
       });
 
       setPhotos((prev) => {
-        // De-duplicate by ID
+        // De-duplicate by ID and strictly enforce media filter
         const existingIds = new Set(prev.map((p) => p.id));
-        const newItems = res.files.filter((f) => !existingIds.has(f.id));
+        const newItems = res.files.filter((f) => !existingIds.has(f.id) && isStrictMedia(f));
         return [...prev, ...newItems];
       });
       setTotalPhotos(res.total);
@@ -217,14 +238,42 @@ export function GalleryView({ account }: GalleryViewProps) {
     <div className="flex-1 flex flex-col min-h-0 bg-[#09090b] text-white relative select-none overflow-hidden">
       {/* Sleek Floating OneDrive Header */}
       <div className="z-30 px-6 py-2.5 flex items-center justify-between border-b border-white/5 bg-[#09090b]/80 backdrop-blur-xl">
-        {/* Left: Dynamic Floating Month Badge */}
-        <div className="flex items-center gap-3">
+        {/* Left: Sidebar & TopBar Toggles + Dynamic Floating Month Badge */}
+        <div className="flex items-center gap-2.5">
+          {onToggleSidebar && (
+            <button
+              onClick={onToggleSidebar}
+              className={`p-2 rounded-full border transition-all ${
+                sidebarOpen
+                  ? 'bg-brand text-white border-brand ring-2 ring-brand/30'
+                  : 'bg-zinc-900/90 border-white/10 text-zinc-300 hover:text-white hover:border-white/30 active:scale-95'
+              } shadow-lg`}
+              title="Toggle sidebar (Ctrl+B)"
+            >
+              <PanelLeft size={15} />
+            </button>
+          )}
+
+          {onToggleTopBar && (
+            <button
+              onClick={onToggleTopBar}
+              className={`p-2 rounded-full border transition-all ${
+                topBarOpen
+                  ? 'bg-brand text-white border-brand ring-2 ring-brand/30'
+                  : 'bg-zinc-900/90 border-white/10 text-zinc-300 hover:text-white hover:border-white/30 active:scale-95'
+              } shadow-lg`}
+              title="Toggle search & top bar"
+            >
+              <Search size={14} />
+            </button>
+          )}
+
           <div className="flex items-center gap-2 bg-zinc-900/90 border border-white/10 px-3.5 py-1.5 rounded-full text-xs font-semibold tracking-wide text-white shadow-lg backdrop-blur-md">
             <Calendar size={13} className="text-brand" />
             <span>{currentVisibleMonth || 'Gallery'}</span>
           </div>
 
-          <span className="hidden sm:inline-block text-[11px] font-mono text-zinc-400">
+          <span className="hidden md:inline-block text-[11px] font-mono text-zinc-400">
             {totalPhotos > 0 ? `${totalPhotos.toLocaleString()} items` : ''}
           </span>
         </div>

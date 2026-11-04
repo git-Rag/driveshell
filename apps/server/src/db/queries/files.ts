@@ -86,6 +86,100 @@ export interface UpdateFileInput {
 // Queries
 // ---------------------------------------------------------------------------
 
+const MEDIA_STRICT_FILTER = `
+  (
+    (
+      mime_type LIKE 'image/%'
+      OR mime_type LIKE 'video/%'
+      OR lower(name) LIKE '%.jpg'
+      OR lower(name) LIKE '%.jpeg'
+      OR lower(name) LIKE '%.png'
+      OR lower(name) LIKE '%.gif'
+      OR lower(name) LIKE '%.webp'
+      OR lower(name) LIKE '%.heic'
+      OR lower(name) LIKE '%.heif'
+      OR lower(name) LIKE '%.bmp'
+      OR lower(name) LIKE '%.tiff'
+      OR lower(name) LIKE '%.tif'
+      OR lower(name) LIKE '%.avif'
+      OR lower(name) LIKE '%.raw'
+      OR lower(name) LIKE '%.dng'
+      OR lower(name) LIKE '%.cr2'
+      OR lower(name) LIKE '%.nef'
+      OR lower(name) LIKE '%.arw'
+      OR lower(name) LIKE '%.mp4'
+      OR lower(name) LIKE '%.mov'
+      OR lower(name) LIKE '%.avi'
+      OR lower(name) LIKE '%.mkv'
+      OR lower(name) LIKE '%.webm'
+      OR lower(name) LIKE '%.3gp'
+      OR lower(name) LIKE '%.m4v'
+    )
+    AND mime_type != 'application/vnd.google-apps.folder'
+    AND mime_type NOT LIKE 'application/vnd.google-apps.%'
+    AND NOT (
+      lower(name) LIKE '%.pdf'
+      OR lower(name) LIKE '%.doc%'
+      OR lower(name) LIKE '%.xls%'
+      OR lower(name) LIKE '%.ppt%'
+      OR lower(name) LIKE '%.zip'
+      OR lower(name) LIKE '%.rar'
+      OR lower(name) LIKE '%.tar%'
+      OR lower(name) LIKE '%.json'
+      OR lower(name) LIKE '%.txt'
+      OR lower(name) LIKE '%.html'
+      OR lower(name) LIKE '%.css'
+      OR lower(name) LIKE '%.js'
+      OR lower(name) LIKE '%.ts'
+      OR lower(name) LIKE '%.exe'
+      OR lower(name) LIKE '%.apk'
+      OR lower(name) LIKE '%.dmg'
+      OR lower(name) LIKE '%.iso'
+    )
+  )
+`;
+
+const MEDIA_IMAGE_FILTER = `
+  (
+    (
+      mime_type LIKE 'image/%'
+      OR lower(name) LIKE '%.jpg'
+      OR lower(name) LIKE '%.jpeg'
+      OR lower(name) LIKE '%.png'
+      OR lower(name) LIKE '%.gif'
+      OR lower(name) LIKE '%.webp'
+      OR lower(name) LIKE '%.heic'
+      OR lower(name) LIKE '%.heif'
+      OR lower(name) LIKE '%.bmp'
+      OR lower(name) LIKE '%.tiff'
+      OR lower(name) LIKE '%.tif'
+      OR lower(name) LIKE '%.avif'
+      OR lower(name) LIKE '%.raw'
+      OR lower(name) LIKE '%.dng'
+    )
+    AND mime_type NOT LIKE 'video/%'
+    AND mime_type != 'application/vnd.google-apps.folder'
+    AND mime_type NOT LIKE 'application/vnd.google-apps.%'
+  )
+`;
+
+const MEDIA_VIDEO_FILTER = `
+  (
+    (
+      mime_type LIKE 'video/%'
+      OR lower(name) LIKE '%.mp4'
+      OR lower(name) LIKE '%.mov'
+      OR lower(name) LIKE '%.avi'
+      OR lower(name) LIKE '%.mkv'
+      OR lower(name) LIKE '%.webm'
+      OR lower(name) LIKE '%.3gp'
+      OR lower(name) LIKE '%.m4v'
+    )
+    AND mime_type != 'application/vnd.google-apps.folder'
+    AND mime_type NOT LIKE 'application/vnd.google-apps.%'
+  )
+`;
+
 export function buildFileQueries(db: Db) {
   const upsert = db.prepare<UpsertFileInput>(`
     INSERT INTO files (
@@ -188,7 +282,7 @@ export function buildFileQueries(db: Db) {
   const countPhotos = db.prepare<[string], { total: number }>(`
     SELECT COUNT(*) AS total FROM files
     WHERE account_id = ?
-      AND (mime_type LIKE 'image/%' OR mime_type LIKE 'video/%')
+      AND ${MEDIA_STRICT_FILTER}
       AND trashed = 0
   `);
 
@@ -199,7 +293,7 @@ export function buildFileQueries(db: Db) {
       MAX(CASE WHEN taken_at IS NOT NULL THEN taken_at ELSE modified_at END) AS latest_time
     FROM files
     WHERE account_id = ?
-      AND (mime_type LIKE 'image/%' OR mime_type LIKE 'video/%')
+      AND ${MEDIA_STRICT_FILTER}
       AND trashed = 0
     GROUP BY month_key
     ORDER BY latest_time DESC
@@ -287,11 +381,11 @@ export function buildFileQueries(db: Db) {
       const params: (string | number)[] = [accountId];
 
       if (opts.type === 'photos') {
-        where += ` AND mime_type LIKE 'image/%'`;
+        where += ` AND ${MEDIA_IMAGE_FILTER}`;
       } else if (opts.type === 'videos') {
-        where += ` AND mime_type LIKE 'video/%'`;
+        where += ` AND ${MEDIA_VIDEO_FILTER}`;
       } else {
-        where += ` AND (mime_type LIKE 'image/%' OR mime_type LIKE 'video/%')`;
+        where += ` AND ${MEDIA_STRICT_FILTER}`;
       }
 
       if (opts.type === 'favorites') {

@@ -1,4 +1,4 @@
-import { Search, RefreshCw, Moon, Sun, Bell } from 'lucide-react';
+import { Search, RefreshCw, Moon, Sun, Bell, Menu } from 'lucide-react';
 import { useState } from 'react';
 import { useSyncStatus } from '../../hooks/useSyncStatus';
 
@@ -7,6 +7,8 @@ interface TopBarProps {
   isDark?: boolean;
   syncState?: 'idle' | 'syncing' | 'error' | 'needs_reauth';
   account?: { displayName: string; avatarUrl: string | null } | null;
+  visible?: boolean;
+  onToggleSidebar?: () => void;
 }
 
 export function TopBar({
@@ -14,6 +16,8 @@ export function TopBar({
   isDark = true,
   syncState = 'idle',
   account = null,
+  visible = true,
+  onToggleSidebar,
 }: TopBarProps) {
   const initials = account?.displayName?.[0]?.toUpperCase() ?? '?';
   const [searchFocused, setSearchFocused] = useState(false);
@@ -43,22 +47,38 @@ export function TopBar({
   return (
     <header
       style={{
-        height: 'var(--ds-topbar-height)',
+        height: visible ? 'var(--ds-topbar-height)' : 0,
+        opacity: visible ? 1 : 0,
+        visibility: visible ? 'visible' : 'hidden',
+        pointerEvents: visible ? 'auto' : 'none',
         background: 'var(--ds-topbar-bg)',
-        borderBottom: '1px solid var(--ds-topbar-border)',
+        borderBottom: visible ? '1px solid var(--ds-topbar-border)' : 'none',
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
         display: 'flex',
         alignItems: 'center',
         gap: 12,
-        padding: '0 16px',
+        padding: visible ? '0 16px' : 0,
         flexShrink: 0,
         position: 'sticky',
         top: 0,
         zIndex: 40,
+        transition: 'height 200ms ease, opacity 200ms ease, padding 200ms ease',
+        overflow: 'hidden',
       }}
       role="banner"
     >
+      {/* Sidebar toggle button when visible */}
+      {onToggleSidebar && (
+        <button
+          onClick={onToggleSidebar}
+          className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition-colors mr-1"
+          title="Toggle sidebar"
+        >
+          <Menu size={16} />
+        </button>
+      )}
+
       {/* Search — full-width centrepiece */}
       <div
         style={{
