@@ -151,25 +151,24 @@ enforces the following invariants:
 
 ---
 
-## 6. Vault Cryptographic Design (Stage 4 Architecture)
+## 6. Vault Cryptographic Design (Stage 4 Architecture — SDV1)
+
+> Full frozen specification available at [`docs/vault-format.md`](./vault-format.md) and test
+> vectors at [`packages/vault-spec/test-vectors.json`](../packages/vault-spec/test-vectors.json).
 
 ### 6.1 Cryptographic Core: WebCrypto + WASM Argon2id
 
-To guarantee portability across:
+To guarantee portability across Node.js 22+, modern browsers, Tauri Rust backend, and Android
+WebView:
 
-- **Node.js 22+ (Loopback Server)**
-- **Modern Browsers (Chrome / Safari / Firefox)**
-- **Android WebView (Future Mobile Port)**
-
-The cryptographic primitives use:
-
-- **KDF**: Argon2id via audited WebAssembly (`hash-wasm` or standalone WASM module).
-- **Cipher**: AES-GCM (256-bit key, 96-bit random IV) via standard `crypto.subtle` (WebCrypto API).
+- **KDF**: Argon2id via audited WebAssembly (`m=65536 KiB, t=3, p=4`).
+- **Cipher**: AES-256-GCM (256-bit key, 96-bit nonce) via standard `crypto.subtle` (WebCrypto API).
+- **Subkey Derivation**: HKDF-SHA256 (RFC 5869) per file with unique 32-byte salts.
 
 ### 6.2 Key Hierarchy
 
 ```text
-User Passphrase ─────────(Argon2id + Salt)─────────▶ Wrapping Key (WK)
+User Passphrase ─────────(Argon2id + Salt)─────────▶ Wrapping Key (KEK)
                                                              │
                                                     AES-256-GCM Unwrap
                                                              ▼
@@ -180,9 +179,11 @@ User Passphrase ─────────(Argon2id + Salt)──────�
                                                     File Encryption Key
 ```
 
-### 6.3 Chunked Streaming AEAD
+### 6.3 Chunked Streaming AEAD Container (`.sdv`)
 
-- Files are encrypted in authenticated 1 MiB chunks.
-- Each chunk contains a distinct 12-byte IV computed deterministically: `IV_0 ^ Chunk_Index`.
-- Allows seeking and partial streaming decryption without buffering entire multi-gigabyte files into
-  RAM.
+- **Format**: `SDV1` container with authenticated metadata header.
+- **Chunks**: 1 MiB authenticated chunks.
+- **Nonce Structure**: `[4 bytes prefix][7 bytes counter BE][1 byte final flag]`. Guarantees
+  reordering and truncation defense.
+- **Seeking**: Random-access chunk seek arithmetic allows decrypting arbitrary byte-ranges for 4K
+  video seeking without loading entire files into memory.
