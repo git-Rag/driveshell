@@ -109,14 +109,13 @@ export function App() {
           account={status.state === 'ready' ? (status.data.accounts[0] ?? null) : null}
         />
 
-        {/* Content region — scrollable */}
+        {/* Content region */}
         <main
           id="main-content"
           tabIndex={-1}
           style={{
             flex: 1,
-            overflowY: 'auto',
-            overflowX: 'hidden',
+            overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',
             position: 'relative',

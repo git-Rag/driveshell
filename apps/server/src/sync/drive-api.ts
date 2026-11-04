@@ -180,6 +180,91 @@ export interface MappedFile {
   camera_model: string | null;
 }
 
+/** Parse EXIF date strings (YYYY:MM:DD HH:MM:SS) or date encoded in filenames. */
+export function extractMediaDate(
+  rawExifTime?: string | null,
+  filename?: string | null,
+  fallbackTime?: number | null,
+): number | null {
+  const currentYear = new Date().getFullYear();
+
+  function isValidYMD(y: number, m: number, d: number): boolean {
+    return y >= 1990 && y <= currentYear && m >= 1 && m <= 12 && d >= 1 && d <= 31;
+  }
+
+  if (rawExifTime) {
+    const trimmed = rawExifTime.trim();
+    // EXIF format: YYYY:MM:DD HH:MM:SS
+    const m = /^(\d{4}):(\d{2}):(\d{2})(?:[ T](\d{2}):(\d{2}):(\d{2}))?/.exec(trimmed);
+    if (m && m[1] && m[2] && m[3]) {
+      const y = parseInt(m[1], 10);
+      const mo = parseInt(m[2], 10);
+      const dy = parseInt(m[3], 10);
+      if (isValidYMD(y, mo, dy)) {
+        const d = new Date(
+          y,
+          mo - 1,
+          dy,
+          parseInt(m[4] ?? '0', 10),
+          parseInt(m[5] ?? '0', 10),
+          parseInt(m[6] ?? '0', 10),
+        );
+        if (!isNaN(d.getTime())) return d.getTime();
+      }
+    }
+    const d2 = new Date(trimmed);
+    if (!isNaN(d2.getTime())) {
+      const y2 = d2.getFullYear();
+      if (y2 >= 1990 && y2 <= currentYear) return d2.getTime();
+    }
+  }
+
+  if (filename) {
+    // Exclude Snapchat random ID numbers (Snapchat-20...)
+    if (!filename.toLowerCase().startsWith('snapchat-')) {
+      // 1. Screenshot_2026-06-13-22-45-48 or 2026-06-13
+      const m1 = /(?:^|\D)(20\d\d)[-_](\d{2})[-_](\d{2})(?:[-_](\d{2})[-_](\d{2})[-_](\d{2}))?/.exec(filename);
+      if (m1 && m1[1] && m1[2] && m1[3]) {
+        const y = parseInt(m1[1], 10);
+        const mo = parseInt(m1[2], 10);
+        const dy = parseInt(m1[3], 10);
+        if (isValidYMD(y, mo, dy)) {
+          const d = new Date(
+            y,
+            mo - 1,
+            dy,
+            parseInt(m1[4] ?? '12', 10),
+            parseInt(m1[5] ?? '0', 10),
+            parseInt(m1[6] ?? '0', 10),
+          );
+          if (!isNaN(d.getTime())) return d.getTime();
+        }
+      }
+
+      // 2. IMG20260723170306 or IMG-20260526-WA or 20260723
+      const m2 = /(?:IMG|VID|PHOTO|PXL)?[-_]?(20\d\d)(\d{2})(\d{2})(?:[-_]?(\d{2})(\d{2})(\d{2}))?/.exec(filename);
+      if (m2 && m2[1] && m2[2] && m2[3]) {
+        const y = parseInt(m2[1], 10);
+        const mo = parseInt(m2[2], 10);
+        const dy = parseInt(m2[3], 10);
+        if (isValidYMD(y, mo, dy)) {
+          const d = new Date(
+            y,
+            mo - 1,
+            dy,
+            parseInt(m2[4] ?? '12', 10),
+            parseInt(m2[5] ?? '0', 10),
+            parseInt(m2[6] ?? '0', 10),
+          );
+          if (!isNaN(d.getTime())) return d.getTime();
+        }
+      }
+    }
+  }
+
+  return fallbackTime ?? null;
+}
+
 /** Map a Drive API file object to a DB row. */
 export function mapDriveFile(accountId: string, f: drive_v3.Schema$File): MappedFile | null {
   if (!f.id || !f.name || !f.mimeType) return null;
@@ -187,12 +272,7 @@ export function mapDriveFile(accountId: string, f: drive_v3.Schema$File): Mapped
   const modifiedAt = f.modifiedTime ? new Date(f.modifiedTime).getTime() : Date.now();
   const createdAtMs = f.createdTime ? new Date(f.createdTime).getTime() : Date.now();
 
-  // imageMediaMetadata.time is an EXIF date string in Drive's format
-  let takenAt: number | null = null;
-  if (f.imageMediaMetadata?.time) {
-    const parsed = new Date(f.imageMediaMetadata.time).getTime();
-    if (!isNaN(parsed)) takenAt = parsed;
-  }
+  const takenAt = extractMediaDate(f.imageMediaMetadata?.time, f.name, null);
 
   return {
     account_id: accountId,

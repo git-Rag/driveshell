@@ -385,3 +385,4 @@ export function PhotoLightbox({
     </div>
   );
 }
+

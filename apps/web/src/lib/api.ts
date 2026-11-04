@@ -244,14 +244,20 @@ export function getFiles(opts: {
 }
 
 export function getPhotos(opts: {
-  accountId?: string;
-  offset?: number;
-  limit?: number;
+  accountId?: string | undefined;
+  offset?: number | undefined;
+  limit?: number | undefined;
+  type?: 'all' | 'photos' | 'videos' | 'favorites' | undefined;
+  year?: number | undefined;
+  month?: string | undefined;
 }): Promise<PhotosListResponse> {
   const params = new URLSearchParams();
   if (opts.accountId) params.set('accountId', opts.accountId);
   if (opts.offset != null) params.set('offset', String(opts.offset));
   if (opts.limit != null) params.set('limit', String(opts.limit));
+  if (opts.type) params.set('type', opts.type);
+  if (opts.year) params.set('year', String(opts.year));
+  if (opts.month) params.set('month', opts.month);
   return request<PhotosListResponse>(`/api/files/photos?${params.toString()}`);
 }
 

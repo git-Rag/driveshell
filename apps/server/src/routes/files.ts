@@ -18,6 +18,15 @@ import type { Db } from '../db/connection';
 import { buildFileQueries } from '../db/queries/files';
 import { buildAccountQueries } from '../db/queries/accounts';
 
+interface PhotosQuery {
+  accountId?: string;
+  offset?: string;
+  limit?: string;
+  type?: 'all' | 'photos' | 'videos' | 'favorites';
+  year?: string;
+  month?: string;
+}
+
 interface ListQuery {
   accountId?: string;
   offset?: string;
@@ -82,18 +91,26 @@ export async function registerFileRoutes(app: FastifyInstance, db: Db): Promise<
   });
 
   // -------------------------------------------------------------------------
-  // GET /api/files/photos
+  // GET /api/files/photos — Progressive loading & filtering
   // -------------------------------------------------------------------------
   // eslint-disable-next-line @typescript-eslint/require-await
-  app.get('/api/files/photos', async (req: FastifyRequest<{ Querystring: ListQuery }>, reply: FastifyReply) => {
+  app.get('/api/files/photos', async (req: FastifyRequest<{ Querystring: PhotosQuery }>, reply: FastifyReply) => {
     const accountId = resolveAccountId(req.query.accountId);
     if (!accountId) return reply.code(404).send({ error: 'No account found' });
 
     const offset = Math.max(0, parseInt(req.query.offset ?? '0', 10) || 0);
-    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit ?? '60', 10) || 60));
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit ?? '120', 10) || 120));
+    const year = req.query.year ? parseInt(req.query.year, 10) : undefined;
+    const month = req.query.month;
+    const type = req.query.type ?? 'all';
 
-    const files = fileQ.listPhotos(accountId, { offset, limit });
-    const total = fileQ.countPhotos(accountId);
+    const { files, total } = fileQ.listPhotos(accountId, {
+      offset,
+      limit,
+      type,
+      year: isNaN(year ?? NaN) ? undefined : year,
+      month,
+    });
 
     return reply.send({ files, total, offset, limit });
   });

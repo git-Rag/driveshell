@@ -57,3 +57,4 @@ gallery, including:
 - Ultra-fast gallery rendering without UI lag or external CDN dependencies.
 - Video playback works out of the box directly in the browser lightbox.
 - Files tab supports breadcrumb navigation, search, and file manipulation.
+

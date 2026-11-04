@@ -269,9 +269,58 @@ export function buildFileQueries(db: Db) {
       return searchLike.all(accountId, likeQuery, limit);
     },
 
-    /** Paginated photo listing (image/* + video/*), by taken_at then modified_at. */
-    listPhotos(accountId: string, opts: { offset: number; limit: number }): FileRow[] {
-      return listPhotos.all(accountId, opts.limit, opts.offset);
+    /**
+     * Paginated photo & media listing with optional type / year filter.
+     * Sorted strictly by metadata date (taken_at DESC, modified_at DESC).
+     */
+    listPhotos(
+      accountId: string,
+      opts: {
+        offset: number;
+        limit: number;
+        type?: 'all' | 'photos' | 'videos' | 'favorites' | undefined;
+        year?: number | undefined;
+        month?: string | undefined;
+      },
+    ): { files: FileRow[]; total: number } {
+      let where = `WHERE account_id = ? AND trashed = 0`;
+      const params: (string | number)[] = [accountId];
+
+      if (opts.type === 'photos') {
+        where += ` AND mime_type LIKE 'image/%'`;
+      } else if (opts.type === 'videos') {
+        where += ` AND mime_type LIKE 'video/%'`;
+      } else {
+        where += ` AND (mime_type LIKE 'image/%' OR mime_type LIKE 'video/%')`;
+      }
+
+      if (opts.type === 'favorites') {
+        where += ` AND starred = 1`;
+      }
+
+      if (opts.year) {
+        where += ` AND strftime('%Y', datetime(CASE WHEN taken_at IS NOT NULL THEN taken_at/1000 ELSE modified_at/1000 END, 'unixepoch')) = ?`;
+        params.push(String(opts.year));
+      } else if (opts.month) {
+        where += ` AND strftime('%Y-%m', datetime(CASE WHEN taken_at IS NOT NULL THEN taken_at/1000 ELSE modified_at/1000 END, 'unixepoch')) = ?`;
+        params.push(opts.month);
+      }
+
+      const countSql = `SELECT COUNT(*) AS total FROM files ${where}`;
+      const totalRow = db.prepare<typeof params, { total: number }>(countSql).get(...params);
+      const total = totalRow?.total ?? 0;
+
+      const dataSql = `
+        SELECT * FROM files
+        ${where}
+        ORDER BY
+          CASE WHEN taken_at IS NOT NULL THEN taken_at ELSE modified_at END DESC
+        LIMIT ? OFFSET ?
+      `;
+      params.push(opts.limit, opts.offset);
+
+      const files = db.prepare<typeof params, FileRow>(dataSql).all(...params);
+      return { files, total };
     },
 
     /** Total count of photos and videos. */
