@@ -1,0 +1,48 @@
+# Vite
+*.timestamp-*.mjs
+
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Local data (never commit — contains your Drive index and cached thumbnails)
+data/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/settings.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Playwright
+test-results/
+playwright-report/
+
+# Coverage
+coverage/
+
+# Logs
+*.log
+pnpm-debug.log*
+
+# Misc
+*.pem
+

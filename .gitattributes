@@ -1,0 +1,13 @@
+# Enforce LF line endings in the repository for all text files.
+# This avoids CRLF/LF conflicts when contributors use Windows.
+* text=auto eol=lf
+
+# Binaries — no line-ending conversion
+*.png binary
+*.jpg binary
+*.webp binary
+*.ico binary
+*.woff2 binary
+*.woff binary
+*.ttf binary
+*.eot binary

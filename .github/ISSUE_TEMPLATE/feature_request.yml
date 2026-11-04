@@ -1,0 +1,43 @@
+name: Feature Request
+description: Suggest an improvement or new feature
+labels: ['enhancement', 'needs-triage']
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the pain point or use-case. What can't you do today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Describe what you'd like to see, as concretely as possible.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any other approaches you've thought about?
+
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Which phase does this fit?
+      description: See docs/roadmap.md for the phase list.
+      options:
+        - Phase 1 — Auth & setup
+        - Phase 2 — Sync engine
+        - Phase 3 — Gallery
+        - Phase 4 — Video
+        - Phase 5 — Files tab
+        - Phase 6 — Favorites, Albums, Moments
+        - Phase 7 — Multi-account
+        - Phase 8-9 — Vault
+        - Phase 10 — Desktop packaging
+        - Phase 11 — People (optional)
+        - Not sure / new area

@@ -1,0 +1,41 @@
+version: 2
+updates:
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+    groups:
+      dev-tooling:
+        patterns:
+          - 'eslint*'
+          - '@eslint/*'
+          - 'typescript*'
+          - 'typescript-eslint'
+          - 'prettier'
+          - 'husky'
+          - 'lint-staged'
+          - 'vitest'
+          - '@playwright/*'
+          - 'globals'
+      vite-react:
+        patterns:
+          - 'vite'
+          - '@vitejs/*'
+          - 'react'
+          - 'react-dom'
+          - '@types/react*'
+      tailwind:
+        patterns:
+          - 'tailwindcss'
+          - 'postcss'
+          - 'autoprefixer'
+    ignore:
+      # Major version bumps require manual ADR review
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
+
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'monthly'
