@@ -83,19 +83,24 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
     setAddedAlbumId(null);
   }, [currentIndex]);
 
-  // Intelligent pre-fetching: load high-res for next & previous photos
+  // Intelligent deferred pre-fetching: ONLY after the active photo is fully loaded
+  // This ensures the clicked photo gets 100% network priority and is never blocked
   useEffect(() => {
-    const toPrefetch = [currentIndex + 1, currentIndex - 1, currentIndex + 2];
-    for (const idx of toPrefetch) {
-      if (idx >= 0 && idx < files.length) {
-        const f = files[idx];
-        if (f && !f.mime_type.startsWith('video/')) {
-          const img = new Image();
-          img.src = getMediaThumbUrl(f.id, 1200);
+    if (!highResLoaded) return;
+    const timer = setTimeout(() => {
+      const toPrefetch = [currentIndex + 1, currentIndex - 1, currentIndex + 2];
+      for (const idx of toPrefetch) {
+        if (idx >= 0 && idx < files.length) {
+          const f = files[idx];
+          if (f && !f.mime_type.startsWith('video/')) {
+            const img = new Image();
+            img.src = getMediaThumbUrl(f.id, 1200);
+          }
         }
       }
-    }
-  }, [currentIndex, files]);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [currentIndex, files, highResLoaded]);
 
   const goToNext = useCallback(() => {
     if (currentIndex < files.length - 1) {
@@ -324,11 +329,13 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
                 }`}
               />
 
-              {/* Layer 2: High-Resolution (1200px) Smooth Crossfade */}
+              {/* Layer 2: High-Resolution (1200px) Smooth Crossfade with Priority */}
               <img
                 key={file.id}
                 src={getMediaThumbUrl(file.id, 1200)}
                 alt={file.name}
+                fetchPriority="high"
+                decoding="async"
                 onLoad={() => setHighResLoaded(true)}
                 className={`max-h-[82vh] max-w-[85vw] object-contain rounded-lg shadow-2xl transition-opacity duration-300 ease-out select-none ${
                   highResLoaded ? 'opacity-100' : 'opacity-0 absolute'
@@ -373,7 +380,7 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
           )}
         </div>
 
-        {/* Bottom Thumbnail Strip */}
+        {/* Bottom Thumbnail Strip — Uses cached 400px thumbs with low priority to never block main photo */}
         <div className="h-16 px-6 py-2 bg-gradient-to-t from-black/90 to-transparent flex items-center justify-center gap-2 overflow-x-auto z-10">
           {files.slice(Math.max(0, currentIndex - 5), currentIndex + 6).map((f) => {
             const idx = files.indexOf(f);
@@ -391,8 +398,11 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
                 }`}
               >
                 <img
-                  src={getMediaThumbUrl(f.id, 100)}
+                  src={getMediaThumbUrl(f.id, 400)}
                   alt={f.name}
+                  loading="lazy"
+                  fetchPriority="low"
+                  decoding="async"
                   className="w-full h-full object-cover"
                 />
                 {f.mime_type.startsWith('video/') && (

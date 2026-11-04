@@ -64,8 +64,8 @@ export interface ListFilesOpts {
 
 export interface PhotoMonthBucket {
   monthKey: string; // e.g. "2026-09"
-  label: string;    // e.g. "September 2026"
-  year: number;     // 2026
+  label: string; // e.g. "September 2026"
+  year: number; // 2026
   count: number;
   latestTime: number;
 }
@@ -245,14 +245,10 @@ export function buildFileQueries(db: Db) {
     LIMIT ?
   `);
 
-  const listPhotos = db.prepare<[string, number, number], FileRow>(`
-    SELECT * FROM files
-    WHERE account_id = ?
-      AND (mime_type LIKE 'image/%' OR mime_type LIKE 'video/%')
-      AND trashed = 0
-    ORDER BY
-      CASE WHEN taken_at IS NOT NULL THEN taken_at ELSE modified_at END DESC
-    LIMIT ? OFFSET ?
+  const updateThumbnailStmt = db.prepare<[string, string, string], void>(`
+    UPDATE files
+    SET thumbnail_url = ?
+    WHERE account_id = ? AND id = ?
   `);
 
   const listNonMedia = db.prepare<[string, number, number], FileRow>(`
@@ -286,7 +282,10 @@ export function buildFileQueries(db: Db) {
       AND trashed = 0
   `);
 
-  const photoMonthsStmt = db.prepare<[string], { month_key: string; total: number; latest_time: number }>(`
+  const photoMonthsStmt = db.prepare<
+    [string],
+    { month_key: string; total: number; latest_time: number }
+  >(`
     SELECT
       strftime('%Y-%m', datetime(CASE WHEN taken_at IS NOT NULL THEN taken_at/1000 ELSE modified_at/1000 END, 'unixepoch')) AS month_key,
       COUNT(*) AS total,
@@ -426,8 +425,18 @@ export function buildFileQueries(db: Db) {
     getPhotoMonths(accountId: string): PhotoMonthBucket[] {
       const rows = photoMonthsStmt.all(accountId);
       const MONTH_NAMES = [
-        'January', 'February', 'March', 'April', 'May', 'June',
-        'July', 'August', 'September', 'October', 'November', 'December'
+        'January',
+        'February',
+        'March',
+        'April',
+        'May',
+        'June',
+        'July',
+        'August',
+        'September',
+        'October',
+        'November',
+        'December',
       ];
       return rows.map((r) => {
         const [yearStr, monthStr] = r.month_key.split('-');
@@ -460,7 +469,11 @@ export function buildFileQueries(db: Db) {
       },
     ): { files: FileRow[]; total: number } {
       const sortField =
-        opts.sortBy === 'name' ? 'name' : opts.sortBy === 'size_bytes' ? 'size_bytes' : 'modified_at';
+        opts.sortBy === 'name'
+          ? 'name'
+          : opts.sortBy === 'size_bytes'
+            ? 'size_bytes'
+            : 'modified_at';
       const sortDirection = opts.sortDir === 'asc' ? 'ASC' : 'DESC';
 
       let sql = `
@@ -480,7 +493,9 @@ export function buildFileQueries(db: Db) {
       if (opts.search?.trim()) {
         sql += ` AND name LIKE ? ESCAPE '\\'`;
         const escaped =
-          '%' + opts.search.trim().replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_') + '%';
+          '%' +
+          opts.search.trim().replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_') +
+          '%';
         params.push(escaped);
       }
 
@@ -535,6 +550,11 @@ export function buildFileQueries(db: Db) {
       });
     },
 
+    /** Update thumbnail_url in SQLite for a file. */
+    updateThumbnailUrl(accountId: string, id: string, thumbnailUrl: string): void {
+      updateThumbnailStmt.run(thumbnailUrl, accountId, id);
+    },
+
     /** Paginated non-media file listing, by modified_at. */
     listFiles(accountId: string, opts: { offset: number; limit: number }): FileRow[] {
       return listNonMedia.all(accountId, opts.limit, opts.offset);
@@ -553,4 +573,3 @@ export function buildFileQueries(db: Db) {
 }
 
 export type FileQueries = ReturnType<typeof buildFileQueries>;
-

@@ -32,6 +32,25 @@ interface DriveStreamResponse {
   status?: number;
 }
 
+/** Check whether a buffer begins with a decodable image magic number (JPEG, PNG, WebP, GIF). */
+function isValidImage(buf: Buffer): boolean {
+  if (buf.length < 12) return false;
+  // JPEG: 0xFF 0xD8
+  if (buf[0] === 0xff && buf[1] === 0xd8) return true;
+  // PNG: 0x89 0x50 0x4E 0x47
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return true;
+  // WebP: RIFF .... WEBP
+  if (
+    buf.subarray(0, 4).toString('ascii') === 'RIFF' &&
+    buf.subarray(8, 12).toString('ascii') === 'WEBP'
+  ) {
+    return true;
+  }
+  // GIF: GIF87a / GIF89a
+  if (buf.subarray(0, 3).toString('ascii') === 'GIF') return true;
+  return false;
+}
+
 export async function registerMediaRoutes(
   app: FastifyInstance,
   db: Db,
@@ -66,11 +85,26 @@ export async function registerMediaRoutes(
 
       const cacheFile = path.join(thumbsDir, `${fileId}_s${size}.jpg`);
 
-      // 1. Return from disk cache if present
+      // 1. Return from disk cache if present and valid
       if (fs.existsSync(cacheFile)) {
-        reply.header('Content-Type', 'image/jpeg');
-        reply.header('Cache-Control', 'public, max-age=604800, immutable');
-        return reply.send(fs.createReadStream(cacheFile));
+        try {
+          const stats = fs.statSync(cacheFile);
+          if (stats.size > 100) {
+            const fd = fs.openSync(cacheFile, 'r');
+            const head = Buffer.alloc(16);
+            fs.readSync(fd, head, 0, 16, 0);
+            fs.closeSync(fd);
+            if (isValidImage(head)) {
+              reply.header('Content-Type', 'image/jpeg');
+              reply.header('Cache-Control', 'public, max-age=604800, immutable');
+              return reply.send(fs.createReadStream(cacheFile));
+            }
+          }
+          // Corrupted or raw non-image file cached previously, remove it
+          fs.unlinkSync(cacheFile);
+        } catch {
+          // ignore cache validation error
+        }
       }
 
       const accountId = resolveAccountId(req.query.accountId);
@@ -99,19 +133,21 @@ export async function registerMediaRoutes(
             const arrayBuffer = await response.arrayBuffer();
             const buffer = Buffer.from(arrayBuffer);
 
-            // Save to disk asynchronously
-            fs.writeFile(cacheFile, buffer, () => {});
+            if (isValidImage(buffer)) {
+              // Save to disk asynchronously
+              fs.writeFile(cacheFile, buffer, () => {});
 
-            reply.header('Content-Type', 'image/jpeg');
-            reply.header('Cache-Control', 'public, max-age=604800, immutable');
-            return reply.send(buffer);
+              reply.header('Content-Type', 'image/jpeg');
+              reply.header('Cache-Control', 'public, max-age=604800, immutable');
+              return reply.send(buffer);
+            }
           }
         } catch {
           // Fall through to Drive API if direct fetch fails
         }
       }
 
-      // 3. Fallback: stream directly from Google Drive API
+      // 3. Drive API fallback: fetch fresh thumbnail link (works for HEIC, video, camera raw)
       try {
         const clientId = keychain.get(KC_SERVICE, KC_CLIENT_ID);
         const clientSecret = keychain.get(KC_SERVICE, KC_CLIENT_SECRET);
@@ -129,27 +165,62 @@ export async function registerMediaRoutes(
           req.log,
         );
 
-        const res = (await drive.files.get(
-          { fileId, alt: 'media' },
-          { responseType: 'stream' },
-        )) as unknown as DriveStreamResponse;
+        // 3a. Request fresh thumbnailLink from Drive metadata API
+        // Google Drive CDN automatically transcodes HEIC/HEIF and camera RAWs into JPEG
+        const meta = await drive.files.get({
+          fileId,
+          fields: 'id, name, thumbnailLink',
+        });
 
-        // Cache to disk for instant subsequent loads
-        try {
-          const cacheWriter = fs.createWriteStream(cacheFile);
-          cacheWriter.on('error', () => {});
-          res.data.pipe(cacheWriter);
-        } catch {
-          // ignore cache write error
+        const freshThumbLink = meta.data.thumbnailLink;
+        if (freshThumbLink) {
+          // Persist the fresh thumbnail_url in SQLite so future requests bypass Drive metadata lookup
+          fileQ.updateThumbnailUrl(accountId, fileId, freshThumbLink);
+
+          let scaledUrl = freshThumbLink;
+          if (scaledUrl.includes('=s')) {
+            scaledUrl = scaledUrl.replace(/=s\d+.*$/, `=s${size}`);
+          } else {
+            scaledUrl = `${scaledUrl}=s${size}`;
+          }
+
+          const thumbRes = await fetch(scaledUrl);
+          if (thumbRes.ok) {
+            const arrayBuffer = await thumbRes.arrayBuffer();
+            const buffer = Buffer.from(arrayBuffer);
+            if (isValidImage(buffer)) {
+              fs.writeFile(cacheFile, buffer, () => {});
+              reply.header('Content-Type', 'image/jpeg');
+              reply.header('Cache-Control', 'public, max-age=604800, immutable');
+              return reply.send(buffer);
+            }
+          }
         }
 
-        reply.header('Content-Type', file.mime_type || 'image/jpeg');
-        reply.header('Cache-Control', 'public, max-age=86400');
-        return reply.send(res.data);
+        // 3b. Last-ditch fallback for standard decodable images (JPEG, PNG, WebP) ONLY.
+        // NEVER stream raw HEIC or video files as thumbnails because browsers fail to decode them.
+        const isDecodableImage =
+          file.mime_type.startsWith('image/') &&
+          file.mime_type !== 'image/heic' &&
+          file.mime_type !== 'image/heif' &&
+          !file.name.toLowerCase().endsWith('.heic') &&
+          !file.name.toLowerCase().endsWith('.heif');
+
+        if (isDecodableImage) {
+          const res = (await drive.files.get(
+            { fileId, alt: 'media' },
+            { responseType: 'stream' },
+          )) as unknown as DriveStreamResponse;
+
+          reply.header('Content-Type', file.mime_type || 'image/jpeg');
+          reply.header('Cache-Control', 'public, max-age=86400');
+          return reply.send(res.data);
+        }
       } catch (err) {
-        req.log.warn({ fileId, err }, 'Failed to fetch media thumbnail');
-        return reply.code(404).send({ error: 'Thumbnail not available' });
+        req.log.warn({ fileId, err }, 'Failed to fetch media thumbnail from Drive API');
       }
+
+      return reply.code(404).send({ error: 'Thumbnail not available' });
     },
   );
 
