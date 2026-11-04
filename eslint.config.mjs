@@ -11,6 +11,23 @@ import globals from 'globals';
 // TODO(phase-1): re-enable eslint-plugin-react when v8 ships with ESLint 10 support.
 
 export default tseslint.config(
+  // Global ignores (applies to all configurations and prevents traversal of large data dirs)
+  {
+    ignores: [
+      '**/dist/**',
+      '**/build/**',
+      '**/node_modules/**',
+      '**/coverage/**',
+      '**/*.tsbuildinfo',
+      'data/**',
+      'apps/server/data/**',
+      'src-tauri/target/**',
+      'src-tauri/**',
+      '**/.system_generated/**',
+      '**/.user_uploaded/**',
+    ],
+  },
+
   // Base JS rules
   js.configs.recommended,
 
