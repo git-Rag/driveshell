@@ -407,7 +407,7 @@ function Step4Done({
         className="btn-primary w-full max-w-sm flex items-center justify-center gap-2"
         onClick={onComplete}
       >
-        Open DriveShell
+        Open Sunflower Drive
         <ArrowRight size={16} />
       </button>
 

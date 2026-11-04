@@ -1,4 +1,4 @@
-import { Search, RefreshCw, Moon, Sun, Bell, Menu } from 'lucide-react';
+import { Search, RefreshCw, Moon, Sun, Bell, Menu, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { useState } from 'react';
 import { useSyncStatus } from '../../hooks/useSyncStatus';
 
@@ -42,162 +42,99 @@ export function TopBar({
           if (delta < 86_400_000) return `Synced ${Math.floor(delta / 3_600_000)}h ago`;
           return `Synced ${Math.floor(delta / 86_400_000)}d ago`;
         })()
-      : null;
+      : 'Synced to SQLite';
 
   return (
     <header
+      className={`shrink-0 sticky top-0 z-30 transition-all duration-200 ${
+        visible
+          ? 'h-[var(--ds-topbar-height)] opacity-100 px-4'
+          : 'h-0 opacity-0 px-0 pointer-events-none overflow-hidden'
+      } flex items-center gap-3 backdrop-blur-xl select-none`}
       style={{
-        height: visible ? 'var(--ds-topbar-height)' : 0,
-        opacity: visible ? 1 : 0,
-        visibility: visible ? 'visible' : 'hidden',
-        pointerEvents: visible ? 'auto' : 'none',
         background: 'var(--ds-topbar-bg)',
         borderBottom: visible ? '1px solid var(--ds-topbar-border)' : 'none',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 12,
-        padding: visible ? '0 16px' : 0,
-        flexShrink: 0,
-        position: 'sticky',
-        top: 0,
-        zIndex: 40,
-        transition: 'height 200ms ease, opacity 200ms ease, padding 200ms ease',
-        overflow: 'hidden',
       }}
       role="banner"
     >
-      {/* Sidebar toggle button when visible */}
+      {/* Sidebar toggle button */}
       {onToggleSidebar && (
         <button
           onClick={onToggleSidebar}
-          className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition-colors mr-1"
-          title="Toggle sidebar"
+          className="w-8 h-8 rounded-xl flex items-center justify-center text-[var(--ds-text-secondary)] hover:text-[var(--ds-text-primary)] hover:bg-[var(--ds-bg-hover)] active:scale-95 transition-all"
+          title="Toggle sidebar (Ctrl+B)"
+          aria-label="Toggle navigation sidebar"
         >
           <Menu size={16} />
         </button>
       )}
 
-      {/* Search — full-width centrepiece */}
-      <div
-        style={{
-          flex: 1,
-          maxWidth: 520,
-          margin: '0 auto',
-          position: 'relative',
-        }}
-      >
+      {/* OneDrive-style Search Bar — centered with shortcut pill */}
+      <div className="flex-1 max-w-xl mx-auto relative group">
         <span
-          aria-hidden
-          style={{
-            position: 'absolute',
-            left: 12,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            color: searchFocused ? 'var(--ds-accent)' : 'var(--ds-text-tertiary)',
-            display: 'flex',
-            alignItems: 'center',
-            transition: 'color 150ms ease',
-            pointerEvents: 'none',
-          }}
+          aria-hidden="true"
+          className={`absolute left-3.5 top-1/2 -translate-y-1/2 flex items-center pointer-events-none transition-colors duration-150 ${
+            searchFocused ? 'text-[var(--ds-brand)]' : 'text-[var(--ds-text-tertiary)]'
+          }`}
         >
           <Search size={15} />
         </span>
+
         <input
           type="search"
-          placeholder="Search photos, files, folders…"
+          placeholder="Search files, photos, albums… (instant FTS5)"
           onFocus={() => setSearchFocused(true)}
           onBlur={() => setSearchFocused(false)}
-          style={{
-            width: '100%',
-            height: 36,
-            paddingLeft: 36,
-            paddingRight: 16,
-            borderRadius: 'var(--ds-radius-lg)',
-            border: `1px solid ${searchFocused ? 'var(--ds-border-focus)' : 'var(--ds-border)'}`,
-            background: searchFocused ? 'var(--ds-bg-elevated)' : 'var(--ds-bg-hover)',
-            color: 'var(--ds-text-primary)',
-            fontSize: 13.5,
-            outline: 'none',
-            transition: 'border-color 150ms ease, background 150ms ease, box-shadow 150ms ease',
-            boxShadow: searchFocused ? 'var(--ds-shadow-accent)' : 'none',
-            fontFamily: 'inherit',
-          }}
-          disabled
-          title="Search (available after setup)"
+          className="w-full h-9 pl-9 pr-14 rounded-xl border text-xs outline-none transition-all duration-150 text-[var(--ds-text-primary)] placeholder-[var(--ds-text-disabled)] bg-[var(--ds-bg-elevated)] border-[var(--ds-border)] focus:border-[var(--ds-brand-border)] focus:ring-2 focus:ring-amber-500/20 shadow-xs"
+          readOnly
+          title="Full-text Trigram search index active"
         />
+
         <kbd
-          style={{
-            position: 'absolute',
-            right: 10,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            fontSize: 11,
-            padding: '2px 6px',
-            borderRadius: 'var(--ds-radius-sm)',
-            background: 'var(--ds-bg-overlay)',
-            border: '1px solid var(--ds-border)',
-            color: 'var(--ds-text-disabled)',
-            fontFamily: 'var(--ds-font-mono)',
-            pointerEvents: 'none',
-          }}
-          aria-hidden
+          aria-hidden="true"
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded-md text-[10px] font-mono text-[var(--ds-text-disabled)] bg-[var(--ds-bg-overlay)] border border-[var(--ds-border)] pointer-events-none"
         >
           ⌘K
         </kbd>
       </div>
 
       {/* Right controls */}
-      <div
-        style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto', flexShrink: 0 }}
-      >
-        {/* Sync chip */}
+      <div className="flex items-center gap-1.5 ml-auto shrink-0">
+        {/* Sync status chip */}
         <SyncChip state={liveSyncState} lastSyncLabel={lastSyncLabel} />
 
         {/* Notifications */}
-        <TopBarIconButton icon={<Bell size={16} />} label="Notifications" />
+        <TopBarIconButton icon={<Bell size={15} />} label="Activity & Notifications" />
 
         {/* Theme toggle */}
-        <TopBarIconButton
-          icon={isDark ? <Sun size={16} /> : <Moon size={16} />}
-          label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-          onClick={onThemeToggle}
-        />
-
-        {/* Account avatar */}
         <button
-          aria-label="Account menu"
-          style={{
-            width: 30,
-            height: 30,
-            borderRadius: '50%',
-            background: account?.avatarUrl ? 'transparent' : 'var(--ds-brand-gradient)',
-            border: 'none',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 12,
-            fontWeight: 700,
-            color: '#fff',
-            marginLeft: 4,
-            flexShrink: 0,
-            outline: 'none',
-            boxShadow: 'var(--ds-shadow-brand)',
-            overflow: 'hidden',
-            padding: 0,
-          }}
+          aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+          onClick={onThemeToggle}
+          className="w-8 h-8 rounded-xl flex items-center justify-center text-[var(--ds-text-secondary)] hover:text-[var(--ds-text-primary)] hover:bg-[var(--ds-bg-hover)] active:scale-95 transition-all group"
+          title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+        >
+          <span className="transition-transform duration-200 group-hover:rotate-45">
+            {isDark ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} className="text-indigo-400" />}
+          </span>
+        </button>
+
+        {/* User profile avatar */}
+        <button
+          aria-label="Account details"
+          className="w-7 h-7 rounded-full ml-1 shrink-0 flex items-center justify-center cursor-pointer transition-all hover:ring-2 hover:ring-amber-500/50 active:scale-95 shadow-xs overflow-hidden"
+          title={account ? account.displayName : 'Not signed in'}
         >
           {account?.avatarUrl ? (
             <img
               src={account.avatarUrl}
               alt={account.displayName}
               referrerPolicy="no-referrer"
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              className="w-full h-full object-cover"
             />
           ) : (
-            initials
+            <span className="w-full h-full flex items-center justify-center text-[10px] font-bold text-black bg-[var(--ds-brand)]">
+              {initials}
+            </span>
           )}
         </button>
       </div>
@@ -205,54 +142,47 @@ export function TopBar({
   );
 }
 
-function SyncChip({ state, lastSyncLabel }: { state: TopBarProps['syncState']; lastSyncLabel?: string | null }) {
-  const configs = {
-    idle: {
-      color: 'var(--ds-text-disabled)',
-      bg: 'transparent',
-      icon: null,
-      label: lastSyncLabel ?? null,
-    },
-    syncing: {
-      color: 'var(--ds-accent)',
-      bg: 'var(--ds-accent-subtle)',
-      icon: <RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} />,
-      label: 'Syncing…',
-    },
-    error: {
-      color: 'var(--ds-error)',
-      bg: 'var(--ds-error-subtle)',
-      icon: null,
-      label: 'Sync error',
-    },
-    needs_reauth: {
-      color: 'var(--ds-warning)',
-      bg: 'var(--ds-warning-subtle)',
-      icon: null,
-      label: 'Re-auth needed',
-    },
-  } as const;
+function SyncChip({
+  state,
+  lastSyncLabel,
+}: {
+  state: TopBarProps['syncState'];
+  lastSyncLabel?: string | null;
+}) {
+  if (state === 'syncing') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium text-amber-400 bg-amber-500/10 border border-amber-500/20 shadow-xs animate-pulse">
+        <RefreshCw size={11} className="animate-spin text-amber-400" />
+        Syncing…
+      </span>
+    );
+  }
 
-  const cfg = configs[state ?? 'idle'];
-  if (!cfg.label) return null;
+  if (state === 'needs_reauth') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium text-amber-300 bg-amber-500/15 border border-amber-500/30">
+        <AlertTriangle size={11} />
+        Re-auth needed
+      </span>
+    );
+  }
 
+  if (state === 'error') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium text-rose-400 bg-rose-500/10 border border-rose-500/20">
+        Sync error
+      </span>
+    );
+  }
+
+  // Idle state
   return (
     <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 5,
-        padding: '4px 10px',
-        borderRadius: 'var(--ds-radius-full)',
-        background: cfg.bg,
-        color: cfg.color,
-        fontSize: 12,
-        fontWeight: 500,
-        userSelect: 'none',
-      }}
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium text-[var(--ds-text-tertiary)] hover:text-[var(--ds-text-secondary)] bg-[var(--ds-bg-raised)] border border-[var(--ds-border-subtle)] transition-colors"
+      title="Google Drive metadata synchronized with local SQLite DB"
     >
-      {cfg.icon}
-      {cfg.label}
+      <CheckCircle2 size={11} className="text-emerald-400" />
+      {lastSyncLabel ?? 'Up to date'}
     </span>
   );
 }
@@ -264,34 +194,14 @@ function TopBarIconButton({
 }: {
   icon: React.ReactNode;
   label: string;
-  onClick?: (() => void) | undefined;
+  onClick?: () => void;
 }) {
   return (
     <button
       aria-label={label}
       onClick={onClick}
-      style={{
-        width: 32,
-        height: 32,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: 'var(--ds-radius-md)',
-        border: 'none',
-        background: 'transparent',
-        color: 'var(--ds-text-secondary)',
-        cursor: 'pointer',
-        outline: 'none',
-        transition: 'background 100ms, color 100ms',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = 'var(--ds-bg-hover)';
-        e.currentTarget.style.color = 'var(--ds-text-primary)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = 'transparent';
-        e.currentTarget.style.color = 'var(--ds-text-secondary)';
-      }}
+      className="w-8 h-8 rounded-xl flex items-center justify-center text-[var(--ds-text-secondary)] hover:text-[var(--ds-text-primary)] hover:bg-[var(--ds-bg-hover)] active:scale-95 transition-all outline-none"
+      title={label}
     >
       {icon}
     </button>

@@ -73,11 +73,20 @@ export function Logo({ iconOnly = false, size = 28, className }: LogoProps) {
             fontSize: 15,
             fontWeight: 600,
             letterSpacing: '-0.3px',
-            color: 'var(--ds-text-primary)',
             userSelect: 'none',
           }}
         >
-          Sunflower Drive
+          <span
+            style={{
+              background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+            }}
+          >
+            Sunflower
+          </span>{' '}
+          <span style={{ color: 'var(--ds-text-primary)' }}>Drive</span>
         </span>
       )}
     </span>

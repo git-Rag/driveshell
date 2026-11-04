@@ -20,3 +20,4 @@ CREATE INDEX IF NOT EXISTS idx_album_items_covering
 -- ---------------------------------------------------------------- version
 INSERT INTO schema_version (version, applied_at)
 VALUES (5, unixepoch() * 1000);
+

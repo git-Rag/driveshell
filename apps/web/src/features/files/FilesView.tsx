@@ -162,9 +162,9 @@ export function FilesView() {
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 bg-[#08080a] text-ds-text-primary">
+    <div className="flex-1 flex flex-col min-h-0 bg-[var(--ds-bg)] text-ds-text-primary">
       {/* Top Action Toolbar */}
-      <div className="sticky top-0 z-20 glass border-b border-white/10 px-6 py-2.5 flex items-center justify-between gap-4 backdrop-blur-xl">
+      <div className="sticky top-0 z-20 glass border-b border-[var(--ds-border-subtle)] px-6 py-2.5 flex items-center justify-between gap-4 backdrop-blur-xl">
         {/* Left: Actions */}
         <div className="flex items-center gap-2">
           <button
@@ -241,7 +241,7 @@ export function FilesView() {
       </div>
 
       {/* Breadcrumb Navigation Bar */}
-      <div className="px-6 py-2.5 border-b border-white/5 bg-zinc-950/40 flex items-center gap-1.5 text-xs text-zinc-400 overflow-x-auto">
+      <div className="px-6 py-2.5 border-b border-[var(--ds-border-subtle)] bg-[var(--ds-bg-raised)] flex items-center gap-1.5 text-xs text-[var(--ds-text-secondary)] overflow-x-auto">
         <button
           onClick={() => handleNavigateFolder(null)}
           className={`flex items-center gap-1.5 px-2 py-1 rounded-md transition-colors hover:text-white hover:bg-white/5 ${
@@ -285,10 +285,10 @@ export function FilesView() {
 
         {viewMode === 'list' ? (
           /* Table View */
-          <div className="card overflow-hidden border border-white/10 bg-zinc-950/60">
+          <div className="card overflow-hidden border border-[var(--ds-border)] bg-[var(--ds-bg-raised)]">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-white/10 bg-zinc-900/60 text-zinc-400 font-semibold select-none">
+                <tr className="border-b border-[var(--ds-border-subtle)] bg-[var(--ds-bg-elevated)] text-[var(--ds-text-secondary)] font-semibold select-none">
                   <th className="py-2.5 px-4 w-10"></th>
                   <th className="py-2.5 px-4">Name</th>
                   <th className="py-2.5 px-4">Modified</th>
@@ -297,7 +297,7 @@ export function FilesView() {
                   <th className="py-2.5 px-4 w-16 text-right"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
+              <tbody className="divide-y divide-[var(--ds-border-subtle)]">
                 {files.map((file) => {
                   const isFolder = file.mime_type === 'application/vnd.google-apps.folder';
 

@@ -62,3 +62,4 @@ export interface VaultCryptoProvider {
   /** Cryptographically secure pseudorandom number generator */
   randomBytes(length: number): Uint8Array;
 }
+

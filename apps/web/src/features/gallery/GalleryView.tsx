@@ -243,9 +243,9 @@ export function GalleryView({
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 bg-[#09090b] text-white relative select-none overflow-hidden">
+    <div className="flex-1 flex flex-col min-h-0 bg-[var(--ds-bg)] text-white relative select-none overflow-hidden">
       {/* Sleek Floating OneDrive Header */}
-      <div className="z-30 px-6 py-2.5 flex items-center justify-between border-b border-white/5 bg-[#09090b]/80 backdrop-blur-xl">
+      <div className="z-30 px-6 py-2.5 flex items-center justify-between border-b border-[var(--ds-border-subtle)] bg-[var(--ds-bg)]/85 backdrop-blur-xl">
         {/* Left: Sidebar & TopBar Toggles + Dynamic Floating Month Badge */}
         <div className="flex items-center gap-2.5">
           {onToggleSidebar && (
@@ -290,20 +290,20 @@ export function GalleryView({
         <div className="flex items-center gap-1 bg-zinc-900/80 p-1 rounded-full border border-white/10 shadow-lg backdrop-blur-md">
           <button
             onClick={() => setActiveFilter('all')}
-            className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+            className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${
               activeFilter === 'all'
-                ? 'bg-brand text-white shadow-sm'
-                : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                ? 'bg-brand text-black shadow-xs'
+                : 'text-zinc-400 hover:text-white hover:bg-white/5 font-medium'
             }`}
           >
             All
           </button>
           <button
             onClick={() => setActiveFilter('photos')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs transition-all ${
               activeFilter === 'photos'
-                ? 'bg-brand text-white shadow-sm'
-                : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                ? 'bg-brand text-black font-semibold shadow-xs'
+                : 'text-zinc-400 hover:text-white hover:bg-white/5 font-medium'
             }`}
           >
             <ImageIcon size={12} />
@@ -311,10 +311,10 @@ export function GalleryView({
           </button>
           <button
             onClick={() => setActiveFilter('videos')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs transition-all ${
               activeFilter === 'videos'
-                ? 'bg-brand text-white shadow-sm'
-                : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                ? 'bg-brand text-black font-semibold shadow-xs'
+                : 'text-zinc-400 hover:text-white hover:bg-white/5 font-medium'
             }`}
           >
             <Film size={12} />
@@ -322,10 +322,10 @@ export function GalleryView({
           </button>
           <button
             onClick={() => setActiveFilter('favorites')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs transition-all ${
               activeFilter === 'favorites'
-                ? 'bg-brand text-white shadow-sm'
-                : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                ? 'bg-brand text-black font-semibold shadow-xs'
+                : 'text-zinc-400 hover:text-white hover:bg-white/5 font-medium'
             }`}
           >
             <Heart size={12} />
@@ -431,7 +431,7 @@ export function GalleryView({
                   <div
                     key={file.id}
                     onClick={() => setLightboxIndex(globalIndex)}
-                    className={`group relative rounded-lg overflow-hidden bg-zinc-900 border border-white/5 cursor-pointer transition-all duration-200 hover:border-brand/70 hover:scale-[1.02] hover:z-10 hover:shadow-2xl ${
+                    className={`group relative rounded-lg overflow-hidden bg-zinc-900 border border-white/5 cursor-pointer transition-all duration-200 hover:border-brand/70 hover:scale-[1.015] hover:z-10 hover:shadow-2xl ${
                       ZOOM_CONFIGS[zoom].aspect
                     }`}
                   >

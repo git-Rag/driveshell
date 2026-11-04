@@ -193,9 +193,9 @@ export function AlbumsView() {
   // -------------------------------------------------------------------------
   if (selectedAlbum) {
     return (
-      <div className="flex-1 flex flex-col h-full bg-[#09090b] text-white overflow-hidden select-none">
+      <div className="flex-1 flex flex-col h-full bg-[var(--ds-bg)] text-white overflow-hidden select-none">
         {/* Album Header Bar */}
-        <div className="px-8 py-5 border-b border-white/5 bg-zinc-950/60 backdrop-blur-md flex items-center justify-between">
+        <div className="px-8 py-5 border-b border-[var(--ds-border-subtle)] bg-[var(--ds-bg-raised)]/80 backdrop-blur-md flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setSelectedAlbum(null)}
@@ -405,9 +405,9 @@ export function AlbumsView() {
   // Render All Albums Grid View
   // -------------------------------------------------------------------------
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#09090b] text-white overflow-hidden select-none">
+    <div className="flex-1 flex flex-col h-full bg-[var(--ds-bg)] text-white overflow-hidden select-none">
       {/* Top Bar */}
-      <div className="px-8 py-6 border-b border-white/5 bg-zinc-950/60 backdrop-blur-md flex items-center justify-between">
+      <div className="px-8 py-6 border-b border-[var(--ds-border-subtle)] bg-[var(--ds-bg-raised)]/80 backdrop-blur-md flex items-center justify-between">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-bold tracking-tight text-white">Albums</h1>

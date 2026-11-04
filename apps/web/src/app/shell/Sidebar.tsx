@@ -11,6 +11,7 @@ import {
   HardDrive,
   ChevronDown,
   ChevronRight,
+  ShieldCheck,
 } from 'lucide-react';
 import { useState } from 'react';
 import { Logo } from '../../components/ui/Logo';
@@ -36,11 +37,11 @@ const NAV_SECTIONS: NavItem[] = [
     label: 'Photos',
     icon: <Images size={16} />,
     children: [
-      { id: 'gallery', label: 'Gallery', icon: <Grid3x3 size={14} /> },
-      { id: 'albums', label: 'Albums', icon: <BookImage size={14} /> },
-      { id: 'favorites', label: 'Favorites', icon: <Heart size={14} /> },
-      { id: 'moments', label: 'Moments', icon: <Clock size={14} />, badge: 'Soon', disabled: true },
-      { id: 'people', label: 'People', icon: <Users size={14} />, badge: 'Soon', disabled: true },
+      { id: 'gallery', label: 'Gallery', icon: <Grid3x3 size={15} /> },
+      { id: 'albums', label: 'Albums', icon: <BookImage size={15} /> },
+      { id: 'favorites', label: 'Favorites', icon: <Heart size={15} /> },
+      { id: 'moments', label: 'Moments', icon: <Clock size={15} />, badge: 'Soon', disabled: true },
+      { id: 'people', label: 'People', icon: <Users size={15} />, badge: 'Soon', disabled: true },
     ],
   },
   {
@@ -85,60 +86,42 @@ export function Sidebar({
 
   return (
     <aside
+      className={`h-full flex flex-col shrink-0 select-none transition-all duration-200 z-40 ${
+        isOpen ? 'w-[232px] opacity-100 visible' : 'w-0 opacity-0 invisible overflow-hidden'
+      }`}
       style={{
-        width: isOpen ? 'var(--ds-sidebar-width)' : 0,
-        minWidth: isOpen ? 'var(--ds-sidebar-width)' : 0,
-        maxWidth: isOpen ? 'var(--ds-sidebar-width)' : 0,
-        minHeight: '100%',
         background: 'var(--ds-sidebar-bg)',
         borderRight: isOpen ? '1px solid var(--ds-sidebar-border)' : 'none',
-        display: 'flex',
-        flexDirection: 'column',
-        flexShrink: 0,
-        overflowY: 'auto',
-        overflowX: 'hidden',
-        opacity: isOpen ? 1 : 0,
-        visibility: isOpen ? 'visible' : 'hidden',
-        transition: 'width 240ms cubic-bezier(0.16, 1, 0.3, 1), opacity 200ms ease',
-        zIndex: 45,
       }}
       aria-label="Main navigation"
     >
-      {/* Logo area */}
+      {/* Brand Header */}
       <div
-        style={{
-          height: 'var(--ds-topbar-height)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0 16px',
-          borderBottom: '1px solid var(--ds-sidebar-border)',
-          flexShrink: 0,
-        }}
+        className="h-[var(--ds-topbar-height)] px-4 flex items-center justify-between shrink-0"
+        style={{ borderBottom: '1px solid var(--ds-sidebar-border)' }}
       >
         <Logo />
         {onToggle && (
           <button
             onClick={onToggle}
-            className="p-1 rounded-md text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
-            title="Collapse sidebar"
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--ds-text-tertiary)] hover:text-[var(--ds-text-primary)] hover:bg-[var(--ds-bg-hover)] transition-all"
+            title="Collapse sidebar (Ctrl+B)"
+            aria-label="Collapse sidebar"
           >
             <ChevronRight size={14} className="rotate-180" />
           </button>
         )}
       </div>
 
-      {/* Navigation */}
-      <nav
-        style={{ flex: 1, padding: '8px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}
-      >
-        {/* Account indicator */}
+      {/* Nav List */}
+      <nav className="flex-1 px-3 py-3 overflow-y-auto space-y-1">
+        {/* Account profile card */}
         <AccountChip account={account} />
 
-        <div style={{ marginTop: 4 }} />
+        <div className="pt-2" />
 
         {NAV_SECTIONS.map((item) => (
-          <div key={item.id}>
+          <div key={item.id} className="space-y-0.5">
             <NavButton
               item={item}
               isActive={activeId === item.id && !item.children}
@@ -151,17 +134,9 @@ export function Sidebar({
                 }
               }}
             />
-            {/* Children */}
+            {/* Nested children */}
             {item.children && expanded[item.id] && (
-              <div
-                style={{
-                  marginLeft: 8,
-                  marginTop: 2,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 1,
-                }}
-              >
+              <div className="pl-3.5 space-y-0.5 mt-0.5">
                 {item.children.map((child) => (
                   <NavButton
                     key={child.id}
@@ -178,20 +153,15 @@ export function Sidebar({
         ))}
       </nav>
 
-      {/* Bottom utility */}
+      {/* Bottom status & settings */}
       <div
-        style={{
-          borderTop: '1px solid var(--ds-sidebar-border)',
-          padding: '8px 8px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 2,
-          flexShrink: 0,
-        }}
+        className="p-3 shrink-0 space-y-2"
+        style={{ borderTop: '1px solid var(--ds-sidebar-border)' }}
       >
-        {/* Storage indicator */}
+        {/* Storage status card */}
         <StorageIndicator />
 
+        {/* Settings button */}
         <NavButton
           item={{ id: 'settings', label: 'Settings', icon: <Settings size={16} /> }}
           isActive={activeId === 'settings'}
@@ -228,105 +198,54 @@ function NavButton({
       onClick={onPress}
       disabled={item.disabled}
       aria-current={isActive ? 'page' : undefined}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: isChild ? 7 : 9,
-        width: '100%',
-        padding: isChild ? '5px 10px' : '7px 10px',
-        borderRadius: 'var(--ds-radius-md)',
-        border: 'none',
-        cursor: item.disabled ? 'not-allowed' : 'pointer',
-        textAlign: 'left',
-        fontSize: isChild ? 13 : 13.5,
-        fontWeight: isActive ? 500 : 400,
-        letterSpacing: '-0.1px',
-        color: isActive
-          ? 'var(--ds-text-primary)'
-          : item.disabled
-            ? 'var(--ds-text-disabled)'
-            : 'var(--ds-text-secondary)',
-        background: isActive ? 'var(--ds-bg-active)' : 'transparent',
-        transition: `background ${String(100)}ms ease, color ${String(100)}ms ease`,
-        position: 'relative',
-        outline: 'none',
-      }}
-      onMouseEnter={(e) => {
-        if (!isActive && !item.disabled) {
-          e.currentTarget.style.background = 'var(--ds-bg-hover)';
-          e.currentTarget.style.color = 'var(--ds-text-primary)';
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (!isActive) {
-          e.currentTarget.style.background = 'transparent';
-          e.currentTarget.style.color = item.disabled
-            ? 'var(--ds-text-disabled)'
-            : 'var(--ds-text-secondary)';
-        }
-      }}
+      className={`group relative flex items-center w-full rounded-xl text-left transition-all duration-150 outline-none ${
+        isChild ? 'px-2.5 py-1.5 text-xs' : 'px-3 py-2 text-sm'
+      } ${
+        item.disabled
+          ? 'opacity-40 cursor-not-allowed text-[var(--ds-text-disabled)]'
+          : isActive
+          ? 'bg-[var(--ds-bg-selected)] text-[var(--ds-text-primary)] font-medium shadow-xs'
+          : 'text-[var(--ds-text-secondary)] hover:text-[var(--ds-text-primary)] hover:bg-[var(--ds-bg-hover)]'
+      }`}
     >
-      {/* Active indicator bar */}
+      {/* Active accent pill on the left */}
       {isActive && (
         <span
-          aria-hidden
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: '20%',
-            bottom: '20%',
-            width: 2.5,
-            borderRadius: 99,
-            background: 'var(--ds-accent)',
-          }}
+          aria-hidden="true"
+          className="absolute left-1 top-2 bottom-2 w-1 rounded-full bg-[var(--ds-brand)] shadow-xs"
         />
       )}
 
+      {/* Icon */}
       <span
-        style={{
-          opacity: isActive ? 1 : 0.65,
-          display: 'flex',
-          alignItems: 'center',
-          color: isActive ? 'var(--ds-accent)' : 'inherit',
-          transition: 'opacity 100ms, color 100ms',
-          flexShrink: 0,
-        }}
+        className={`shrink-0 transition-colors duration-150 ${
+          isChild ? 'mr-2' : 'mr-2.5'
+        } ${
+          isActive
+            ? 'text-[var(--ds-brand)]'
+            : 'text-[var(--ds-text-tertiary)] group-hover:text-[var(--ds-text-primary)]'
+        }`}
       >
         {item.icon}
       </span>
 
-      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {item.label}
-      </span>
+      {/* Label */}
+      <span className="flex-1 truncate tracking-tight">{item.label}</span>
 
+      {/* Badge (e.g. Soon) */}
       {'badge' in item && item.badge && (
-        <span
-          style={{
-            fontSize: 10,
-            fontWeight: 500,
-            padding: '2px 6px',
-            borderRadius: 'var(--ds-radius-full)',
-            background: 'var(--ds-bg-overlay)',
-            color: 'var(--ds-text-tertiary)',
-            letterSpacing: '0.3px',
-            textTransform: 'uppercase',
-            flexShrink: 0,
-          }}
-        >
+        <span className="shrink-0 text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full bg-white/5 text-[var(--ds-text-tertiary)] border border-white/5">
           {item.badge}
         </span>
       )}
 
+      {/* Collapsible arrow */}
       {hasChildren && (
         <span
-          aria-hidden
-          style={{
-            opacity: 0.4,
-            display: 'flex',
-            alignItems: 'center',
-            transition: `transform ${String(200)}ms ease`,
-            transform: isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',
-          }}
+          aria-hidden="true"
+          className={`shrink-0 ml-1 text-[var(--ds-text-tertiary)] transition-transform duration-200 ${
+            isExpanded ? 'rotate-0' : '-rotate-90'
+          }`}
         >
           <ChevronDown size={13} />
         </span>
@@ -343,18 +262,12 @@ function AccountChip({ account }: { account: AccountInfo | null }) {
 
   return (
     <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        padding: '6px 10px',
-        borderRadius: 'var(--ds-radius-md)',
-        border: `1px solid ${needsReauth ? 'var(--ds-warning)' : 'var(--ds-border)'}`,
-        background: 'var(--ds-bg-hover)',
-        cursor: 'pointer',
-        marginBottom: 4,
-      }}
-      title={account ? `${account.email} — Account menu` : 'Not signed in'}
+      className={`group flex items-center gap-2.5 p-2 rounded-xl cursor-pointer border transition-all duration-150 ${
+        needsReauth
+          ? 'bg-amber-500/10 border-amber-500/30'
+          : 'bg-[var(--ds-bg-raised)] hover:bg-[var(--ds-bg-elevated)] border-[var(--ds-border-subtle)] hover:border-[var(--ds-border)]'
+      }`}
+      title={account ? `${account.displayName} (${account.email})` : 'Not signed in'}
     >
       {/* Avatar */}
       {account?.avatarUrl ? (
@@ -362,123 +275,74 @@ function AccountChip({ account }: { account: AccountInfo | null }) {
           src={account.avatarUrl}
           alt={account.displayName}
           referrerPolicy="no-referrer"
-          style={{
-            width: 20,
-            height: 20,
-            borderRadius: '50%',
-            objectFit: 'cover',
-            flexShrink: 0,
-          }}
+          className="w-6 h-6 rounded-full object-cover shrink-0 ring-1 ring-white/10"
         />
       ) : (
         <span
-          aria-hidden
-          style={{
-            width: 20,
-            height: 20,
-            borderRadius: '50%',
-            background: 'var(--ds-brand-gradient)',
-            flexShrink: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 10,
-            fontWeight: 700,
-            color: '#fff',
-          }}
+          aria-hidden="true"
+          className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold text-black shadow-xs bg-[var(--ds-brand)]"
         >
           {initials}
         </span>
       )}
 
-      <span
-        style={{
-          flex: 1,
-          minWidth: 0,
-          display: 'flex',
-          flexDirection: sublabel ? 'column' : 'row',
-          gap: sublabel ? 1 : 0,
-        }}
-      >
-        <span
-          style={{
-            fontSize: 12.5,
-            fontWeight: 500,
-            color: needsReauth ? 'var(--ds-warning)' : 'var(--ds-text-secondary)',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {needsReauth ? 'Re-auth needed' : label}
-        </span>
-        {sublabel && !needsReauth && (
+      {/* Details */}
+      <div className="flex-1 min-w-0 flex flex-col justify-center">
+        <div className="flex items-center gap-1.5">
           <span
-            style={{
-              fontSize: 11,
-              color: 'var(--ds-text-disabled)',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
+            className={`text-xs font-semibold truncate leading-tight ${
+              needsReauth ? 'text-amber-400' : 'text-[var(--ds-text-primary)]'
+            }`}
           >
+            {needsReauth ? 'Re-auth needed' : label}
+          </span>
+          {!needsReauth && account && (
+            <span
+              className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"
+              title="Active session"
+            />
+          )}
+        </div>
+        {sublabel && !needsReauth && (
+          <span className="text-[10px] text-[var(--ds-text-tertiary)] truncate leading-tight font-mono mt-0.5">
             {sublabel}
           </span>
         )}
-      </span>
-      <ChevronRight size={12} style={{ opacity: 0.4, flexShrink: 0 }} />
+      </div>
+
+      <ChevronRight
+        size={13}
+        className="text-[var(--ds-text-tertiary)] group-hover:text-[var(--ds-text-primary)] transition-colors shrink-0"
+      />
     </div>
   );
 }
 
 function StorageIndicator() {
   return (
-    <div
-      style={{
-        padding: '8px 10px',
-        marginBottom: 4,
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: 6,
-          gap: 8,
-        }}
-      >
-        <span
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            fontSize: 12,
-            color: 'var(--ds-text-tertiary)',
-          }}
-        >
-          <HardDrive size={12} />
-          Local index
+    <div className="p-2.5 rounded-xl bg-[var(--ds-bg-raised)] border border-[var(--ds-border-subtle)] space-y-2">
+      <div className="flex items-center justify-between text-xs">
+        <span className="flex items-center gap-1.5 font-medium text-[var(--ds-text-secondary)]">
+          <HardDrive size={13} className="text-[var(--ds-brand)]" />
+          Local Index
         </span>
-        <span style={{ fontSize: 11, color: 'var(--ds-text-disabled)' }}>—</span>
+        <span className="text-[10px] font-mono text-[var(--ds-text-tertiary)] flex items-center gap-1">
+          <ShieldCheck size={11} className="text-emerald-400" />
+          WAL + FTS5
+        </span>
       </div>
-      {/* Progress bar placeholder */}
-      <div
-        style={{
-          height: 3,
-          borderRadius: 'var(--ds-radius-full)',
-          background: 'var(--ds-bg-overlay)',
-          overflow: 'hidden',
-        }}
-      >
+
+      {/* Progress meter */}
+      <div className="h-1.5 w-full rounded-full bg-[var(--ds-bg-overlay)] overflow-hidden">
         <div
-          style={{
-            height: '100%',
-            width: '0%',
-            borderRadius: 'inherit',
-            background: 'var(--ds-brand-gradient)',
-          }}
+          className="h-full rounded-full bg-gradient-to-r from-amber-500 to-amber-400"
+          style={{ width: '100%' }}
         />
+      </div>
+
+      <div className="flex items-center justify-between text-[10px] text-[var(--ds-text-tertiary)]">
+        <span>Instant Search</span>
+        <span className="font-medium text-emerald-400">Offline-ready</span>
       </div>
     </div>
   );

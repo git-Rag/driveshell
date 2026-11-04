@@ -54,9 +54,9 @@ export function FavoritesView() {
           : 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3';
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#09090b] text-white overflow-hidden select-none">
+    <div className="flex-1 flex flex-col h-full bg-[var(--ds-bg)] text-white overflow-hidden select-none">
       {/* Top Bar */}
-      <div className="px-8 py-5 border-b border-white/5 bg-zinc-950/60 backdrop-blur-md flex items-center justify-between">
+      <div className="px-8 py-5 border-b border-[var(--ds-border-subtle)] bg-[var(--ds-bg-raised)]/80 backdrop-blur-md flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500">
             <Heart size={20} fill="currentColor" />

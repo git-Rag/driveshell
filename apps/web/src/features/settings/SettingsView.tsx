@@ -1,4 +1,4 @@
-import { User, Shield, Database, CheckCircle2, Lock } from 'lucide-react';
+import { User, Shield, Database, CheckCircle2, Lock, Palette, Sun, Moon } from 'lucide-react';
 import type { AccountSummary } from '../../lib/api';
 
 interface SettingsViewProps {
@@ -9,8 +9,8 @@ interface SettingsViewProps {
 
 export function SettingsView({
   account,
-  isDark: _isDark,
-  onThemeToggle: _onThemeToggle,
+  isDark = true,
+  onThemeToggle,
 }: SettingsViewProps) {
   return (
     <div className="flex-1 overflow-y-auto p-8 max-w-4xl mx-auto w-full bg-ds-bg text-ds-text-primary">
@@ -22,6 +22,42 @@ export function SettingsView({
       </div>
 
       <div className="space-y-6">
+        {/* Appearance & Theme */}
+        <div className="card p-5">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-ds-text-secondary mb-4 flex items-center gap-2">
+            <Palette size={15} className="text-brand" />
+            Appearance & Theme
+          </h2>
+
+          <div className="flex items-center justify-between p-4 rounded-xl bg-ds-bg-elevated border border-ds-border">
+            <div>
+              <p className="text-sm font-semibold text-ds-text-primary">Theme Mode</p>
+              <p className="text-xs text-ds-text-muted mt-0.5">
+                Current active palette:{' '}
+                <span className="font-medium text-ds-text-primary">
+                  {isDark ? 'Sunflower Dark (Night)' : 'Sunflower Light (Daylight)'}
+                </span>
+              </p>
+            </div>
+
+            <button
+              onClick={onThemeToggle}
+              className="px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 bg-ds-bg-raised hover:bg-ds-bg-hover border border-ds-border text-ds-text-primary transition-all active:scale-95 shadow-xs"
+            >
+              {isDark ? (
+                <>
+                  <Sun size={14} className="text-amber-400" />
+                  Switch to Light
+                </>
+              ) : (
+                <>
+                  <Moon size={14} className="text-indigo-400" />
+                  Switch to Dark
+                </>
+              )}
+            </button>
+          </div>
+        </div>
         {/* Connected Account */}
         <div className="card p-5">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-ds-text-secondary mb-4 flex items-center gap-2">

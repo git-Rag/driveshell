@@ -99,3 +99,4 @@ export async function setupSdv1Vault(
 
   return { masterKey, wrappedKey, iv, authTag, salt };
 }
+
