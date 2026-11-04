@@ -118,11 +118,11 @@ export function runDbBenchmark(datasetName: string, relativeDbPath: string): Dat
   const Q_MONTHS = `
     SELECT
       strftime('%Y-%m', datetime(
-        CASE WHEN taken_at IS NOT NULL THEN taken_at / 1000 ELSE modified_at / 1000 END,
+        COALESCE(taken_at, modified_at) / 1000,
         'unixepoch'
       )) AS monthKey,
       COUNT(*) AS count,
-      MAX(CASE WHEN taken_at IS NOT NULL THEN taken_at ELSE modified_at END) AS latestTime
+      MAX(COALESCE(taken_at, modified_at)) AS latestTime
     FROM files
     WHERE account_id = ?
       AND (
@@ -160,8 +160,7 @@ export function runDbBenchmark(datasetName: string, relativeDbPath: string): Dat
       )
       AND trashed = 0
     ORDER BY
-      CASE WHEN taken_at IS NOT NULL THEN taken_at ELSE modified_at END DESC,
-      id ASC
+      COALESCE(taken_at, modified_at) DESC
     LIMIT 50 OFFSET 0
   `;
   results.push(
@@ -186,8 +185,7 @@ export function runDbBenchmark(datasetName: string, relativeDbPath: string): Dat
       )
       AND trashed = 0
     ORDER BY
-      CASE WHEN taken_at IS NOT NULL THEN taken_at ELSE modified_at END DESC,
-      id ASC
+      COALESCE(taken_at, modified_at) DESC
     LIMIT 50 OFFSET 5000
   `;
   results.push(
