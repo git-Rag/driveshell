@@ -1,13 +1,4 @@
-import {
-  User,
-  Shield,
-  HardDrive,
-  Database,
-  Moon,
-  ExternalLink,
-  CheckCircle2,
-  Lock,
-} from 'lucide-react';
+import { User, Shield, Database, CheckCircle2, Lock } from 'lucide-react';
 import type { AccountSummary } from '../../lib/api';
 
 interface SettingsViewProps {
@@ -16,13 +7,17 @@ interface SettingsViewProps {
   onThemeToggle?: () => void;
 }
 
-export function SettingsView({ account, isDark, onThemeToggle }: SettingsViewProps) {
+export function SettingsView({
+  account,
+  isDark: _isDark,
+  onThemeToggle: _onThemeToggle,
+}: SettingsViewProps) {
   return (
     <div className="flex-1 overflow-y-auto p-8 max-w-4xl mx-auto w-full bg-ds-bg text-ds-text-primary">
       <div className="mb-8">
         <h1 className="text-2xl font-bold tracking-tight text-ds-text-primary">Settings</h1>
         <p className="text-xs text-ds-text-muted mt-1">
-          DriveShell configuration, local database, and security preferences
+          Sunflower Drive configuration, local database, and security preferences
         </p>
       </div>
 

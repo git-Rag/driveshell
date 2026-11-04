@@ -102,7 +102,7 @@ async function main(): Promise<void> {
 
   app.get('/', async (_req, reply) => {
     setSessionCookie(reply, port);
-    return { status: 'ok', message: 'DriveShell API server' };
+    return { status: 'ok', message: 'Sunflower Drive API server' };
   });
 
   // Auth + setup routes (Phase 1)
@@ -149,7 +149,7 @@ async function main(): Promise<void> {
   await app.listen({ port, host: '127.0.0.1' });
 
   // Print a clean startup line regardless of log level
-  process.stdout.write(`\n  ✓ DriveShell server  http://127.0.0.1:${port}\n\n`);
+  process.stdout.write(`\n  ✓ Sunflower Drive server  http://127.0.0.1:${port}\n\n`);
 }
 
 main().catch((err: unknown) => {

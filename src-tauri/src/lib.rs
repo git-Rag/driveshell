@@ -17,12 +17,12 @@ pub fn run() {
             {
                 let window = tauri::Manager::get_webview_window(app, "main");
                 if let Some(w) = window {
-                    let _ = w.set_title("DriveShell (Dev)");
+                    let _ = w.set_title("Sunflower Drive (Dev)");
                 }
             }
             Ok(())
         })
         .run(tauri::generate_context!())
-        .expect("error while running DriveShell desktop application");
+        .expect("error while running Sunflower Drive desktop application");
 }
 

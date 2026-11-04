@@ -95,7 +95,7 @@ export function App() {
           fontSize: '0.875rem',
         }}
       >
-        Starting DriveShell…
+        Starting Sunflower Drive…
       </div>
     );
   }
