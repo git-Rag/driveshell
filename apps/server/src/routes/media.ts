@@ -17,6 +17,7 @@ import { buildAccountQueries } from '../db/queries/accounts';
 import { createKeychain, KC_CLIENT_ID, KC_CLIENT_SECRET, KC_SERVICE } from '../auth/keychain';
 import { getAuthenticatedDrive } from '../sync/oauth-client';
 import { fetchWithGuard } from '../utils/outbound-guard';
+import { resolveSafePath } from '../utils/path-safety';
 
 export const SAFE_INLINE_MIME_PATTERNS = [
   /^image\/(jpeg|png|webp|avif)$/i,
@@ -111,7 +112,13 @@ export async function registerMediaRoutes(
       const sizeParam = parseInt(req.query.size ?? '400', 10);
       const size = isNaN(sizeParam) || sizeParam <= 0 ? 400 : Math.min(sizeParam, 1600);
 
-      const cacheFile = path.join(thumbsDir, `${fileId}_s${size}.jpg`);
+      const safeFileId = sanitizeFilename(fileId);
+      let cacheFile: string;
+      try {
+        cacheFile = resolveSafePath(thumbsDir, `${safeFileId}_s${size}.jpg`);
+      } catch {
+        return reply.code(400).send({ error: 'Invalid file ID' });
+      }
 
       // 1. Return from disk cache if present and valid
       if (fs.existsSync(cacheFile)) {

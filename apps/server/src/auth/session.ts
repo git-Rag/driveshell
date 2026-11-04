@@ -42,6 +42,32 @@ export const ALLOWED_ORIGIN_REGEX =
   /^(https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?|tauri:\/\/localhost|https?:\/\/tauri\.localhost)$/;
 
 /**
+ * Validates whether an Origin header is permitted.
+ * In production mode (NODE_ENV === 'production'), dev Vite server origins (:5173) are rejected.
+ */
+export function isAllowedOrigin(
+  origin: string,
+  options: { isProduction?: boolean; port?: number } = {},
+): boolean {
+  if (!origin) return false;
+  if (!ALLOWED_ORIGIN_REGEX.test(origin)) return false;
+
+  const isProd = options.isProduction ?? process.env['NODE_ENV'] === 'production';
+  if (isProd) {
+    try {
+      const parsed = new URL(origin);
+      if (parsed.port === '5173') {
+        return false;
+      }
+    } catch {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
  * Register:
  *  1. `onRequest` hook — DNS rebinding + Origin checks + Sec-Fetch-Site + session validation.
  *  2. `GET /` passthrough that stamps the session cookie on the first browser load.
@@ -87,7 +113,13 @@ export async function registerSessionMiddleware(
       const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
       const origin = req.headers['origin'];
       if (MUTATING.has(method ?? '')) {
-        if (origin && !ALLOWED_ORIGIN_REGEX.test(origin)) {
+        if (
+          origin &&
+          !isAllowedOrigin(origin, {
+            isProduction: process.env['NODE_ENV'] === 'production',
+            port: _port,
+          })
+        ) {
           req.log.warn({ origin, path }, 'Rejected: Forbidden origin on mutating route');
           void reply.code(403).send({ error: 'Forbidden origin' });
           return;
@@ -107,7 +139,13 @@ export async function registerSessionMiddleware(
           void reply.code(403).send({ error: 'Forbidden direct navigation on vault routes' });
           return;
         }
-        if (origin && !ALLOWED_ORIGIN_REGEX.test(origin)) {
+        if (
+          origin &&
+          !isAllowedOrigin(origin, {
+            isProduction: process.env['NODE_ENV'] === 'production',
+            port: _port,
+          })
+        ) {
           req.log.warn({ origin, path }, 'Rejected: Forbidden origin on vault route');
           void reply.code(403).send({ error: 'Forbidden origin on vault route' });
           return;

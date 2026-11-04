@@ -82,7 +82,19 @@
   - [x] 15 new security unit tests in `apps/server/test/security.test.ts` (total: 52 passing tests)
   - [x] Updated `docs/security.md` with trust model, SSRF invariants, and isolation headers
   - [x] Deliverable `docs/audits/02-security-server.md`
-  - [x] **GATE 2**: Ready for user review.
+  - [x] **GATE 2**: Approved by user.
+
+- [x] **Stage 3: Security Hardening & Defenses (System-Wide)**
+  - [x] SQLite FTS5 query sanitizer (`fts-sanitizer.ts`) and 500-permutation hostile fuzz test
+  - [x] Path safety containment helper (`path-safety.ts`) and 35-vector hostile traversal table
+  - [x] Fastify/Pino log redaction configuration and automated censoring test
+        (`logger-redaction.test.ts`)
+  - [x] Production vs. Dev security config separation and test (`environment-origin.test.ts`)
+  - [x] Uniform defensive security headers plugin and snapshot test (`security-headers.test.ts`)
+  - [x] In-memory rate limiting and backoff guard on sensitive routes (`rate-limiter.test.ts`)
+  - [x] Security CI workflow (`.github/workflows/security.yml`) with Gitleaks, Audit, and Semgrep
+  - [x] Deliverable `docs/audits/03-security-fixes.md`
+  - [x] **GATE 3**: Ready for user review.
 
 ---
 
@@ -93,3 +105,4 @@
 - `7191b56` —
   `test(bench): establish Stage 1 baseline harness, synthetic 100k seed, and audit scoreboard`
 - `577e43d` — `chore(branding): rename project to Sunflower Drive and commit Grand README`
+- `7408f1d` — `feat(security): close SEC-001, SEC-002, SEC-003, SEC-006 and harden server routes`

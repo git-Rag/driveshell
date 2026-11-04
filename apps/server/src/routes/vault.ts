@@ -13,6 +13,7 @@ import { z } from 'zod';
 import type { Db } from '../db/connection';
 import { buildVaultQueries } from '../db/queries/vault';
 import { buildAccountQueries } from '../db/queries/accounts';
+import { createRateLimiter } from '../utils/rate-limiter';
 
 const VaultSetupSchema = z.object({
   salt: z.string().min(1),
@@ -42,6 +43,9 @@ export async function registerVaultRoutes(app: FastifyInstance, db: Db): Promise
     void reply.header('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     void reply.header('Pragma', 'no-cache');
   });
+
+  const vaultRateLimiter = createRateLimiter({ maxRequests: 60, windowMs: 60_000 });
+  app.addHook('preHandler', vaultRateLimiter);
 
   function resolveAccountId(req: FastifyRequest): string | null {
     const query = req.query as { accountId?: string };

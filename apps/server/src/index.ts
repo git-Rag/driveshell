@@ -2,7 +2,8 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { findAvailablePort } from './utils/port';
 import { openDb, closeDb } from './db/connection';
-import { registerSessionMiddleware, setSessionCookie } from './auth/session';
+import { registerSessionMiddleware, setSessionCookie, isAllowedOrigin } from './auth/session';
+import { registerSecurityHeaders } from './auth/security-headers';
 import { registerAuthRoutes } from './routes/auth';
 import { registerSyncRoutes } from './routes/sync';
 import { registerFileRoutes } from './routes/files';
@@ -23,23 +24,30 @@ async function main(): Promise<void> {
   const app = Fastify({
     logger: {
       level: LOG_LEVEL,
-      // Redact sensitive fields from all log output
+      // Redact sensitive secrets and tokens from all log output
       redact: {
         paths: [
           'req.headers.cookie',
           'req.headers.authorization',
           '*.access_token',
+          '*.accessToken',
           '*.refresh_token',
+          '*.refreshToken',
           '*.client_secret',
           '*.clientSecret',
+          '*.password',
+          '*.token',
+          '*.code_verifier',
+          '*.canaryCiphertext',
+          '*.encryptedPayloadBase64',
         ],
-        remove: true,
+        censor: '[REDACTED]',
       },
     },
   });
 
   // -------------------------------------------------------------------------
-  // CORS — allow only localhost origins (loopback)
+  // CORS — allow only verified loopback and Tauri origins
   // -------------------------------------------------------------------------
   await app.register(cors, {
     origin: (origin, cb) => {
@@ -48,9 +56,9 @@ async function main(): Promise<void> {
         cb(null, true);
         return;
       }
-      // Allow any loopback origin (127.0.0.1 or localhost, any port)
-      const loopback = /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/;
-      if (loopback.test(origin)) {
+      if (
+        isAllowedOrigin(origin, { isProduction: process.env['NODE_ENV'] === 'production', port })
+      ) {
         cb(null, true);
       } else {
         cb(new Error('CORS: origin not allowed'), false);
@@ -60,18 +68,9 @@ async function main(): Promise<void> {
   });
 
   // -------------------------------------------------------------------------
-  // Security headers
+  // Baseline defensive security headers
   // -------------------------------------------------------------------------
-  app.addHook('onSend', (_req, reply, _payload, done) => {
-    reply.header('X-Content-Type-Options', 'nosniff');
-    reply.header('X-Frame-Options', 'DENY');
-    reply.header('Referrer-Policy', 'same-origin');
-    reply.header(
-      'Content-Security-Policy',
-      "default-src 'self'; img-src 'self' https://lh3.googleusercontent.com data:; style-src 'self' 'unsafe-inline'; script-src 'self'",
-    );
-    done();
-  });
+  await registerSecurityHeaders(app);
 
   // -------------------------------------------------------------------------
   // Database

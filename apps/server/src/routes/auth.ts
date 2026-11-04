@@ -27,6 +27,7 @@ import {
   KC_CLIENT_SECRET,
   kcTokenKey,
 } from '../auth/keychain';
+import { createRateLimiter } from '../utils/rate-limiter';
 import { generatePkce, generateState } from '../auth/pkce';
 import { setSessionCookie } from '../auth/session';
 import { buildAccountQueries } from '../db/queries/accounts';
@@ -83,20 +84,25 @@ export async function registerAuthRoutes(
   const accountQ = buildAccountQueries(db);
 
   const redirectUri = `http://127.0.0.1:${port}/auth/callback`;
+  const credentialsRateLimiter = createRateLimiter({ maxRequests: 20, windowMs: 60_000 });
 
   // -------------------------------------------------------------------------
   // POST /api/setup/credentials
   // Store the Google OAuth client ID and secret as SEPARATE keychain entries.
   // -------------------------------------------------------------------------
-  app.post('/api/setup/credentials', async (req: FastifyRequest, reply: FastifyReply) => {
-    const body = CredentialsSchema.safeParse(req.body);
-    if (!body.success) {
-      return reply.code(400).send({ error: 'Invalid body', details: body.error.format() });
-    }
-    keychain.set(KC_SERVICE, KC_CLIENT_ID, body.data.clientId);
-    keychain.set(KC_SERVICE, KC_CLIENT_SECRET, body.data.clientSecret);
-    return reply.code(200).send({ ok: true });
-  });
+  app.post(
+    '/api/setup/credentials',
+    { preHandler: credentialsRateLimiter },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const body = CredentialsSchema.safeParse(req.body);
+      if (!body.success) {
+        return reply.code(400).send({ error: 'Invalid body', details: body.error.format() });
+      }
+      keychain.set(KC_SERVICE, KC_CLIENT_ID, body.data.clientId);
+      keychain.set(KC_SERVICE, KC_CLIENT_SECRET, body.data.clientSecret);
+      return reply.code(200).send({ ok: true });
+    },
+  );
 
   // -------------------------------------------------------------------------
   // GET /api/setup/status

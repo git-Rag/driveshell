@@ -8,6 +8,7 @@
  */
 
 import type { Db } from '../connection';
+import { sanitizeFts5Query } from '../../utils/fts-sanitizer';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -347,14 +348,19 @@ export function buildFileQueries(db: Db) {
 
     /**
      * Hybrid search:
-     *   - query.length >= 3 → FTS5 trigram MATCH (fast)
-     *   - query.length 1–2  → LIKE '%q%' fallback
+     *   - query.length >= 3 and valid FTS tokens → FTS5 trigram MATCH (fast, sanitized)
+     *   - otherwise → LIKE '%q%' fallback
      */
     searchFiles(accountId: string, query: string, limit = 50): FileRow[] {
       if (query.length >= 3) {
-        // Escape FTS5 special chars — wrap in double quotes for exact phrase
-        const ftsQuery = `"${query.replace(/"/g, '""')}"`;
-        return searchFts.all(accountId, ftsQuery, limit);
+        const ftsQuery = sanitizeFts5Query(query);
+        if (ftsQuery) {
+          try {
+            return searchFts.all(accountId, ftsQuery, limit);
+          } catch {
+            // Safe fallback to LIKE query if FTS match encounters unexpected tokenization
+          }
+        }
       }
       // LIKE fallback: escape % and _ in the query, wrap in wildcards
       const likeQuery =
