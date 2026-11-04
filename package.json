@@ -10,8 +10,8 @@
     "dev": "pnpm --parallel --filter=./apps/* dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
+    "lint": "cross-env NODE_OPTIONS=--max-old-space-size=4096 eslint .",
+    "lint:fix": "cross-env NODE_OPTIONS=--max-old-space-size=4096 eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "pnpm -r test",
@@ -20,6 +20,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "cross-env": "^7.0.3",
     "eslint": "^10.14.0",
     "eslint-plugin-react-hooks": "^5.0.0",
     "globals": "^15.12.0",
@@ -31,7 +32,7 @@
   },
   "lint-staged": {
     "*.{ts,tsx}": [
-      "eslint --fix",
+      "cross-env NODE_OPTIONS=--max-old-space-size=4096 eslint --fix",
       "prettier --write"
     ],
     "*.{json,md,css,yaml,yml}": [

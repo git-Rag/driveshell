@@ -55,12 +55,22 @@ const NAV_SECTIONS: NavItem[] = [
   },
 ];
 
+interface AccountInfo {
+  id: string;
+  displayName: string;
+  email: string;
+  avatarUrl: string | null;
+  status: 'ok' | 'syncing' | 'needs_reauth' | 'error';
+}
+
 interface SidebarProps {
   activeId?: string;
   onNavigate?: (id: string) => void;
+  accounts?: AccountInfo[];
 }
 
-export function Sidebar({ activeId = 'gallery', onNavigate }: SidebarProps) {
+export function Sidebar({ activeId = 'gallery', onNavigate, accounts = [] }: SidebarProps) {
+  const account = accounts[0] ?? null;
   const [expanded, setExpanded] = useState<Record<string, boolean>>({ photos: true });
 
   const toggle = (id: string) => setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -99,7 +109,7 @@ export function Sidebar({ activeId = 'gallery', onNavigate }: SidebarProps) {
         style={{ flex: 1, padding: '8px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}
       >
         {/* Account indicator */}
-        <AccountChip />
+        <AccountChip account={account} />
 
         <div style={{ marginTop: 4 }} />
 
@@ -301,7 +311,12 @@ function NavButton({
   );
 }
 
-function AccountChip() {
+function AccountChip({ account }: { account: AccountInfo | null }) {
+  const initials = account?.displayName?.[0]?.toUpperCase() ?? '?';
+  const label = account ? account.displayName : 'Not signed in';
+  const sublabel = account ? account.email : null;
+  const needsReauth = account?.status === 'needs_reauth';
+
   return (
     <div
       style={{
@@ -310,43 +325,82 @@ function AccountChip() {
         gap: 8,
         padding: '6px 10px',
         borderRadius: 'var(--ds-radius-md)',
-        border: '1px solid var(--ds-border)',
+        border: `1px solid ${needsReauth ? 'var(--ds-warning)' : 'var(--ds-border)'}`,
         background: 'var(--ds-bg-hover)',
         cursor: 'pointer',
         marginBottom: 4,
       }}
-      title="Account switcher"
+      title={account ? `${account.email} — Account menu` : 'Not signed in'}
     >
-      {/* Avatar placeholder */}
-      <span
-        aria-hidden
-        style={{
-          width: 20,
-          height: 20,
-          borderRadius: '50%',
-          background: 'var(--ds-brand-gradient)',
-          flexShrink: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: 10,
-          fontWeight: 700,
-          color: '#fff',
-        }}
-      >
-        ?
-      </span>
+      {/* Avatar */}
+      {account?.avatarUrl ? (
+        <img
+          src={account.avatarUrl}
+          alt={account.displayName}
+          referrerPolicy="no-referrer"
+          style={{
+            width: 20,
+            height: 20,
+            borderRadius: '50%',
+            objectFit: 'cover',
+            flexShrink: 0,
+          }}
+        />
+      ) : (
+        <span
+          aria-hidden
+          style={{
+            width: 20,
+            height: 20,
+            borderRadius: '50%',
+            background: 'var(--ds-brand-gradient)',
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 10,
+            fontWeight: 700,
+            color: '#fff',
+          }}
+        >
+          {initials}
+        </span>
+      )}
+
       <span
         style={{
           flex: 1,
-          fontSize: 12.5,
-          color: 'var(--ds-text-secondary)',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
+          minWidth: 0,
+          display: 'flex',
+          flexDirection: sublabel ? 'column' : 'row',
+          gap: sublabel ? 1 : 0,
         }}
       >
-        Not signed in
+        <span
+          style={{
+            fontSize: 12.5,
+            fontWeight: 500,
+            color: needsReauth ? 'var(--ds-warning)' : 'var(--ds-text-secondary)',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {needsReauth ? 'Re-auth needed' : label}
+        </span>
+        {sublabel && !needsReauth && (
+          <span
+            style={{
+              fontSize: 11,
+              color: 'var(--ds-text-disabled)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {sublabel}
+          </span>
+        )}
       </span>
       <ChevronRight size={12} style={{ opacity: 0.4, flexShrink: 0 }} />
     </div>

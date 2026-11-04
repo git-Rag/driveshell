@@ -5,9 +5,16 @@ interface TopBarProps {
   onThemeToggle?: () => void;
   isDark?: boolean;
   syncState?: 'idle' | 'syncing' | 'error' | 'needs_reauth';
+  account?: { displayName: string; avatarUrl: string | null } | null;
 }
 
-export function TopBar({ onThemeToggle, isDark = true, syncState = 'idle' }: TopBarProps) {
+export function TopBar({
+  onThemeToggle,
+  isDark = true,
+  syncState = 'idle',
+  account = null,
+}: TopBarProps) {
+  const initials = account?.displayName?.[0]?.toUpperCase() ?? '?';
   const [searchFocused, setSearchFocused] = useState(false);
 
   return (
@@ -122,7 +129,7 @@ export function TopBar({ onThemeToggle, isDark = true, syncState = 'idle' }: Top
             width: 30,
             height: 30,
             borderRadius: '50%',
-            background: 'var(--ds-brand-gradient)',
+            background: account?.avatarUrl ? 'transparent' : 'var(--ds-brand-gradient)',
             border: 'none',
             cursor: 'pointer',
             display: 'flex',
@@ -135,9 +142,20 @@ export function TopBar({ onThemeToggle, isDark = true, syncState = 'idle' }: Top
             flexShrink: 0,
             outline: 'none',
             boxShadow: 'var(--ds-shadow-brand)',
+            overflow: 'hidden',
+            padding: 0,
           }}
         >
-          ?
+          {account?.avatarUrl ? (
+            <img
+              src={account.avatarUrl}
+              alt={account.displayName}
+              referrerPolicy="no-referrer"
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+          ) : (
+            initials
+          )}
         </button>
       </div>
     </header>

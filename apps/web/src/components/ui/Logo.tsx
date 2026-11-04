@@ -5,12 +5,14 @@ interface LogoProps {
   /** Show just the icon mark without the wordmark */
   iconOnly?: boolean;
   size?: number;
+  className?: string;
 }
 
-export function Logo({ iconOnly = false, size = 28 }: LogoProps) {
+export function Logo({ iconOnly = false, size = 28, className }: LogoProps) {
   return (
     <span
       style={{ display: 'inline-flex', alignItems: 'center', gap: 10, flexShrink: 0 }}
+      className={className}
       aria-label="DriveShell"
     >
       {/* Brand mark — a rounded square with an abstract "shell/frame" motif */}

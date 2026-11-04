@@ -314,4 +314,116 @@ body {
   .inset-border {
     box-shadow: inset 0 0 0 1px var(--ds-border);
   }
+
+  .animate-fade-in {
+    animation: fade-in 0.25s ease both;
+  }
+}
+
+/* ── Component classes ──────────────────────────────────────────────────── */
+@layer components {
+  /* Filled primary button */
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.25rem;
+    border-radius: var(--ds-radius-md);
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #fff;
+    background: var(--ds-brand-gradient);
+    border: none;
+    cursor: pointer;
+    transition:
+      opacity 0.15s ease,
+      transform 0.1s ease;
+    user-select: none;
+  }
+  .btn-primary:hover:not(:disabled) {
+    opacity: 0.9;
+  }
+  .btn-primary:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+  .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* Ghost/secondary button */
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.25rem;
+    border-radius: var(--ds-radius-md);
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--ds-text-secondary);
+    background: transparent;
+    border: 1px solid var(--ds-border);
+    cursor: pointer;
+    transition:
+      background 0.15s ease,
+      color 0.15s ease;
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background: var(--ds-bg-hover);
+    color: var(--ds-text-primary);
+  }
+
+  /* Text input */
+  .input {
+    display: block;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-bg-elevated);
+    border: 1px solid var(--ds-border);
+    color: var(--ds-text-primary);
+    font-size: 0.875rem;
+    line-height: 1.5;
+    outline: none;
+    transition: border-color 0.15s ease;
+  }
+  .input::placeholder {
+    color: var(--ds-text-muted);
+  }
+  .input:focus {
+    border-color: var(--ds-border-focus);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+
+  /* Form label */
+  .label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--ds-text-secondary);
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    margin-bottom: 0.375rem;
+  }
+
+  /* Surface card */
+  .card {
+    background: var(--ds-bg-raised);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-xl);
+  }
+
+  /* Wizard step container */
+  .wizard-step {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .wizard-step .btn-primary,
+  .wizard-step .btn-ghost {
+    width: 100%;
+    max-width: 24rem;
+  }
 }

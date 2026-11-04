@@ -30,6 +30,11 @@ jobs:
           node-version: '22'
           cache: 'pnpm'
 
+      # googleapis typedefs are large; bump heap for ESLint + Vitest
+      - name: Set Node options
+        run: echo "NODE_OPTIONS=--max-old-space-size=4096" >> $GITHUB_ENV
+        shell: bash
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 

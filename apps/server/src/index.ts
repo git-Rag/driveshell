@@ -1,6 +1,9 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { findAvailablePort } from './utils/port';
+import { openDb, closeDb } from './db/connection';
+import { registerSessionMiddleware } from './auth/session';
+import { registerAuthRoutes } from './routes/auth';
 
 const DEFAULT_PORT = Number(process.env['SERVER_PORT'] ?? 3001);
 const LOG_LEVEL = process.env['LOG_LEVEL'] ?? 'info';
@@ -13,7 +16,14 @@ async function main(): Promise<void> {
       level: LOG_LEVEL,
       // Redact sensitive fields from all log output
       redact: {
-        paths: ['req.headers.cookie', 'req.headers.authorization'],
+        paths: [
+          'req.headers.cookie',
+          'req.headers.authorization',
+          '*.access_token',
+          '*.refresh_token',
+          '*.client_secret',
+          '*.clientSecret',
+        ],
         remove: true,
       },
     },
@@ -47,9 +57,22 @@ async function main(): Promise<void> {
     reply.header('X-Content-Type-Options', 'nosniff');
     reply.header('X-Frame-Options', 'DENY');
     reply.header('Referrer-Policy', 'same-origin');
-    // Phase 1: tighten CSP once the session cookie mechanism is in place
+    reply.header(
+      'Content-Security-Policy',
+      "default-src 'self'; img-src 'self' https://lh3.googleusercontent.com data:; style-src 'self' 'unsafe-inline'; script-src 'self'",
+    );
     done();
   });
+
+  // -------------------------------------------------------------------------
+  // Database
+  // -------------------------------------------------------------------------
+  const db = openDb(app.log);
+
+  // -------------------------------------------------------------------------
+  // Session cookie middleware (must be registered before API routes)
+  // -------------------------------------------------------------------------
+  await registerSessionMiddleware(app, port);
 
   // -------------------------------------------------------------------------
   // Routes
@@ -57,18 +80,36 @@ async function main(): Promise<void> {
 
   /**
    * Health check — unauthenticated, used by CI and dev tooling.
-   * Returns 200 with version info.
-   * async is required by Fastify's route handler signature even when no await is used.
    */
-  // eslint-disable-next-line @typescript-eslint/require-await -- Fastify route handlers must be async; no async work needed here yet
+  // eslint-disable-next-line @typescript-eslint/require-await -- Fastify route handlers must be async
   app.get('/health', async () => {
     return { status: 'ok', version: '0.1.0' };
   });
 
-  // TODO(phase-1): Register auth routes (OAuth PKCE, session cookie)
-  // TODO(phase-1): Register setup routes
+  // Auth + setup routes (Phase 1)
+  await registerAuthRoutes(app, db, port);
+
   // TODO(phase-2): Register sync routes
   // TODO(phase-3): Register timeline / media routes
+
+  // -------------------------------------------------------------------------
+  // Graceful shutdown
+  // -------------------------------------------------------------------------
+  const shutdown = (): void => {
+    app.log.info('Shutting down…');
+    app
+      .close()
+      .then(() => {
+        closeDb();
+        process.exit(0);
+      })
+      .catch((err: unknown) => {
+        app.log.error(err, 'Error during shutdown');
+        process.exit(1);
+      });
+  };
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
 
   // -------------------------------------------------------------------------
   // Start
