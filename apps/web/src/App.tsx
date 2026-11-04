@@ -1,61 +1,66 @@
-// Phase 0: empty shell to verify the design-system tokens and Tailwind work.
-// Real routing and features start in Phase 1 (setup wizard).
+import { useState, useEffect } from 'react';
+import { Sidebar } from './app/shell/Sidebar';
+import { TopBar } from './app/shell/TopBar';
+import { WelcomeScreen } from './features/setup/WelcomeScreen';
+
+// Phase 0: static shell. Routing + real views start in Phase 1.
+// TODO(phase-1): Replace activeId state with React Router location
+// TODO(phase-1): Replace isDark useState with Zustand theme store + localStorage persistence
 
 export function App() {
+  const [activeId, setActiveId] = useState<string>('gallery');
+  const [isDark, setIsDark] = useState<boolean>(true);
+
+  // Apply theme attribute to <html> so CSS [data-theme] selectors work
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+  }, [isDark]);
+
   return (
     <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ background: 'var(--ds-bg)', color: 'var(--ds-text-primary)' }}
+      style={{
+        display: 'flex',
+        height: '100dvh',
+        overflow: 'hidden',
+        background: 'var(--ds-bg)',
+        color: 'var(--ds-text-primary)',
+        fontFamily: 'var(--ds-font-sans)',
+      }}
     >
-      <div className="text-center space-y-3">
-        {/* Logo placeholder — replace with SVG icon in Phase 1 */}
-        <div
-          className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl"
-          style={{ background: 'var(--ds-accent)', color: '#fff' }}
-          aria-hidden="true"
+      {/* Left rail */}
+      <Sidebar activeId={activeId} onNavigate={setActiveId} />
+
+      {/* Main column */}
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          minWidth: 0,
+          overflow: 'hidden',
+        }}
+      >
+        {/* Sticky top bar (inside main column, not spanning sidebar) */}
+        <TopBar isDark={isDark} onThemeToggle={() => setIsDark((d) => !d)} syncState="idle" />
+
+        {/* Content region — scrollable */}
+        <main
+          id="main-content"
+          tabIndex={-1}
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            position: 'relative',
+          }}
+          aria-label="Main content"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
-            <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
-          </svg>
-        </div>
-
-        <h1
-          className="text-2xl font-semibold tracking-tight"
-          style={{ color: 'var(--ds-text-primary)' }}
-        >
-          DriveShell
-        </h1>
-
-        <p className="text-sm" style={{ color: 'var(--ds-text-secondary)' }}>
-          Phase 0 scaffold — setup wizard coming in Phase 1.
-        </p>
-
-        {/* Verify server connection */}
-        <HealthBadge />
+          {/* Phase 0: always show welcome screen. Phase 1 adds the router. */}
+          <WelcomeScreen />
+        </main>
       </div>
     </div>
-  );
-}
-
-function HealthBadge() {
-  // TODO(phase-1): Replace with TanStack Query + real health check
-  return (
-    <p className="text-xs mt-4" style={{ color: 'var(--ds-text-disabled)' }}>
-      Server:{' '}
-      <a href="/health" target="_blank" rel="noreferrer" style={{ color: 'var(--ds-accent)' }}>
-        /health
-      </a>
-    </p>
   );
 }
