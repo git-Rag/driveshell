@@ -62,6 +62,21 @@ export function VaultView() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const previewUrlsRef = useRef<Record<string, string>>({});
+  previewUrlsRef.current = previewUrls;
+
+  // Stable lock function declared before any useEffect hooks that depend on it
+  const handleLock = useCallback(() => {
+    // Revoke all in-memory object URLs for privacy
+    for (const url of Object.values(previewUrlsRef.current)) {
+      URL.revokeObjectURL(url);
+    }
+    setPreviewUrls({});
+    setVaultKey(null);
+    setPassphrase('');
+    setConfirmPassphrase('');
+    setErrorMsg(null);
+  }, []);
 
   // Load vault status
   const checkStatus = useCallback(async () => {
@@ -69,8 +84,10 @@ export function VaultView() {
     try {
       const res = await getVaultStatus();
       setStatus(res);
+      setErrorMsg(null);
     } catch (err) {
       console.error('Failed to get vault status', err);
+      setErrorMsg('Failed to check vault status. Please ensure server is running.');
     } finally {
       setLoading(false);
     }
@@ -119,18 +136,6 @@ export function VaultView() {
       window.removeEventListener('keydown', handleActivity);
     };
   }, [resetActivityTimer]);
-
-  const handleLock = useCallback(() => {
-    // Revoke all in-memory object URLs for privacy
-    for (const url of Object.values(previewUrls)) {
-      URL.revokeObjectURL(url);
-    }
-    setPreviewUrls({});
-    setVaultKey(null);
-    setPassphrase('');
-    setConfirmPassphrase('');
-    setErrorMsg(null);
-  }, [previewUrls]);
 
   // Load files once unlocked
   const loadVaultFiles = useCallback(async () => {
@@ -251,7 +256,9 @@ export function VaultView() {
       if (!fileData.encryptedPayloadBase64) return;
 
       const decrypted = await decryptBytes(vaultKey, fileData.encryptedPayloadBase64, file.iv);
-      const blob = new Blob([decrypted as unknown as BlobPart], { type: file.mime_type });
+      const blob = new Blob([decrypted as unknown as BlobPart], {
+        type: file.mime_type,
+      });
       const url = URL.createObjectURL(blob);
 
       const a = document.createElement('a');
@@ -274,7 +281,9 @@ export function VaultView() {
       if (!fileData.encryptedPayloadBase64) return;
 
       const decrypted = await decryptBytes(vaultKey, fileData.encryptedPayloadBase64, file.iv);
-      const blob = new Blob([decrypted as unknown as BlobPart], { type: file.mime_type });
+      const blob = new Blob([decrypted as unknown as BlobPart], {
+        type: file.mime_type,
+      });
       const url = URL.createObjectURL(blob);
 
       setPreviewUrls((prev) => ({ ...prev, [file.id]: url }));

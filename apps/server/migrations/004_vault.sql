@@ -29,3 +29,4 @@ CREATE INDEX IF NOT EXISTS idx_vault_files_account
 
 INSERT INTO schema_version (version, applied_at)
 VALUES (4, unixepoch() * 1000);
+
