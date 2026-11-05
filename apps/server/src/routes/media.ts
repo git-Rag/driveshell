@@ -10,6 +10,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import fs from 'node:fs';
 import path from 'node:path';
+import { Transform } from 'node:stream';
 import type { Db } from '../db/connection';
 import { getDataDir } from '../db/connection';
 import { buildFileQueries } from '../db/queries/files';
@@ -45,6 +46,69 @@ export function isSafeInlineMime(mime: string): boolean {
 export function sanitizeFilename(name: string): string {
   // eslint-disable-next-line no-control-regex
   return name.replace(/[\x00-\x1f\x7f"/\\]/g, '_');
+}
+
+export interface ParsedByteRange {
+  start: number;
+  end: number;
+}
+
+/** Parse an HTTP bytes=start-end Range header safely against a known file size. */
+export function parseByteRange(
+  rangeHeader: string,
+  totalSize?: number | null,
+): { valid: boolean; range?: ParsedByteRange; isPastEof?: boolean } {
+  const match = /^bytes=(\d+)-(\d*)$/i.exec(rangeHeader.trim());
+  if (!match) return { valid: false };
+
+  const start = parseInt(match[1]!, 10);
+  const end = match[2] ? parseInt(match[2], 10) : totalSize != null ? totalSize - 1 : undefined;
+
+  if (totalSize != null && totalSize > 0) {
+    if (start >= totalSize || (end !== undefined && start > end)) {
+      return { valid: false, isPastEof: true };
+    }
+    const finalEnd = Math.min(end ?? totalSize - 1, totalSize - 1);
+    return { valid: true, range: { start, end: finalEnd } };
+  }
+
+  if (end !== undefined && start > end) {
+    return { valid: false };
+  }
+
+  return { valid: true, range: { start, end: end ?? -1 } };
+}
+
+/** Create a Transform stream that slices a Readable stream to the [start, end] byte range inclusive. */
+export function createRangeSliceStream(start: number, end: number): Transform {
+  let bytesRead = 0;
+  return new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      const chunkLen = chunk.length;
+      const chunkStart = bytesRead;
+      const chunkEnd = bytesRead + chunkLen - 1;
+      bytesRead += chunkLen;
+
+      if (chunkEnd < start) {
+        callback();
+        return;
+      }
+      if (chunkStart > end) {
+        this.push(null);
+        callback();
+        return;
+      }
+
+      const sliceStart = Math.max(0, start - chunkStart);
+      const sliceEnd = Math.min(chunkLen, end - chunkStart + 1);
+      this.push(chunk.subarray(sliceStart, sliceEnd));
+
+      if (chunkEnd >= end) {
+        this.push(null);
+      }
+      callback();
+    },
+  });
 }
 
 interface MediaParams {
@@ -291,6 +355,16 @@ export async function registerMediaRoutes(
         return reply.code(404).send({ error: 'File is not a media item' });
       }
 
+      const rangeHeader = req.headers['range'];
+      if (rangeHeader && file.size_bytes != null && file.size_bytes > 0) {
+        const parsed = parseByteRange(rangeHeader, file.size_bytes);
+        if (parsed.isPastEof) {
+          reply.header('Content-Range', `bytes */${file.size_bytes}`);
+          reply.header('Accept-Ranges', 'bytes');
+          return reply.code(416).send({ error: 'Range Not Satisfiable' });
+        }
+      }
+
       const clientId = keychain.get(KC_SERVICE, KC_CLIENT_ID);
       const clientSecret = keychain.get(KC_SERVICE, KC_CLIENT_SECRET);
       if (!clientId || !clientSecret) {
@@ -307,8 +381,6 @@ export async function registerMediaRoutes(
         req.log,
       );
 
-      const rangeHeader = req.headers['range'];
-
       try {
         const reqOptions = rangeHeader
           ? { responseType: 'stream' as const, headers: { Range: rangeHeader } }
@@ -319,10 +391,18 @@ export async function registerMediaRoutes(
           reqOptions,
         )) as unknown as DriveStreamResponse;
 
+        // Propagate client abort to destroy upstream stream and prevent leaked network reads
+        req.raw.on('close', () => {
+          if (!req.raw.complete && driveRes?.data) {
+            const stream = driveRes.data as { destroy?: () => void };
+            if (typeof stream.destroy === 'function') {
+              stream.destroy();
+            }
+          }
+        });
+
         // Forward content headers from Google Drive
         const headers = driveRes.headers;
-        if (headers['content-range']) reply.header('Content-Range', headers['content-range']);
-        if (headers['content-length']) reply.header('Content-Length', headers['content-length']);
         if (headers['accept-ranges']) reply.header('Accept-Ranges', headers['accept-ranges']);
         else reply.header('Accept-Ranges', 'bytes');
 
@@ -343,10 +423,42 @@ export async function registerMediaRoutes(
         reply.header('X-Content-Type-Options', 'nosniff');
         reply.header('Content-Security-Policy', "sandbox; default-src 'none'");
         reply.header('Cache-Control', 'private, max-age=86400');
+
+        // Upstream returned 206 Partial Content with Content-Range
+        if (headers['content-range']) {
+          reply.header('Content-Range', headers['content-range']);
+          if (headers['content-length']) reply.header('Content-Length', headers['content-length']);
+          reply.code(206);
+          return reply.send(driveRes.data);
+        }
+
+        // Fallback: Client asked for Range, but upstream returned 200 without Content-Range
+        if (rangeHeader && driveRes.status === 200) {
+          const parsed = parseByteRange(rangeHeader, file.size_bytes);
+          if (parsed.valid && parsed.range && parsed.range.end >= parsed.range.start) {
+            const { start, end } = parsed.range;
+            const sliceLen = end - start + 1;
+            reply.header('Content-Range', `bytes ${start}-${end}/${file.size_bytes ?? '*'}`);
+            reply.header('Content-Length', sliceLen.toString());
+            reply.code(206);
+            const sliceStream = createRangeSliceStream(start, end);
+            driveRes.data.pipe(sliceStream);
+            return reply.send(sliceStream);
+          }
+        }
+
+        if (headers['content-length']) reply.header('Content-Length', headers['content-length']);
         reply.code(driveRes.status ?? 200);
 
         return reply.send(driveRes.data);
-      } catch (err) {
+      } catch (err: unknown) {
+        const errorObj = err as { status?: number; response?: { status?: number } };
+        const status = errorObj?.status ?? errorObj?.response?.status;
+        if (status === 416) {
+          reply.header('Content-Range', `bytes */${file.size_bytes ?? '*'}`);
+          reply.header('Accept-Ranges', 'bytes');
+          return reply.code(416).send({ error: 'Range Not Satisfiable' });
+        }
         req.log.error({ fileId, err }, 'Error streaming media');
         return reply.code(500).send({ error: 'Streaming failed' });
       }

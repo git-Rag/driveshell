@@ -161,3 +161,63 @@ graph TD
 4. **Screenshot Protection**: The Vault view must set
    `window.setFlags(WindowManager.LayoutParams.FLAG_SECURE)` on Android to prevent screen recording
    and task-switcher previews.
+
+---
+
+## 8. Tier 2 Video Transcoding Architecture (Design Specification)
+
+> **Status**: Design Only — Specification for Future Implementation (Tier 1 is active).
+
+### 8.1 Problem & Motivation
+
+Certain platforms and browser engines (such as Firefox on Windows, Linux WebViews, or
+non-MediaFoundation platforms) do not natively decode proprietary video codecs (notably **HEVC /
+H.265** and **AVCHD / MPEG-2 Transport Streams**). While Tier 1 surfaces a clean error panel with
+"Open in Google Drive" and "Download" buttons, desktop users expect inline playback for all personal
+media.
+
+### 8.2 Architectural Overview
+
+```mermaid
+flowchart LR
+    Client["Browser / WebView"] -->|1. GET /api/media/:id/stream?transcode=h264| Server["Fastify Backend"]
+    Server -->|2. Check Cache| Cache["<dataDir>/transcode_cache/<id>.mp4"]
+    Cache -->|Cache Hit| Stream["Serve 206 Range Stream"]
+    Cache -->|Cache Miss| Queue["Transcode Worker Queue"]
+    Queue -->|3. Spawn FFmpeg Process| FFmpeg["FFmpeg (Sidecar / System)"]
+    Drive["Google Drive API"] -->|Piped Raw Stream| FFmpeg
+    FFmpeg -->|Stream H.264 + movflags +faststart| Cache
+    Cache --> Stream
+```
+
+### 8.3 Core Components & Specifications
+
+1. **Transcoding Profile**:
+   - **Video**: H.264 (AVC) Main Profile, `-c:v libx264 -preset veryfast -crf 22 -pix_fmt yuv420p`
+   - **Audio**: AAC-LC Stereo, `-c:a aac -b:a 128k -ar 44100`
+   - **Container**: MP4 with FastStart, `-movflags +faststart` (places `moov` atom at file start for
+     instant seeking)
+   - **Resolution Scaling**: Max 1080p (`scale='min(1920,iw)':-2`), maintaining original aspect
+     ratio.
+
+2. **On-Demand Worker & Concurrency Guard**:
+   - Transcode jobs run via a background worker queue with concurrency capped at **1 active
+     transcode job** (or `max(1, cpu_cores / 2)`).
+   - Abort signal: if the client disconnects or skips to another photo, the FFmpeg child process
+     receives `SIGTERM` / `kill()` immediately.
+
+3. **Disk Cache & LRU Eviction**:
+   - Transcoded files are cached under `<dataDir>/transcode_cache/<fileId>_h264.mp4`.
+   - SQLite table `transcode_cache (file_id, size_bytes, last_accessed_ms)`.
+   - LRU eviction triggers when the transcode directory exceeds a configurable threshold (default: 5
+     GB).
+
+4. **Integration Seam**:
+   - Server provides an opt-in query parameter: `/api/media/:fileId/stream?format=h264`.
+   - On desktop (Tauri), the app bundles a stripped FFmpeg binary via `tauri-plugin-sidecar` or
+     detects system FFmpeg in PATH.
+
+### 8.4 Recommendation
+
+Tier 1 (current implementation) remains the default lightweight strategy with zero binary overhead.
+Tier 2 should be introduced strictly as a desktop-only sidecar plugin in Tauri releases.
