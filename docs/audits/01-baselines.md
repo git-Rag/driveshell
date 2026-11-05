@@ -25,9 +25,17 @@ automated harnesses under clean conditions.
 
 ## 2. Full Baseline Scoreboard: Real (~25k) vs Synthetic (100k)
 
+> [!NOTE]
+> **Dataset Classification Hardening Note (Post-Fix Update)**:
+> Baselines were taken **AFTER** applying the media classification fix (`fix(gallery): exclude TS declaration files and code-folder content from media views`, migration 006).
+> - **Raw DB Indexed**: 25,315 files.
+> - **Code / Ancestor Files Hidden**: 18,565 files (`node_modules`: 18,280, `.git`: 278, `__pycache__`: 7) marked `is_hidden = 1`.
+> - **Clean Visible Gallery Media**: 5,725 items (`is_media = 1 AND is_hidden = 0`), down from the previous dirty count of 7,652 (which leaked 1,145 `.d.mts` files and 12 node_modules icons into the gallery).
+> - **TypeScript Leaking Items**: Exactly 0.
+
 Datasets tested:
 
-1. **Real Drive Backup (`data/bench/real-25k/driveshell.db`)**: 19.91 MB, 25,224 files, real Google
+1. **Real Drive Backup (`data/bench/real-25k/driveshell.db`)**: 19.91 MB, 25,224 files (post-fix live DB: 25,315 files, 5,725 gallery media), real Google
    Drive directory hierarchy.
 2. **Synthetic Dataset (`data/bench/synthetic-100k/driveshell.db`)**: 55.15 MB, 100,187 files, 20
    albums (4,592 items), realistic 80/10/10 media distribution, 5-year timeline with burst trips,

@@ -20,6 +20,8 @@ import {
   Plus,
 } from 'lucide-react';
 import type { FileRecord, Album } from '../../lib/api';
+import { MediaThumbnail } from './MediaThumbnail';
+import { isThumbnailFailed, markThumbnailFailed } from '../../lib/thumbnail-cache';
 import {
   getMediaThumbUrl,
   getMediaStreamUrl,
@@ -310,6 +312,13 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
                 Your browser does not support HTML5 video streaming.
               </video>
             </div>
+          ) : !file.thumbnail_url || isThumbnailFailed(file.id) ? (
+            /* Fallback when photo has no thumbnail or thumbnail 404'd */
+            <div className="flex flex-col items-center justify-center p-12 bg-zinc-900/80 border border-white/10 rounded-2xl text-center select-none max-w-md">
+              <Camera size={48} className="text-zinc-600 mb-3" />
+              <span className="text-sm font-medium text-white mb-1">{file.name}</span>
+              <span className="text-xs text-zinc-500">Preview not available from Google Drive</span>
+            </div>
           ) : (
             /* High resolution photo presentation with Instant Blur-Up + Crossfade */
             <div
@@ -337,6 +346,10 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
                 fetchPriority="high"
                 decoding="async"
                 onLoad={() => setHighResLoaded(true)}
+                onError={() => {
+                  markThumbnailFailed(file.id);
+                  setHighResLoaded(true);
+                }}
                 className={`max-h-[82vh] max-w-[85vw] object-contain rounded-lg shadow-2xl transition-opacity duration-300 ease-out select-none ${
                   highResLoaded ? 'opacity-100' : 'opacity-0 absolute'
                 }`}
@@ -397,16 +410,9 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
                     : 'border-white/20 opacity-50 hover:opacity-100 hover:border-white/50'
                 }`}
               >
-                <img
-                  src={getMediaThumbUrl(f.id, 400)}
-                  alt={f.name}
-                  loading="lazy"
-                  fetchPriority="low"
-                  decoding="async"
-                  className="w-full h-full object-cover"
-                />
+                <MediaThumbnail file={f} size={400} />
                 {f.mime_type.startsWith('video/') && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
                     <Play size={10} className="text-white fill-white" />
                   </div>
                 )}

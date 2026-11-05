@@ -18,6 +18,7 @@ import { createKeychain, KC_CLIENT_ID, KC_CLIENT_SECRET, KC_SERVICE } from '../a
 import { getAuthenticatedDrive } from '../sync/oauth-client';
 import { fetchWithGuard } from '../utils/outbound-guard';
 import { resolveSafePath } from '../utils/path-safety';
+import { isRealMedia } from '@driveshell/shared';
 
 export const SAFE_INLINE_MIME_PATTERNS = [
   /^image\/(jpeg|png|webp|avif)$/i,
@@ -154,6 +155,11 @@ export async function registerMediaRoutes(
         return reply.code(404).send({ error: 'File not found' });
       }
 
+      // Reject non-media or hidden files immediately to avoid hammering Google Drive API
+      if (file.is_hidden === 1 || !isRealMedia(file)) {
+        return reply.code(404).send({ error: 'File is not a media item' });
+      }
+
       // 2. If thumbnail_url is recorded from Drive, fetch and scale it
       if (file.thumbnail_url) {
         try {
@@ -278,6 +284,11 @@ export async function registerMediaRoutes(
       const file = fileQ.findById(accountId, fileId);
       if (!file) {
         return reply.code(404).send({ error: 'File not found' });
+      }
+
+      // Reject non-media or hidden files immediately to avoid hammering Google Drive API
+      if (file.is_hidden === 1 || !isRealMedia(file)) {
+        return reply.code(404).send({ error: 'File is not a media item' });
       }
 
       const clientId = keychain.get(KC_SERVICE, KC_CLIENT_ID);

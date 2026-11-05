@@ -10,6 +10,7 @@ dist/
 build/
 out/
 *.tsbuildinfo
+src-tauri/target/
 
 # Local data (never commit — contains your Drive index and cached thumbnails)
 data/

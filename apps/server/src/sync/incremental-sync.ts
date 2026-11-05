@@ -116,6 +116,10 @@ export async function runIncrementalSync(
       if (!nextPageToken) break; // exhausted all change pages
     }
 
+    if (totalChanges > 0) {
+      fileQ.recomputeHiddenFiles();
+    }
+
     // Update last_incremental_at and status
     accountQ.updateSyncCursors(accountId, { last_incremental_at: Date.now() });
     accountQ.setStatus(accountId, 'ok');

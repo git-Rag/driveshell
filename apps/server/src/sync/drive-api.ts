@@ -7,19 +7,22 @@
 
 import type { drive_v3 } from 'googleapis';
 import type { FastifyBaseLogger } from 'fastify';
+import { isRealMedia } from '@driveshell/shared';
 
 // Fields requested on every files.list call.
 // Using only documented Drive v3 API fields — never invent field names.
 const FILE_FIELDS =
   'nextPageToken,files(id,name,mimeType,parents,size,modifiedTime,createdTime,' +
   'starred,trashed,thumbnailLink,webViewLink,' +
-  'imageMediaMetadata(width,height,time,cameraMake,cameraModel))';
+  'imageMediaMetadata(width,height,time,cameraMake,cameraModel),' +
+  'videoMediaMetadata(width,height,durationMillis))';
 
 const CHANGE_FIELDS =
   'nextPageToken,newStartPageToken,changes(changeType,removed,fileId,' +
   'file(id,name,mimeType,parents,size,modifiedTime,createdTime,' +
   'starred,trashed,thumbnailLink,webViewLink,' +
-  'imageMediaMetadata(width,height,time,cameraMake,cameraModel)))';
+  'imageMediaMetadata(width,height,time,cameraMake,cameraModel),' +
+  'videoMediaMetadata(width,height,durationMillis)))';
 
 export interface DriveFilePage {
   files: drive_v3.Schema$File[];
@@ -175,6 +178,8 @@ export interface MappedFile {
   web_view_link: string | null;
   image_width: number | null;
   image_height: number | null;
+  duration_ms: number | null;
+  is_media: number;
   taken_at: number | null;
   camera_make: string | null;
   camera_model: string | null;
@@ -274,6 +279,21 @@ export function mapDriveFile(accountId: string, f: drive_v3.Schema$File): Mapped
 
   const takenAt = extractMediaDate(f.imageMediaMetadata?.time, f.name, null);
 
+  const duration_ms = f.videoMediaMetadata?.durationMillis
+    ? parseInt(String(f.videoMediaMetadata.durationMillis), 10)
+    : null;
+  const image_width = f.imageMediaMetadata?.width ?? f.videoMediaMetadata?.width ?? null;
+  const image_height = f.imageMediaMetadata?.height ?? f.videoMediaMetadata?.height ?? null;
+
+  const isMediaBool = isRealMedia({
+    name: f.name,
+    mime_type: f.mimeType,
+    duration_ms,
+    image_width,
+    image_height,
+    videoMediaMetadata: f.videoMediaMetadata,
+  });
+
   return {
     account_id: accountId,
     id: f.id,
@@ -287,8 +307,10 @@ export function mapDriveFile(accountId: string, f: drive_v3.Schema$File): Mapped
     trashed: f.trashed ? 1 : 0,
     thumbnail_url: f.thumbnailLink ?? null,
     web_view_link: f.webViewLink ?? null,
-    image_width: f.imageMediaMetadata?.width ?? null,
-    image_height: f.imageMediaMetadata?.height ?? null,
+    image_width,
+    image_height,
+    duration_ms,
+    is_media: isMediaBool ? 1 : 0,
     taken_at: takenAt,
     camera_make: f.imageMediaMetadata?.cameraMake ?? null,
     camera_model: f.imageMediaMetadata?.cameraModel ?? null,

@@ -177,6 +177,10 @@ export interface FileRecord {
   web_view_link: string | null;
   image_width: number | null;
   image_height: number | null;
+  duration_ms?: number | null;
+  is_media?: number;
+  is_hidden?: number;
+  hidden_reason?: string | null;
   taken_at: number | null;
   camera_make: string | null;
   camera_model: string | null;

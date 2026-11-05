@@ -12,16 +12,16 @@ import { buildAlbumQueries } from '../src/db/queries/albums';
 import { buildVaultQueries } from '../src/db/queries/vault';
 import { buildFileQueries } from '../src/db/queries/files';
 
+import { runMigrations } from '../src/db/migrations';
+import pino from 'pino';
+
+const testLogger = pino({ level: 'silent' });
+
 function openTestDb(tmpDir: string): Database {
   const db = new BetterSqlite3(path.join(tmpDir, 'test.db'));
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   return db;
-}
-
-function applyMigration(db: Database, file: string): void {
-  const sql = fs.readFileSync(path.resolve(__dirname, '..', 'migrations', file), 'utf8');
-  db.exec(sql);
 }
 
 describe('Phase 6 (Albums) & Phase 9 (Vault) Queries', () => {
@@ -34,10 +34,7 @@ describe('Phase 6 (Albums) & Phase 9 (Vault) Queries', () => {
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'driveshell-av-test-'));
     db = openTestDb(tmpDir);
-    applyMigration(db, '001_initial.sql');
-    applyMigration(db, '002_files.sql');
-    applyMigration(db, '003_albums.sql');
-    applyMigration(db, '004_vault.sql');
+    runMigrations(db, testLogger);
 
     // Insert dummy account
     db.prepare(

@@ -24,6 +24,8 @@ import {
   getMediaThumbUrl,
 } from '../../lib/api';
 import { PhotoLightbox } from '../gallery/PhotoLightbox';
+import { MediaThumbnail } from '../gallery/MediaThumbnail';
+import { isRealMedia } from '@driveshell/shared';
 
 export function AlbumsView() {
   const [albums, setAlbums] = useState<Album[]>([]);
@@ -278,12 +280,7 @@ export function AlbumsView() {
                   onClick={() => setActiveLightboxIndex(idx)}
                   className="group relative aspect-square rounded-xl overflow-hidden bg-zinc-900 border border-white/5 hover:border-brand/50 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-xl hover:scale-[1.02]"
                 >
-                  <img
-                    src={getMediaThumbUrl(file.id, 400)}
-                    alt={file.name}
-                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                    loading="lazy"
-                  />
+                  <MediaThumbnail file={file} size={400} />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-between p-2.5">
                     <span className="text-[11px] font-medium text-white truncate max-w-[80%]">
                       {file.name}
@@ -362,12 +359,7 @@ export function AlbumsView() {
                             : 'border-white/5 hover:border-white/30'
                         }`}
                       >
-                        <img
-                          src={getMediaThumbUrl(photo.id, 200)}
-                          alt={photo.name}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                        />
+                        <MediaThumbnail file={photo} size={200} />
                         {isSelected && (
                           <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-brand flex items-center justify-center text-white shadow-md">
                             <Check size={14} />

@@ -17,6 +17,8 @@ import type { AccountSummary, FileRecord, PhotoMonthBucket } from '../../lib/api
 import { getPhotos, getPhotoMonths, getMediaThumbUrl, subscribeSyncProgress } from '../../lib/api';
 import { useSyncStatus } from '../../hooks/useSyncStatus';
 import { PhotoLightbox } from './PhotoLightbox';
+import { MediaThumbnail } from './MediaThumbnail';
+import { isRealMedia } from '@driveshell/shared';
 
 interface GalleryViewProps {
   account?: AccountSummary | null;
@@ -48,19 +50,6 @@ const ZOOM_CONFIGS: Record<ZoomLevel, { cols: string; aspect: string; size: numb
 function formatMonthYear(ms: number): string {
   const d = new Date(ms);
   return d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
-}
-
-function isStrictMedia(file: FileRecord): boolean {
-  if (file.mime_type === 'application/vnd.google-apps.folder') return false;
-  if (file.mime_type.startsWith('application/vnd.google-apps.')) return false;
-  const isDocExt = /\.(pdf|docx?|xlsx?|pptx?|zip|rar|tar|json|txt|html|css|js|ts|exe|apk)$/i.test(
-    file.name,
-  );
-  if (isDocExt) return false;
-  if (file.mime_type.startsWith('image/') || file.mime_type.startsWith('video/')) return true;
-  return /\.(jpg|jpeg|png|gif|webp|heic|heif|bmp|tiff|avif|raw|dng|cr2|nef|arw|mp4|mov|avi|mkv|webm|3gp|m4v)$/i.test(
-    file.name,
-  );
 }
 
 const PAGE_SIZE = 120;
@@ -102,7 +91,7 @@ export function GalleryView({
         getPhotos({ offset: 0, limit: PAGE_SIZE, type: activeFilter }),
       ]);
       setMonths(monthsRes.months);
-      setPhotos(photosRes.files.filter(isStrictMedia));
+      setPhotos(photosRes.files.filter(isRealMedia));
       setTotalPhotos(photosRes.total);
 
       if (photosRes.files.length > 0 && photosRes.files[0]) {
@@ -137,7 +126,7 @@ export function GalleryView({
       setPhotos((prev) => {
         // De-duplicate by ID and strictly enforce media filter
         const existingIds = new Set(prev.map((p) => p.id));
-        const newItems = res.files.filter((f) => !existingIds.has(f.id) && isStrictMedia(f));
+        const newItems = res.files.filter((f) => !existingIds.has(f.id) && isRealMedia(f));
         return [...prev, ...newItems];
       });
       setTotalPhotos(res.total);
@@ -435,22 +424,8 @@ export function GalleryView({
                       ZOOM_CONFIGS[zoom].aspect
                     }`}
                   >
-                    {/* Thumbnail Image */}
-                    <img
-                      src={getMediaThumbUrl(file.id, ZOOM_CONFIGS[zoom].size)}
-                      alt={file.name}
-                      loading="lazy"
-                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none';
-                        e.currentTarget.parentElement?.classList.add(
-                          'flex',
-                          'items-center',
-                          'justify-center',
-                          'bg-zinc-800',
-                        );
-                      }}
-                    />
+                    {/* Thumbnail Image / Placeholder */}
+                    <MediaThumbnail file={file} size={ZOOM_CONFIGS[zoom].size} />
 
                     {/* Hover Overlay */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex flex-col justify-between p-2">

@@ -9,6 +9,7 @@
 
 import type { Db } from '../connection';
 import { sanitizeFts5Query } from '../../utils/fts-sanitizer';
+import { HIDDEN_FOLDER_NAMES, isRealMedia } from '@driveshell/shared';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -30,6 +31,10 @@ export interface FileRow {
   web_view_link: string | null;
   image_width: number | null;
   image_height: number | null;
+  duration_ms: number | null;
+  is_media: number; // 0 | 1
+  is_hidden: number; // 0 | 1
+  hidden_reason: string | null;
   taken_at: number | null;
   camera_make: string | null;
   camera_model: string | null;
@@ -50,6 +55,10 @@ export interface UpsertFileInput {
   web_view_link: string | null;
   image_width: number | null;
   image_height: number | null;
+  duration_ms?: number | null | undefined;
+  is_media?: number | undefined;
+  is_hidden?: number | undefined;
+  hidden_reason?: string | null | undefined;
   taken_at: number | null;
   camera_make: string | null;
   camera_model: string | null;
@@ -87,99 +96,9 @@ export interface UpdateFileInput {
 // Queries
 // ---------------------------------------------------------------------------
 
-const MEDIA_STRICT_FILTER = `
-  (
-    (
-      mime_type LIKE 'image/%'
-      OR mime_type LIKE 'video/%'
-      OR lower(name) LIKE '%.jpg'
-      OR lower(name) LIKE '%.jpeg'
-      OR lower(name) LIKE '%.png'
-      OR lower(name) LIKE '%.gif'
-      OR lower(name) LIKE '%.webp'
-      OR lower(name) LIKE '%.heic'
-      OR lower(name) LIKE '%.heif'
-      OR lower(name) LIKE '%.bmp'
-      OR lower(name) LIKE '%.tiff'
-      OR lower(name) LIKE '%.tif'
-      OR lower(name) LIKE '%.avif'
-      OR lower(name) LIKE '%.raw'
-      OR lower(name) LIKE '%.dng'
-      OR lower(name) LIKE '%.cr2'
-      OR lower(name) LIKE '%.nef'
-      OR lower(name) LIKE '%.arw'
-      OR lower(name) LIKE '%.mp4'
-      OR lower(name) LIKE '%.mov'
-      OR lower(name) LIKE '%.avi'
-      OR lower(name) LIKE '%.mkv'
-      OR lower(name) LIKE '%.webm'
-      OR lower(name) LIKE '%.3gp'
-      OR lower(name) LIKE '%.m4v'
-    )
-    AND mime_type != 'application/vnd.google-apps.folder'
-    AND mime_type NOT LIKE 'application/vnd.google-apps.%'
-    AND NOT (
-      lower(name) LIKE '%.pdf'
-      OR lower(name) LIKE '%.doc%'
-      OR lower(name) LIKE '%.xls%'
-      OR lower(name) LIKE '%.ppt%'
-      OR lower(name) LIKE '%.zip'
-      OR lower(name) LIKE '%.rar'
-      OR lower(name) LIKE '%.tar%'
-      OR lower(name) LIKE '%.json'
-      OR lower(name) LIKE '%.txt'
-      OR lower(name) LIKE '%.html'
-      OR lower(name) LIKE '%.css'
-      OR lower(name) LIKE '%.js'
-      OR lower(name) LIKE '%.ts'
-      OR lower(name) LIKE '%.exe'
-      OR lower(name) LIKE '%.apk'
-      OR lower(name) LIKE '%.dmg'
-      OR lower(name) LIKE '%.iso'
-    )
-  )
-`;
-
-const MEDIA_IMAGE_FILTER = `
-  (
-    (
-      mime_type LIKE 'image/%'
-      OR lower(name) LIKE '%.jpg'
-      OR lower(name) LIKE '%.jpeg'
-      OR lower(name) LIKE '%.png'
-      OR lower(name) LIKE '%.gif'
-      OR lower(name) LIKE '%.webp'
-      OR lower(name) LIKE '%.heic'
-      OR lower(name) LIKE '%.heif'
-      OR lower(name) LIKE '%.bmp'
-      OR lower(name) LIKE '%.tiff'
-      OR lower(name) LIKE '%.tif'
-      OR lower(name) LIKE '%.avif'
-      OR lower(name) LIKE '%.raw'
-      OR lower(name) LIKE '%.dng'
-    )
-    AND mime_type NOT LIKE 'video/%'
-    AND mime_type != 'application/vnd.google-apps.folder'
-    AND mime_type NOT LIKE 'application/vnd.google-apps.%'
-  )
-`;
-
-const MEDIA_VIDEO_FILTER = `
-  (
-    (
-      mime_type LIKE 'video/%'
-      OR lower(name) LIKE '%.mp4'
-      OR lower(name) LIKE '%.mov'
-      OR lower(name) LIKE '%.avi'
-      OR lower(name) LIKE '%.mkv'
-      OR lower(name) LIKE '%.webm'
-      OR lower(name) LIKE '%.3gp'
-      OR lower(name) LIKE '%.m4v'
-    )
-    AND mime_type != 'application/vnd.google-apps.folder'
-    AND mime_type NOT LIKE 'application/vnd.google-apps.%'
-  )
-`;
+const MEDIA_STRICT_FILTER = `(is_media = 1 AND is_hidden = 0)`;
+const MEDIA_IMAGE_FILTER = `(is_media = 1 AND is_hidden = 0 AND mime_type LIKE 'image/%')`;
+const MEDIA_VIDEO_FILTER = `(is_media = 1 AND is_hidden = 0 AND mime_type LIKE 'video/%')`;
 
 export function buildFileQueries(db: Db) {
   const upsert = db.prepare<UpsertFileInput>(`
@@ -189,6 +108,7 @@ export function buildFileQueries(db: Db) {
       starred, trashed,
       thumbnail_url, web_view_link,
       image_width, image_height,
+      duration_ms, is_media, is_hidden, hidden_reason,
       taken_at, camera_make, camera_model
     ) VALUES (
       @account_id, @id, @name, @mime_type, @parent_id,
@@ -196,6 +116,7 @@ export function buildFileQueries(db: Db) {
       @starred, @trashed,
       @thumbnail_url, @web_view_link,
       @image_width, @image_height,
+      @duration_ms, COALESCE(@is_media, 0), COALESCE(@is_hidden, 0), @hidden_reason,
       @taken_at, @camera_make, @camera_model
     )
     ON CONFLICT(account_id, id) DO UPDATE SET
@@ -210,6 +131,10 @@ export function buildFileQueries(db: Db) {
       web_view_link = excluded.web_view_link,
       image_width   = excluded.image_width,
       image_height  = excluded.image_height,
+      duration_ms   = excluded.duration_ms,
+      is_media      = excluded.is_media,
+      is_hidden     = excluded.is_hidden,
+      hidden_reason = excluded.hidden_reason,
       taken_at      = excluded.taken_at,
       camera_make   = excluded.camera_make,
       camera_model  = excluded.camera_model
@@ -315,17 +240,40 @@ export function buildFileQueries(db: Db) {
     WHERE account_id = @account_id AND id = @id
   `);
 
+  function normalizeUpsert(input: UpsertFileInput) {
+    const isMedia =
+      input.is_media !== undefined
+        ? input.is_media
+        : isRealMedia({
+            name: input.name,
+            mime_type: input.mime_type,
+            image_width: input.image_width,
+            image_height: input.image_height,
+            duration_ms: input.duration_ms,
+          })
+          ? 1
+          : 0;
+
+    return {
+      ...input,
+      duration_ms: input.duration_ms ?? null,
+      is_media: isMedia,
+      is_hidden: input.is_hidden ?? 0,
+      hidden_reason: input.hidden_reason ?? null,
+    };
+  }
+
   return {
     /** Insert or update a file row. FTS triggers fire automatically. */
     upsertFile(input: UpsertFileInput): void {
-      upsert.run(input);
+      upsert.run(normalizeUpsert(input));
     },
 
     /** Batch upsert inside a single transaction — use for bulk page imports. */
     upsertBatch(inputs: UpsertFileInput[]): void {
       const tx = db.transaction((rows: UpsertFileInput[]) => {
         for (const row of rows) {
-          upsert.run(row);
+          upsert.run(normalizeUpsert(row));
         }
       });
       tx(inputs);
@@ -573,6 +521,38 @@ export function buildFileQueries(db: Db) {
     /** Paginated listing of starred files. */
     listStarred(accountId: string, opts: { offset: number; limit: number }): FileRow[] {
       return listStarred.all(accountId, opts.limit, opts.offset);
+    },
+
+    /**
+     * Recursively mark descendants of hidden code folders (node_modules, .git, etc.)
+     * Hidden files stay indexed for Files search, but never appear in Photos views.
+     */
+    recomputeHiddenFiles(): number {
+      const hiddenNamesSql = HIDDEN_FOLDER_NAMES.map((n) => `'${n}'`).join(', ');
+      const stmt = `
+        WITH RECURSIVE hidden_tree AS (
+          SELECT id, account_id, name as root_name
+          FROM files
+          WHERE name IN (${hiddenNamesSql})
+
+          UNION ALL
+
+          SELECT f.id, f.account_id, ht.root_name
+          FROM files f
+          JOIN hidden_tree ht ON f.parent_id = ht.id AND f.account_id = ht.account_id
+        )
+        UPDATE files
+        SET is_hidden = 1,
+            hidden_reason = 'descendant_of_' || (
+              SELECT ht.root_name
+              FROM hidden_tree ht
+              WHERE ht.id = files.id AND ht.account_id = files.account_id
+              LIMIT 1
+            )
+        WHERE id IN (SELECT id FROM hidden_tree)
+      `;
+      const res = db.prepare(stmt).run();
+      return res.changes;
     },
   };
 }

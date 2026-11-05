@@ -90,6 +90,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@driveshell/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       lucide-react:
         specifier: ^1.67.0
         version: 1.67.0(@types/react@19.3.0)(react@19.3.1)
