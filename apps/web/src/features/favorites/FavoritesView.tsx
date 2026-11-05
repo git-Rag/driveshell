@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Heart, Play, ZoomIn, ZoomOut } from 'lucide-react';
 import type { FileRecord } from '../../lib/api';
-import { listPhotos, getMediaThumbUrl, updateFile } from '../../lib/api';
+import { listPhotos, updateFile } from '../../lib/api';
 import { PhotoLightbox } from '../gallery/PhotoLightbox';
 import { MediaThumbnail } from '../gallery/MediaThumbnail';
 import { isRealMedia } from '@driveshell/shared';

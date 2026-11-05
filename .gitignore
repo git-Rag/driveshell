@@ -12,8 +12,13 @@ out/
 *.tsbuildinfo
 src-tauri/target/
 
-# Local data (never commit — contains your Drive index and cached thumbnails)
+# Local data (never commit — contains your Drive index, SQLite DBs, and cached thumbnails)
 data/
+apps/server/data/
+*.db
+*.db-wal
+*.db-shm
+*.db-*
 
 # Environment
 .env

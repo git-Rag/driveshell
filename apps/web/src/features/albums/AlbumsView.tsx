@@ -21,11 +21,9 @@ import {
   addItemsToAlbum,
   removeItemFromAlbum,
   listPhotos,
-  getMediaThumbUrl,
 } from '../../lib/api';
 import { PhotoLightbox } from '../gallery/PhotoLightbox';
 import { MediaThumbnail } from '../gallery/MediaThumbnail';
-import { isRealMedia } from '@driveshell/shared';
 
 export function AlbumsView() {
   const [albums, setAlbums] = useState<Album[]>([]);

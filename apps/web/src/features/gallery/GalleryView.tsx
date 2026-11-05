@@ -14,7 +14,7 @@ import {
   PanelLeft,
 } from 'lucide-react';
 import type { AccountSummary, FileRecord, PhotoMonthBucket } from '../../lib/api';
-import { getPhotos, getPhotoMonths, getMediaThumbUrl, subscribeSyncProgress } from '../../lib/api';
+import { getPhotos, getPhotoMonths, subscribeSyncProgress } from '../../lib/api';
 import { useSyncStatus } from '../../hooks/useSyncStatus';
 import { PhotoLightbox } from './PhotoLightbox';
 import { MediaThumbnail } from './MediaThumbnail';

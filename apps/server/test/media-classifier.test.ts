@@ -8,6 +8,13 @@ import pino from 'pino';
 const testLogger = pino({ level: 'silent' });
 
 describe('Media Classification & Junk Code Exclusion', () => {
+  it('HIDDEN_FOLDER_NAMES includes core junk directories', () => {
+    expect(HIDDEN_FOLDER_NAMES).toContain('node_modules');
+    expect(HIDDEN_FOLDER_NAMES).toContain('.git');
+    expect(HIDDEN_FOLDER_NAMES).toContain('__pycache__');
+    expect(HIDDEN_FOLDER_NAMES).toContain('.venv');
+  });
+
   describe('isRealMedia (pure shared function)', () => {
     it('isObject.d.mts as video/mp2t, no metadata -> not media', () => {
       const result = isRealMedia({
@@ -97,10 +104,12 @@ describe('Media Classification & Junk Code Exclusion', () => {
       const now = Date.now();
 
       // 1. Create account
-      db.prepare(`
+      db.prepare(
+        `
         INSERT INTO accounts (id, email, display_name, created_at)
         VALUES (?, 'user@example.com', 'Test User', ?)
-      `).run(accountId, now);
+      `,
+      ).run(accountId, now);
 
       // 2. Create folder tree:
       // - root (Photos)

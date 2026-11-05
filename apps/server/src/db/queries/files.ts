@@ -242,17 +242,16 @@ export function buildFileQueries(db: Db) {
 
   function normalizeUpsert(input: UpsertFileInput) {
     const isMedia =
-      input.is_media !== undefined
-        ? input.is_media
-        : isRealMedia({
-            name: input.name,
-            mime_type: input.mime_type,
-            image_width: input.image_width,
-            image_height: input.image_height,
-            duration_ms: input.duration_ms,
-          })
-          ? 1
-          : 0;
+      input.is_media ??
+      (isRealMedia({
+        name: input.name,
+        mime_type: input.mime_type,
+        image_width: input.image_width,
+        image_height: input.image_height,
+        duration_ms: input.duration_ms,
+      })
+        ? 1
+        : 0);
 
     return {
       ...input,
