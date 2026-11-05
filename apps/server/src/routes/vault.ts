@@ -39,13 +39,21 @@ export async function registerVaultRoutes(app: FastifyInstance, db: Db): Promise
   const vaultQ = buildVaultQueries(db);
   const accountQ = buildAccountQueries(db);
 
-  app.addHook('onSend', async (_req, reply) => {
-    void reply.header('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-    void reply.header('Pragma', 'no-cache');
+  app.addHook('onSend', async (req, reply) => {
+    if (req.url.startsWith('/api/vault')) {
+      void reply.header('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+      void reply.header('Pragma', 'no-cache');
+    }
   });
 
   const vaultRateLimiter = createRateLimiter({ maxRequests: 60, windowMs: 60_000 });
-  app.addHook('preHandler', vaultRateLimiter);
+  app.addHook('preHandler', (req, reply, done) => {
+    if (req.url.startsWith('/api/vault')) {
+      vaultRateLimiter(req, reply, done);
+    } else {
+      done();
+    }
+  });
 
   function resolveAccountId(req: FastifyRequest): string | null {
     const query = req.query as { accountId?: string };

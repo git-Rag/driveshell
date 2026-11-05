@@ -78,7 +78,7 @@ export function Logo({ iconOnly = false, size = 28, className }: LogoProps) {
         >
           <span
             style={{
-              background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+              background: 'var(--ds-brand-gradient)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',

@@ -280,7 +280,7 @@ function AccountChip({ account }: { account: AccountInfo | null }) {
       ) : (
         <span
           aria-hidden="true"
-          className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold text-black shadow-xs bg-[var(--ds-brand)]"
+          className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold text-white shadow-xs bg-brand"
         >
           {initials}
         </span>
@@ -335,7 +335,7 @@ function StorageIndicator() {
       {/* Progress meter */}
       <div className="h-1.5 w-full rounded-full bg-[var(--ds-bg-overlay)] overflow-hidden">
         <div
-          className="h-full rounded-full bg-gradient-to-r from-amber-500 to-amber-400"
+          className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500"
           style={{ width: '100%' }}
         />
       </div>

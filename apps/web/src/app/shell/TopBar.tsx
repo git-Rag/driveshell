@@ -85,7 +85,7 @@ export function TopBar({
           placeholder="Search files, photos, albums… (instant FTS5)"
           onFocus={() => setSearchFocused(true)}
           onBlur={() => setSearchFocused(false)}
-          className="w-full h-9 pl-9 pr-14 rounded-xl border text-xs outline-none transition-all duration-150 text-[var(--ds-text-primary)] placeholder-[var(--ds-text-disabled)] bg-[var(--ds-bg-elevated)] border-[var(--ds-border)] focus:border-[var(--ds-brand-border)] focus:ring-2 focus:ring-amber-500/20 shadow-xs"
+          className="w-full h-9 pl-9 pr-14 rounded-xl border text-xs outline-none transition-all duration-150 text-[var(--ds-text-primary)] placeholder-[var(--ds-text-disabled)] bg-[var(--ds-bg-elevated)] border-[var(--ds-border)] focus:border-[var(--ds-brand-border)] focus:ring-2 focus:ring-blue-500/20 shadow-xs"
           readOnly
           title="Full-text Trigram search index active"
         />
@@ -121,7 +121,7 @@ export function TopBar({
         {/* User profile avatar */}
         <button
           aria-label="Account details"
-          className="w-7 h-7 rounded-full ml-1 shrink-0 flex items-center justify-center cursor-pointer transition-all hover:ring-2 hover:ring-amber-500/50 active:scale-95 shadow-xs overflow-hidden"
+          className="w-7 h-7 rounded-full ml-1 shrink-0 flex items-center justify-center cursor-pointer transition-all hover:ring-2 hover:ring-blue-500/50 active:scale-95 shadow-xs overflow-hidden"
           title={account ? account.displayName : 'Not signed in'}
         >
           {account?.avatarUrl ? (
@@ -132,7 +132,7 @@ export function TopBar({
               className="w-full h-full object-cover"
             />
           ) : (
-            <span className="w-full h-full flex items-center justify-center text-[10px] font-bold text-black bg-[var(--ds-brand)]">
+            <span className="w-full h-full flex items-center justify-center text-[10px] font-bold text-white bg-brand">
               {initials}
             </span>
           )}
@@ -151,8 +151,8 @@ function SyncChip({
 }) {
   if (state === 'syncing') {
     return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium text-amber-400 bg-amber-500/10 border border-amber-500/20 shadow-xs animate-pulse">
-        <RefreshCw size={11} className="animate-spin text-amber-400" />
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium text-blue-400 bg-blue-500/10 border border-blue-500/20 shadow-xs animate-pulse">
+        <RefreshCw size={11} className="animate-spin text-blue-400" />
         Syncing…
       </span>
     );

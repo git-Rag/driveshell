@@ -290,20 +290,20 @@ export function GalleryView({
         <div className="flex items-center gap-1 bg-zinc-900/80 p-1 rounded-full border border-white/10 shadow-lg backdrop-blur-md">
           <button
             onClick={() => setActiveFilter('all')}
-            className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
               activeFilter === 'all'
-                ? 'bg-brand text-black shadow-xs'
-                : 'text-zinc-400 hover:text-white hover:bg-white/5 font-medium'
+                ? 'bg-brand text-white shadow-sm'
+                : 'text-zinc-400 hover:text-white hover:bg-white/5'
             }`}
           >
             All
           </button>
           <button
             onClick={() => setActiveFilter('photos')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all ${
               activeFilter === 'photos'
-                ? 'bg-brand text-black font-semibold shadow-xs'
-                : 'text-zinc-400 hover:text-white hover:bg-white/5 font-medium'
+                ? 'bg-brand text-white shadow-sm'
+                : 'text-zinc-400 hover:text-white hover:bg-white/5'
             }`}
           >
             <ImageIcon size={12} />
@@ -311,10 +311,10 @@ export function GalleryView({
           </button>
           <button
             onClick={() => setActiveFilter('videos')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all ${
               activeFilter === 'videos'
-                ? 'bg-brand text-black font-semibold shadow-xs'
-                : 'text-zinc-400 hover:text-white hover:bg-white/5 font-medium'
+                ? 'bg-brand text-white shadow-sm'
+                : 'text-zinc-400 hover:text-white hover:bg-white/5'
             }`}
           >
             <Film size={12} />
@@ -322,10 +322,10 @@ export function GalleryView({
           </button>
           <button
             onClick={() => setActiveFilter('favorites')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all ${
               activeFilter === 'favorites'
-                ? 'bg-brand text-black font-semibold shadow-xs'
-                : 'text-zinc-400 hover:text-white hover:bg-white/5 font-medium'
+                ? 'bg-brand text-white shadow-sm'
+                : 'text-zinc-400 hover:text-white hover:bg-white/5'
             }`}
           >
             <Heart size={12} />

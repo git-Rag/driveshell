@@ -157,12 +157,12 @@
     --ds-t-slow: 0ms;
   }
 
-  /* ── Brand (Sunflower) ─────────────────────────────────────────────────── */
-  --ds-brand: #f59e0b;           /* amber-500 — sunflower gold */
-  --ds-brand-hover: #d97706;     /* amber-600 */
-  --ds-brand-muted: rgba(245, 158, 11, 0.12);
-  --ds-brand-border: rgba(245, 158, 11, 0.30);
-  --ds-brand-shadow: 0 4px 20px rgba(245, 158, 11, 0.25), 0 2px 8px rgba(245, 158, 11, 0.15);
+  /* ── Brand ─────────────────────────────────────────────────────────────── */
+  --ds-brand: var(--blue-500);
+  --ds-brand-hover: var(--blue-600);
+  --ds-brand-muted: rgba(59, 130, 246, 0.12);
+  --ds-brand-border: rgba(59, 130, 246, 0.30);
+  --ds-brand-shadow: 0 4px 20px rgba(59, 130, 246, 0.25), 0 2px 8px rgba(59, 130, 246, 0.15);
 }
 
 /* ── Light Theme ────────────────────────────────────────────────────────── */
@@ -199,8 +199,8 @@
   --ds-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.07);
   --ds-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12), 0 4px 8px rgba(0, 0, 0, 0.08);
 
-  --ds-brand-muted: rgba(245, 158, 11, 0.08);
-  --ds-brand-border: rgba(245, 158, 11, 0.25);
+  --ds-brand-muted: rgba(37, 99, 235, 0.08);
+  --ds-brand-border: rgba(37, 99, 235, 0.25);
 }
 
 /* ── Base Reset ─────────────────────────────────────────────────────────── */
@@ -310,7 +310,10 @@ body {
   }
 
   .text-brand {
-    color: var(--ds-brand);
+    background: var(--ds-brand-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
   .text-brand-gradient {
     background: var(--ds-brand-gradient);
@@ -320,7 +323,7 @@ body {
   }
 
   .bg-brand {
-    background: var(--ds-brand);
+    background: var(--ds-brand-gradient);
   }
   .bg-brand-gradient {
     background: var(--ds-brand-gradient);
