@@ -9,7 +9,7 @@
 
 import type { Db } from '../connection';
 import { sanitizeFts5Query } from '../../utils/fts-sanitizer';
-import { HIDDEN_FOLDER_NAMES, isRealMedia } from '@driveshell/shared';
+import { HIDDEN_FOLDER_NAMES, isRealMedia, formatMonthLabel } from '@driveshell/shared';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -201,29 +201,6 @@ export function buildFileQueries(db: Db) {
     LIMIT ? OFFSET ?
   `);
 
-  const countPhotos = db.prepare<[string], { total: number }>(`
-    SELECT COUNT(*) AS total FROM files
-    WHERE account_id = ?
-      AND ${MEDIA_STRICT_FILTER}
-      AND trashed = 0
-  `);
-
-  const photoMonthsStmt = db.prepare<
-    [string],
-    { month_key: string; total: number; latest_time: number }
-  >(`
-    SELECT
-      strftime('%Y-%m', datetime(COALESCE(taken_at, modified_at)/1000, 'unixepoch')) AS month_key,
-      COUNT(*) AS total,
-      MAX(COALESCE(taken_at, modified_at)) AS latest_time
-    FROM files
-    WHERE account_id = ?
-      AND ${MEDIA_STRICT_FILTER}
-      AND trashed = 0
-    GROUP BY month_key
-    ORDER BY latest_time DESC
-  `);
-
   const updateMetaStmt = db.prepare<{
     account_id: string;
     id: string;
@@ -368,36 +345,50 @@ export function buildFileQueries(db: Db) {
       return { files, total };
     },
 
-    /** Total count of photos and videos. */
-    countPhotos(accountId: string): number {
-      return countPhotos.get(accountId)?.total ?? 0;
+    /** Total count of photos and videos (filter-aware). */
+    countPhotos(accountId: string, type?: 'all' | 'photos' | 'videos'): number {
+      let sql = `SELECT COUNT(*) AS total FROM files WHERE account_id = ? AND ${MEDIA_STRICT_FILTER} AND trashed = 0`;
+      if (type === 'photos') {
+        sql += ` AND mime_type LIKE 'image/%'`;
+      } else if (type === 'videos') {
+        sql += ` AND mime_type LIKE 'video/%'`;
+      }
+      return db.prepare<[string], { total: number }>(sql).get(accountId)?.total ?? 0;
     },
 
-    /** Group photos by month for timeline scrubber and section headers. */
-    getPhotoMonths(accountId: string): PhotoMonthBucket[] {
-      const rows = photoMonthsStmt.all(accountId);
-      const MONTH_NAMES = [
-        'January',
-        'February',
-        'March',
-        'April',
-        'May',
-        'June',
-        'July',
-        'August',
-        'September',
-        'October',
-        'November',
-        'December',
-      ];
+    /** Group photos by month for timeline scrubber, popover picker, and section headers (filter-aware). */
+    getPhotoMonths(accountId: string, type?: 'all' | 'photos' | 'videos'): PhotoMonthBucket[] {
+      let filterClause = '';
+      if (type === 'photos') {
+        filterClause = ` AND mime_type LIKE 'image/%'`;
+      } else if (type === 'videos') {
+        filterClause = ` AND mime_type LIKE 'video/%'`;
+      }
+
+      const sql = `
+        SELECT
+          strftime('%Y-%m', datetime(COALESCE(taken_at, modified_at)/1000, 'unixepoch')) AS month_key,
+          COUNT(*) AS total,
+          MAX(COALESCE(taken_at, modified_at)) AS latest_time
+        FROM files
+        WHERE account_id = ?
+          AND ${MEDIA_STRICT_FILTER}
+          AND trashed = 0
+          ${filterClause}
+        GROUP BY month_key
+        ORDER BY latest_time DESC
+      `;
+      const rows = db
+        .prepare<[string], { month_key: string; total: number; latest_time: number }>(sql)
+        .all(accountId);
+
       return rows.map((r) => {
         const [yearStr, monthStr] = r.month_key.split('-');
         const year = parseInt(yearStr ?? '2026', 10);
         const monthNum = parseInt(monthStr ?? '1', 10);
-        const monthName = MONTH_NAMES[monthNum - 1] ?? monthStr;
         return {
           monthKey: r.month_key,
-          label: `${monthName} ${year}`,
+          label: formatMonthLabel(year, monthNum),
           year,
           count: r.total,
           latestTime: r.latest_time,

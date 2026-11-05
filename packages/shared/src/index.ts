@@ -20,3 +20,4 @@ export * from './vault/webcrypto-provider';
 export * from './vault/vault-engine';
 export * from './vault/migration';
 export * from './media/media-classifier';
+export * from './media/timeline-helpers';

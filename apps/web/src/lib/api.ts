@@ -274,9 +274,16 @@ export function getPhotos(opts: {
 
 export const listPhotos = getPhotos;
 
-export function getPhotoMonths(accountId?: string): Promise<MonthsResponse> {
+export function getPhotoMonths(
+  opts?: { accountId?: string; type?: 'all' | 'photos' | 'videos' } | string,
+): Promise<MonthsResponse> {
   const params = new URLSearchParams();
-  if (accountId) params.set('accountId', accountId);
+  if (typeof opts === 'string') {
+    params.set('accountId', opts);
+  } else if (opts) {
+    if (opts.accountId) params.set('accountId', opts.accountId);
+    if (opts.type) params.set('type', opts.type);
+  }
   return request<MonthsResponse>(`/api/files/months?${params.toString()}`);
 }
 

@@ -129,12 +129,18 @@ export async function registerFileRoutes(app: FastifyInstance, db: Db): Promise<
 
   app.get(
     '/api/files/months',
-    async (req: FastifyRequest<{ Querystring: { accountId?: string } }>, reply: FastifyReply) => {
+    async (
+      req: FastifyRequest<{
+        Querystring: { accountId?: string; type?: 'all' | 'photos' | 'videos' };
+      }>,
+      reply: FastifyReply,
+    ) => {
       const accountId = resolveAccountId(req.query.accountId);
       if (!accountId) return reply.code(404).send({ error: 'No account found' });
 
-      const months = fileQ.getPhotoMonths(accountId);
-      const total = fileQ.countPhotos(accountId);
+      const type = req.query.type;
+      const months = fileQ.getPhotoMonths(accountId, type);
+      const total = fileQ.countPhotos(accountId, type);
 
       return reply.send({ months, total });
     },

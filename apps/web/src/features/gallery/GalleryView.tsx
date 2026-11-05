@@ -11,12 +11,16 @@ import {
   Film,
   Search,
   PanelLeft,
+  ChevronDown,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 import type { AccountSummary, FileRecord, PhotoMonthBucket } from '../../lib/api';
 import { getPhotos, getPhotoMonths, subscribeSyncProgress } from '../../lib/api';
 import { useSyncStatus } from '../../hooks/useSyncStatus';
 import { PhotoLightbox } from './PhotoLightbox';
 import { VirtualMonthSection } from './VirtualMonthSection';
+import { TimelineJumpPopover } from './TimelineJumpPopover';
 import { isRealMedia } from '@driveshell/shared';
 
 interface GalleryViewProps {
@@ -136,6 +140,29 @@ export function GalleryView({
       setLoadingMore(false);
     }
   }, [photos.length, totalPhotos, loadingMore, loadingInitial, activeFilter]);
+
+  const loadPhotosAtOffset = useCallback(
+    async (offset: number) => {
+      try {
+        const res = await getPhotos({
+          offset,
+          limit: PAGE_SIZE,
+          type: activeFilter,
+        });
+
+        setPhotos((prev) => {
+          const existingIds = new Set(prev.map((p) => p.id));
+          const newItems = res.files.filter((f) => !existingIds.has(f.id) && isRealMedia(f));
+          return [...prev, ...newItems].sort(
+            (a, b) => (b.taken_at ?? b.modified_at) - (a.taken_at ?? a.modified_at),
+          );
+        });
+      } catch {
+        // ignore
+      }
+    },
+    [activeFilter],
+  );
 
   // Infinite scroll trigger via IntersectionObserver
   useEffect(() => {
@@ -265,6 +292,75 @@ export function GalleryView({
     }
   }
 
+  const [isJumpPopoverOpen, setIsJumpPopoverOpen] = useState(false);
+
+  const scrollToTop = useCallback(() => {
+    containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  const scrollToBottom = useCallback(() => {
+    const el = containerRef.current;
+    if (el) {
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    }
+  }, []);
+
+  const handleJumpToMonth = useCallback(
+    (monthLabel: string) => {
+      const target = sectionRefs.current.get(monthLabel);
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
+
+      // If month section is not currently in memory, find its offset from `months`
+      const targetIdx = months.findIndex((m) => m.label === monthLabel);
+      if (targetIdx !== -1) {
+        const targetOffset = months.slice(0, targetIdx).reduce((acc, m) => acc + m.count, 0);
+        void loadPhotosAtOffset(targetOffset).then(() => {
+          setTimeout(() => {
+            const el = sectionRefs.current.get(monthLabel);
+            el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }, 100);
+        });
+      }
+    },
+    [months, loadPhotosAtOffset],
+  );
+
+  // Global hotkeys: 'G' opens Jump Popover, 'Home' jumps to newest, 'End' jumps to oldest
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+      ) {
+        return;
+      }
+
+      if (e.key === 'g' || e.key === 'G') {
+        if (lightboxIndex === null) {
+          e.preventDefault();
+          setIsJumpPopoverOpen((prev) => !prev);
+        }
+      } else if (e.key === 'Home') {
+        if (lightboxIndex === null && !isJumpPopoverOpen) {
+          e.preventDefault();
+          scrollToTop();
+        }
+      } else if (e.key === 'End') {
+        if (lightboxIndex === null && !isJumpPopoverOpen) {
+          e.preventDefault();
+          scrollToBottom();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [lightboxIndex, isJumpPopoverOpen, scrollToTop, scrollToBottom]);
+
   function handleZoomIn() {
     setZoom((z) => Math.min(4, z + 1) as ZoomLevel);
   }
@@ -307,10 +403,21 @@ export function GalleryView({
             </button>
           )}
 
-          <div className="flex items-center gap-2 bg-zinc-900/90 border border-white/10 px-3.5 py-1.5 rounded-full text-xs font-semibold tracking-wide text-white shadow-lg backdrop-blur-md">
-            <Calendar size={13} className="text-brand" />
+          {/* Interactive Month Chip Popover Trigger */}
+          <button
+            onClick={() => setIsJumpPopoverOpen(true)}
+            data-testid="timeline-month-chip"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-900 border border-white/10 hover:border-brand/70 text-xs font-semibold tracking-wide text-zinc-200 hover:text-white transition-all shadow-md active:scale-95 group cursor-pointer"
+            title="Jump to timeline month (G)"
+            aria-label="Open timeline month jump popover"
+          >
+            <Calendar size={13} className="text-brand group-hover:scale-110 transition-transform" />
             <span>{currentVisibleMonth || 'Gallery'}</span>
-          </div>
+            <ChevronDown
+              size={12}
+              className="text-zinc-400 group-hover:text-white transition-colors"
+            />
+          </button>
 
           <span className="hidden md:inline-block text-[11px] font-mono text-zinc-400">
             {totalPhotos > 0 ? `${totalPhotos.toLocaleString()} items` : ''}
@@ -498,6 +605,39 @@ export function GalleryView({
           </span>
         </div>
       )}
+
+      {/* Floating Quick Jump Pills (Newest / Oldest) */}
+      <div className="absolute right-14 bottom-6 z-20 flex items-center gap-1.5 select-none pointer-events-auto">
+        <button
+          onClick={scrollToTop}
+          data-testid="jump-to-newest-btn"
+          className="p-2 rounded-full bg-zinc-900/90 hover:bg-zinc-800 border border-white/10 hover:border-brand/60 text-zinc-300 hover:text-white shadow-xl backdrop-blur-md transition-all active:scale-95 group"
+          title="Jump to newest (Home)"
+          aria-label="Jump to newest photos"
+        >
+          <ArrowUp size={14} className="text-brand group-hover:scale-110 transition-transform" />
+        </button>
+        <button
+          onClick={scrollToBottom}
+          data-testid="jump-to-oldest-btn"
+          className="p-2 rounded-full bg-zinc-900/90 hover:bg-zinc-800 border border-white/10 hover:border-brand/60 text-zinc-300 hover:text-white shadow-xl backdrop-blur-md transition-all active:scale-95 group"
+          title="Jump to oldest (End)"
+          aria-label="Jump to oldest photos"
+        >
+          <ArrowDown size={14} className="text-brand group-hover:scale-110 transition-transform" />
+        </button>
+      </div>
+
+      {/* Timeline Jump Month Popover */}
+      <TimelineJumpPopover
+        isOpen={isJumpPopoverOpen}
+        onClose={() => setIsJumpPopoverOpen(false)}
+        months={months}
+        currentVisibleMonth={currentVisibleMonth}
+        onJumpToMonth={handleJumpToMonth}
+        onJumpToNewest={scrollToTop}
+        onJumpToOldest={scrollToBottom}
+      />
 
       {/* Full Lightbox Modal */}
       {lightboxIndex !== null && (
