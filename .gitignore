@@ -53,4 +53,5 @@ pnpm-debug.log*
 
 # Misc
 *.pem
+*.exe
 
