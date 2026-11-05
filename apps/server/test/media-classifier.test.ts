@@ -68,13 +68,35 @@ describe('Media Classification & Junk Code Exclusion', () => {
       expect(result).toBe(true);
     });
 
-    it('holiday.mp4 without metadata -> not media', () => {
+    it('holiday.mp4 without metadata -> media', () => {
       const result = isRealMedia({
         name: 'holiday.mp4',
         mime_type: 'video/mp4',
         duration_ms: null,
         image_width: null,
         image_height: null,
+      });
+      expect(result).toBe(true);
+    });
+
+    it('video/quicktime without metadata -> media', () => {
+      const result = isRealMedia({
+        name: 'movie.mov',
+        mime_type: 'video/quicktime',
+        duration_ms: null,
+        image_width: null,
+        image_height: null,
+      });
+      expect(result).toBe(true);
+    });
+
+    it('video/mp2t foo.ts with metadata -> NOT media (name rule wins)', () => {
+      const result = isRealMedia({
+        name: 'foo.ts',
+        mime_type: 'video/mp2t',
+        duration_ms: 12000,
+        image_width: 1920,
+        image_height: 1080,
       });
       expect(result).toBe(false);
     });

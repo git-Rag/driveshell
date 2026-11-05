@@ -9,12 +9,7 @@
  *  - Files under folders named in HIDDEN_FOLDER_NAMES (node_modules, .git, __pycache__, .venv) are marked hidden.
  */
 
-export const HIDDEN_FOLDER_NAMES = [
-  'node_modules',
-  '.git',
-  '__pycache__',
-  '.venv',
-] as const;
+export const HIDDEN_FOLDER_NAMES = ['node_modules', '.git', '__pycache__', '.venv'] as const;
 
 export type HiddenFolderName = (typeof HIDDEN_FOLDER_NAMES)[number];
 
@@ -28,19 +23,29 @@ export interface MediaClassifiableFile {
   image_height?: number | null | undefined;
   width?: number | null | undefined;
   height?: number | null | undefined;
-  video_metadata?: {
-    duration_ms?: number | null | undefined;
-    width?: number | null | undefined;
-    height?: number | null | undefined;
-  } | null | undefined;
-  videoMediaMetadata?: {
-    durationMillis?: number | string | null | undefined;
-    width?: number | null | undefined;
-    height?: number | null | undefined;
-  } | null | undefined;
+  video_metadata?:
+    | {
+        duration_ms?: number | null | undefined;
+        width?: number | null | undefined;
+        height?: number | null | undefined;
+      }
+    | null
+    | undefined;
+  videoMediaMetadata?:
+    | {
+        durationMillis?: number | string | null | undefined;
+        width?: number | null | undefined;
+        height?: number | null | undefined;
+      }
+    | null
+    | undefined;
 }
 
-const TS_EXTENSION_PATTERN = /\.(d\.(?:m|c)?ts|(?:m|c)?ts)$/i;
+const STRICT_CODE_TS_PATTERN = /\.(d\.(?:m|c)?ts|c?ts)$/i;
+
+const AVCHD_VIDEO_EXTENSION_PATTERN = /\.(mts|m2ts|m2t)$/i;
+
+const COMMON_VIDEO_EXTENSION_PATTERN = /\.(mp4|mov|avi|mkv|webm|3gp|m4v)$/i;
 
 const NON_MEDIA_EXTENSION_PATTERN =
   /\.(pdf|docx?|xlsx?|pptx?|zip|rar|tar(\.gz)?|tgz|7z|json|txt|md|html?|css|js|cjs|mjs|exe|apk|dmg|iso)$/i;
@@ -53,10 +58,7 @@ export function hasVideoMetadata(file: MediaClassifiableFile): boolean {
   // Check duration_ms / durationMillis
   if (file.duration_ms != null && file.duration_ms > 0) return true;
   if (file.durationMillis != null && Number(file.durationMillis) > 0) return true;
-  if (
-    file.video_metadata?.duration_ms != null &&
-    file.video_metadata.duration_ms > 0
-  ) {
+  if (file.video_metadata?.duration_ms != null && file.video_metadata.duration_ms > 0) {
     return true;
   }
   if (
@@ -90,6 +92,12 @@ export function hasVideoMetadata(file: MediaClassifiableFile): boolean {
 /**
  * Pure, shared media classifier.
  *
+ * Rules:
+ *  - image/* counts as media (keeps HEIC, HEIF, RAW, WebP, etc.).
+ *  - video/* counts as media EXCEPT video/mp2t.
+ *  - video/mp2t counts ONLY with video metadata AND non-TS name (real AVCHD .MTS/.M2TS).
+ *  - Names ending .ts, .cts, .d.ts, .d.mts, .d.cts are NEVER media.
+ *
  * Can be run in browser, node, tests, or migration scripts.
  */
 export function isRealMedia(file: MediaClassifiableFile): boolean {
@@ -109,15 +117,10 @@ export function isRealMedia(file: MediaClassifiableFile): boolean {
     return false;
   }
 
-  const isTsName = TS_EXTENSION_PATTERN.test(name);
-  const hasMeta = hasVideoMetadata(file);
-
-  // TypeScript declaration / source files (.ts, .mts, .cts, .d.ts, .d.mts, .d.cts)
-  // Drive reports many .ts/.mts as video/mp2t. They are NEVER media unless Drive provided video metadata.
-  if (isTsName) {
-    if (!hasMeta) return false;
-    // If it has video metadata and mime is video or extension is MTS/M2TS/TS
-    return mime.startsWith('video/') || /\.(mts|m2ts|ts)$/i.test(name);
+  // TypeScript declaration / source files (.ts, .cts, .d.ts, .d.mts, .d.cts)
+  // are never media regardless of metadata or MIME type.
+  if (STRICT_CODE_TS_PATTERN.test(name)) {
+    return false;
   }
 
   // All image/* MIME types are media (including HEIC, HEIF, RAW, etc.)
@@ -125,9 +128,14 @@ export function isRealMedia(file: MediaClassifiableFile): boolean {
     return true;
   }
 
-  // Video MIME types are media ONLY if video metadata was provided
+  // Video MIME types:
   if (mime.startsWith('video/')) {
-    return hasMeta;
+    // video/mp2t counts as media ONLY with video metadata AND non-TS name
+    if (mime === 'video/mp2t') {
+      return hasVideoMetadata(file);
+    }
+    // All other video/* MIME types count as media (even without metadata)
+    return true;
   }
 
   // Fallback extension matching if MIME is missing or generic application/octet-stream
@@ -135,8 +143,12 @@ export function isRealMedia(file: MediaClassifiableFile): boolean {
     return true;
   }
 
-  if (/\.(mp4|mov|avi|mkv|webm|3gp|m4v|mts|m2ts)$/i.test(name)) {
-    return hasMeta;
+  if (COMMON_VIDEO_EXTENSION_PATTERN.test(name)) {
+    return true;
+  }
+
+  if (AVCHD_VIDEO_EXTENSION_PATTERN.test(name)) {
+    return hasVideoMetadata(file);
   }
 
   return false;
