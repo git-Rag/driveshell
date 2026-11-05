@@ -44,7 +44,9 @@ function calculateP95(arr: number[]): number {
 
 async function runServerBenchmark(): Promise<ServerBenchmarkResults> {
   const repoRoot = path.resolve(__dirname, '../../');
-  const dbPath = path.resolve(repoRoot, 'data/bench/real-25k/driveshell.db');
+  const liveDbPath = path.resolve(repoRoot, 'apps/server/data/driveshell.db');
+  const benchDbPath = path.resolve(repoRoot, 'data/bench/real-25k/driveshell.db');
+  const dbPath = fs.existsSync(liveDbPath) ? liveDbPath : benchDbPath;
 
   // 1. Cold start measurement
   const coldStartTimer = performance.now();
