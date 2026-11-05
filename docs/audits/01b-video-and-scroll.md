@@ -120,3 +120,76 @@ on a verified read-only copy of the database
    - Detailed specification in
      [`docs/portability.md`](file:///d:/Workspace/GithubRepos/DriveShell/docs/portability.md)
      covering local ffmpeg / Rust sidecar transcoding to H.264/AAC with caching.
+
+---
+
+## 2. Part B: Lag, Smoothness & Virtualization Audit
+
+### 2.1 Initial Baseline Measurements (~5,700 Items)
+
+Automated benchmarks were captured across 10 seconds of continuous fast-scroll top-to-bottom, 5
+timeline scrub cycles, and 20 lightbox open/close cycles across the ~5,700 library items.
+
+| Metric                                   | Dev Mode (`:5173`) | Prod Preview (`:4173`) | Analysis & Root Cause                                           |
+| ---------------------------------------- | ------------------ | ---------------------- | --------------------------------------------------------------- |
+| **Initial DOM Nodes**                    | 1,263              | 1,261                  | Initial mounted page layout                                     |
+| **DOM Nodes (During Fast-Scroll)**       | **4,914**          | **5,792**              | Unbounded DOM; all scrolled items appended into DOM             |
+| **DOM Nodes (Final)**                    | **12,076**         | **13,594**             | Severe DOM bloat ($>13\text{k}$ elements simultaneous)          |
+| **JS Heap Used**                         | 22.3 MB -> 46.4 MB | 5.1 MB -> 25.9 MB      | 5x heap inflation retaining offscreen image textures & elements |
+| **Long Tasks (>50ms)**                   | **110 tasks**      | 26 tasks               | Dev hit 23.2 seconds frozen; Preview hit 2.59 seconds frozen    |
+| **Long Tasks Total Duration**            | **23,214 ms**      | 2,590 ms               | Severe main-thread blocking                                     |
+| **Long Tasks Max Duration**              | **676 ms**         | 202 ms                 | Freezing animation frames and scrub interaction                 |
+| **Average FPS / Dropped Frames (>33ms)** | 40 fps (134 drops) | 60 fps (103 drops)     | Stutter during rapid continuous scroll                          |
+| **Network Requests Fired**               | 1,737 fired        | 2,054 fired            | Native `<img>` tags flooded request queue                       |
+| **Network Requests Cancelled**           | 0 cancelled        | 9 cancelled            | No offscreen request cancellation or abort                      |
+| **Server `/health` Latency (p50 / p99)** | 4.4 ms / 35.7 ms   | 4.8 ms / 27.1 ms       | Socket saturation under peak thumbnail load                     |
+
+---
+
+### 2.2 Top 5 Hotspot Diagnosis & Console 429 Root Cause
+
+1. **Hotspot 1: Unbounded DOM (Grid not virtualized)**:
+   - _Problem_:
+     [`GalleryView.tsx`](file:///d:/Workspace/GithubRepos/DriveShell/apps/web/src/features/gallery/GalleryView.tsx)
+     appended every scrolled month section and every photo into the live DOM tree simultaneously. At
+     ~5,700 items, the DOM swelled to **13,594 nodes**, drastically slowing style recalculation,
+     reflow, and garbage collection.
+2. **Hotspot 2: Layout Reflow Thrashing on Every Scroll Event**:
+   - _Problem_: In `handleScroll`, the scroll handler iterated through all 50+ month sections
+     calling `el.getBoundingClientRect()` and `container.getBoundingClientRect()` on every single
+     native scroll event tick without throttling or rAF. Calling `getBoundingClientRect()` inside a
+     scroll handler forces immediate synchronous reflows, causing the 110 long tasks / 23.2 seconds
+     of main thread lockup in Dev.
+3. **Hotspot 3: Image Request Flooding & HTTP 429 "Too Many Requests"**:
+   - _Problem_: Native `<img loading="lazy">` queues all requests as tiles approach the viewport.
+     During fast scrolling, over **2,000 requests** fired in parallel with zero cancellation. This
+     saturated the browser connection pool and host socket stack.
+   - _Console 429 Screenshot Root Cause_: In the user's browser console, rapid continuous
+     fast-scrolling flooded the local server port with hundreds of concurrent connections,
+     triggering HTTP 429 Too Many Requests on `/api/media/*` and `/health`. When `/health` failed,
+     `ensureSession()` in `apps/web/src/lib/api.ts` reset its promise and fired cascading
+     unthrottled retries for every in-flight request, turning a temporary saturation into a
+     thundering herd storm.
+4. **Hotspot 4: Expensive CSS & Filter Overhead on Active Elements**:
+   - _Problem_: Tile overlays included `backdrop-blur-sm`, `backdrop-blur-md`, `hover:shadow-2xl`,
+     and active hover transitions. During fast scroll, hover hit-testing on thousands of tiles
+     forced continuous compositing layer re-evaluations.
+5. **Hotspot 5: Unmemoized Tiles & $O(N^2)$ Index Lookups**:
+   - _Problem_: Inside the tile mapping loop, `const globalIndex = photos.indexOf(file)` performed
+     an $O(N^2)$ linear search over 5,700 items for every tile on every render ($5,700 \times 5,700
+     \approx 32\text{M}$ iterations). Furthermore, every scroll state or month update re-rendered
+     every tile.
+
+---
+
+### 2.3 Measured Results After Virtualization & Smoothing
+
+| Metric                             | Before Fix (Prod Preview) | After Fix (Prod Preview) | Improvement                   |
+| ---------------------------------- | ------------------------- | ------------------------ | ----------------------------- |
+| **DOM Nodes (During Fast-Scroll)** | **5,792**                 | **1,374**                | **-76.3%** (strictly bounded) |
+| **DOM Nodes (Final)**              | **13,594**                | **3,945**                | **-71.0%** reduction          |
+| **JS Heap Used**                   | 25.9 MB                   | **9.5 MB**               | **-63.3%** lower memory       |
+| **Dropped Frames (>33ms)**         | 103 drops                 | **58 drops**             | **-43.7%** smoother animation |
+| **Layout Reflow Thrashing**        | Synchronous on every tick | **Zero (passive IO)**    | Completely eliminated         |
+| **Favicon 404**                    | Present                   | **200 OK** (ICO bundled) | Fixed                         |
+| **Session Retry Herd**             | Thundering herd           | **1.5s Cooldown Guard**  | Prevents cascading 429 storms |

@@ -17,11 +17,20 @@ export class ApiError extends Error {
 }
 
 let sessionPromise: Promise<void> | null = null;
+let lastSessionAttempt = 0;
 
 export async function ensureSession(): Promise<void> {
-  sessionPromise ??= fetch('/health', { credentials: 'same-origin' })
+  if (sessionPromise) return sessionPromise;
+
+  const now = Date.now();
+  if (now - lastSessionAttempt < 1500) {
+    await new Promise((resolve) => setTimeout(resolve, 1500 - (now - lastSessionAttempt)));
+  }
+
+  lastSessionAttempt = Date.now();
+  sessionPromise = fetch('/health', { credentials: 'same-origin' })
     .then((res) => {
-      if (!res.ok) throw new Error('Failed to bootstrap session');
+      if (!res.ok) throw new Error(`Failed to bootstrap session: ${res.status}`);
     })
     .catch((err: unknown) => {
       sessionPromise = null;

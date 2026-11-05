@@ -6,7 +6,6 @@ import {
   Loader2,
   Minus,
   Plus,
-  Play,
   Calendar,
   Sparkles,
   Film,
@@ -17,7 +16,7 @@ import type { AccountSummary, FileRecord, PhotoMonthBucket } from '../../lib/api
 import { getPhotos, getPhotoMonths, subscribeSyncProgress } from '../../lib/api';
 import { useSyncStatus } from '../../hooks/useSyncStatus';
 import { PhotoLightbox } from './PhotoLightbox';
-import { MediaThumbnail } from './MediaThumbnail';
+import { VirtualMonthSection } from './VirtualMonthSection';
 import { isRealMedia } from '@driveshell/shared';
 
 interface GalleryViewProps {
@@ -79,6 +78,7 @@ export function GalleryView({
   const syncDone = accountSyncInfo?.fullSyncStage === 'done';
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const [scrollContainer, setScrollContainer] = useState<HTMLDivElement | null>(null);
   const sectionRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -166,7 +166,7 @@ export function GalleryView({
     return unsub;
   }, [isSyncing, loadInitial]);
 
-  // Group photos into chronologically ordered Month Year buckets
+  // Group photos into chronologically ordered Month Year buckets with running index offsets
   const groupedSections = useMemo(() => {
     const groups = new Map<string, FileRecord[]>();
 
@@ -178,11 +178,17 @@ export function GalleryView({
       groups.set(key, existing);
     }
 
-    return Array.from(groups.entries()).map(([monthLabel, items]) => ({
-      monthLabel,
-      items,
-      count: items.length,
-    }));
+    let runningOffset = 0;
+    return Array.from(groups.entries()).map(([monthLabel, items]) => {
+      const globalStartIndex = runningOffset;
+      runningOffset += items.length;
+      return {
+        monthLabel,
+        items,
+        count: items.length,
+        globalStartIndex,
+      };
+    });
   }, [photos]);
 
   // Extract distinct real years from the DB months for the right rail
@@ -192,28 +198,64 @@ export function GalleryView({
     return Array.from(yearSet).sort((a, b) => b - a);
   }, [months]);
 
-  // Track currently visible month as user scrolls
+  // Track fast-scroll state to disable hover/pointer overhead during motion
+  const [isScrolling, setIsScrolling] = useState(false);
+  const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    const handleScroll = () => {
-      const entries = Array.from(sectionRefs.current.entries());
-      const containerTop = container.getBoundingClientRect().top;
-
-      for (const [month, el] of entries) {
-        if (el) {
-          const rect = el.getBoundingClientRect();
-          if (rect.top - containerTop <= 180 && rect.bottom - containerTop > 80) {
-            setCurrentVisibleMonth(month);
-            break;
-          }
-        }
-      }
+    const onScroll = () => {
+      if (!isScrolling) setIsScrolling(true);
+      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+      scrollTimerRef.current = setTimeout(() => {
+        setIsScrolling(false);
+      }, 150);
     };
 
-    container.addEventListener('scroll', handleScroll, { passive: true });
-    return () => container.removeEventListener('scroll', handleScroll);
+    container.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      container.removeEventListener('scroll', onScroll);
+      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+    };
+  }, [isScrolling]);
+
+  // Register section element callback
+  const registerSectionRef = useCallback((month: string, el: HTMLDivElement | null) => {
+    if (el) sectionRefs.current.set(month, el);
+    else sectionRefs.current.delete(month);
+  }, []);
+
+  // Track currently visible month asynchronously via IntersectionObserver without synchronous layout reflows
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || typeof IntersectionObserver === 'undefined') return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            const month = entry.target.getAttribute('data-month');
+            if (month) {
+              setCurrentVisibleMonth(month);
+              break;
+            }
+          }
+        }
+      },
+      {
+        root: container,
+        rootMargin: '-60px 0px -75% 0px',
+        threshold: 0,
+      },
+    );
+
+    for (const el of sectionRefs.current.values()) {
+      if (el) observer.observe(el);
+    }
+
+    return () => observer.disconnect();
   }, [groupedSections]);
 
   function scrollToSection(monthLabel: string) {
@@ -354,8 +396,14 @@ export function GalleryView({
 
       {/* Main Continuous Scroll Area */}
       <div
-        ref={containerRef}
-        className="flex-1 overflow-y-auto px-6 sm:px-10 py-5 pb-32 scroll-smooth"
+        ref={(el) => {
+          containerRef.current = el;
+          if (el && el !== scrollContainer) setScrollContainer(el);
+        }}
+        data-testid="gallery-scroll-container"
+        className={`flex-1 overflow-y-auto px-6 sm:px-10 py-5 pb-32 scroll-smooth ${
+          isScrolling ? 'pointer-events-none' : ''
+        }`}
       >
         {/* Sync Prompt if zero files */}
         {!syncDone && fileCount === 0 && !loadingInitial && (
@@ -387,87 +435,20 @@ export function GalleryView({
           </div>
         )}
 
-        {/* Grouped Chronological Sections */}
-        {groupedSections.map(({ monthLabel, items }) => (
-          <div
+        {/* Virtualized Chronological Sections */}
+        {groupedSections.map(({ monthLabel, items, globalStartIndex }) => (
+          <VirtualMonthSection
             key={monthLabel}
-            ref={(el) => {
-              if (el) sectionRefs.current.set(monthLabel, el);
-              else sectionRefs.current.delete(monthLabel);
-            }}
-            data-month={monthLabel}
-            className="mb-8"
-          >
-            {/* Clean Section Header */}
-            <div className="flex items-baseline justify-between mb-2.5 pt-2">
-              <h3 className="text-sm font-semibold tracking-wide text-zinc-200">{monthLabel}</h3>
-              <span className="text-[11px] font-mono text-zinc-500">
-                {items.length} {items.length === 1 ? 'item' : 'items'}
-              </span>
-            </div>
-
-            {/* Photo Grid with fluid zoom transitions */}
-            <div
-              className={`grid gap-1.5 transition-all duration-300 ease-out ${
-                ZOOM_CONFIGS[zoom].cols
-              }`}
-            >
-              {items.map((file) => {
-                const isVideo = file.mime_type.startsWith('video/');
-                const globalIndex = photos.indexOf(file);
-
-                return (
-                  <div
-                    key={file.id}
-                    onClick={() => setLightboxIndex(globalIndex)}
-                    className={`group relative rounded-lg overflow-hidden bg-zinc-900 border border-white/5 cursor-pointer transition-all duration-200 hover:border-brand/70 hover:scale-[1.015] hover:z-10 hover:shadow-2xl ${
-                      ZOOM_CONFIGS[zoom].aspect
-                    }`}
-                  >
-                    {/* Thumbnail Image / Placeholder */}
-                    <MediaThumbnail file={file} size={ZOOM_CONFIGS[zoom].size} />
-
-                    {/* Hover Overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex flex-col justify-between p-2">
-                      {/* Top Badges */}
-                      <div className="flex items-center justify-between">
-                        {file.starred === 1 ? (
-                          <span className="p-1 rounded-full bg-rose-500/80 text-white backdrop-blur-sm">
-                            <Heart size={11} fill="currentColor" />
-                          </span>
-                        ) : (
-                          <div />
-                        )}
-                        {isVideo && (
-                          <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-black/70 backdrop-blur-md text-white font-mono">
-                            <Play size={8} fill="currentColor" /> Video
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Bottom Title on larger zoom */}
-                      {zoom >= 3 && (
-                        <div className="truncate">
-                          <p className="text-[11px] font-medium text-white truncate drop-shadow-sm">
-                            {file.name}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Center Video Indicator */}
-                    {isVideo && (
-                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none group-hover:opacity-0 transition-opacity">
-                        <div className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center text-white/90">
-                          <Play size={12} fill="currentColor" />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+            monthLabel={monthLabel}
+            items={items}
+            zoom={zoom}
+            zoomConfig={ZOOM_CONFIGS[zoom]}
+            globalStartIndex={globalStartIndex}
+            isScrolling={isScrolling}
+            scrollContainer={scrollContainer}
+            onTileClick={setLightboxIndex}
+            registerSectionRef={registerSectionRef}
+          />
         ))}
 
         {/* Sentinel element to trigger infinite scroll */}
