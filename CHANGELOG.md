@@ -13,6 +13,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Vitest, Playwright, CI, community files, ADRs, documentation skeleton).
 - **Timeline Jump Navigation**: Month Chip popover with a 4x3 month grid, dynamic year selector,
   filter-aware SQLite month query, and keyboard navigation (`G`, `Home`, `End`, `Esc`, Arrow keys).
+- **Tier 2 Video Transcoding (FFmpeg)**: On-demand transcoding of unsupported video formats (HEVC,
+  AVCHD .MTS) to universal H.264/AAC with FastStart streaming and local disk caching under
+  `<DATA_DIR>/transcode_cache/`.
 - **Tier 1 Video Format Fallback**: Clear in-lightbox error panel for unsupported codecs (e.g.
   HEVC/H.265 in Firefox) with direct Drive and Download fallback actions and negative session
   caching.

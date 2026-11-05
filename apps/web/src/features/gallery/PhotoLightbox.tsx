@@ -19,6 +19,8 @@ import {
   Check,
   Plus,
   Film,
+  Zap,
+  Loader2,
 } from 'lucide-react';
 import type { FileRecord, Album } from '../../lib/api';
 import { MediaThumbnail } from './MediaThumbnail';
@@ -103,10 +105,13 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
   const file = files[currentIndex];
   const isVideo = file?.mime_type?.startsWith('video/') ?? false;
   const [videoFailed, setVideoFailed] = useState(false);
+  const [isTranscoding, setIsTranscoding] = useState(false);
+  const [useTranscodeStream, setUseTranscodeStream] = useState<Record<string, boolean>>({});
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // Sync failed video state on item switch
   useEffect(() => {
+    setIsTranscoding(false);
     if (file) {
       setVideoFailed(isVideoPlaybackFailed(file.id));
     }
@@ -368,8 +373,10 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
 
         {/* Media Canvas Area */}
         <div className="flex-1 flex items-center justify-center p-4 relative overflow-hidden">
-          {isVideo && (videoFailed || isVideoPlaybackFailed(file.id)) ? (
-            /* Clear Unsupported Format Fallback Panel (Tier 1) */
+          {isVideo &&
+          (videoFailed || isVideoPlaybackFailed(file.id)) &&
+          !useTranscodeStream[file.id] ? (
+            /* Clear Unsupported Format Fallback Panel (Tier 1 & Tier 2) */
             <div
               data-testid="unsupported-video-panel"
               className="relative max-h-[82vh] max-w-xl w-full rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-zinc-950/90 flex flex-col items-center justify-center p-8 text-center"
@@ -404,11 +411,25 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
 
                 <p className="text-xs text-zinc-300 leading-relaxed mb-6">
                   This video is encoded in a format that your current browser cannot decode
-                  natively. You can open and stream it in Google Drive, or download the original
-                  file to play in an external player.
+                  natively. You can transcode it on-the-fly to universal H.264, open it in Google
+                  Drive, or download the original file.
                 </p>
 
                 <div className="flex flex-wrap items-center justify-center gap-3">
+                  <button
+                    type="button"
+                    data-testid="transcode-play-btn"
+                    onClick={() => {
+                      setIsTranscoding(true);
+                      setUseTranscodeStream((prev) => ({ ...prev, [file.id]: true }));
+                      setVideoFailed(false);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white active:scale-95 transition-all shadow-md cursor-pointer"
+                  >
+                    <Zap size={14} />
+                    Transcode &amp; Play (H.264)
+                  </button>
+
                   {file.web_view_link && (
                     <a
                       href={file.web_view_link}
@@ -417,7 +438,7 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
                       className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-brand text-white hover:opacity-90 active:scale-95 transition-all shadow-md"
                     >
                       <ExternalLink size={14} />
-                      Open in Google Drive
+                      Open in Drive
                     </a>
                   )}
                   <a
@@ -432,15 +453,31 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
               </div>
             </div>
           ) : isVideo ? (
-            /* High performance video streaming with seek range support */
+            /* High performance video streaming with seek range support & transcode */
             <div className="relative max-h-[85vh] max-w-[85vw] flex items-center justify-center">
+              {isTranscoding && (
+                <div className="absolute inset-0 z-20 rounded-xl bg-black/85 backdrop-blur-md flex flex-col items-center justify-center gap-3 p-6 text-center border border-white/10">
+                  <Loader2 size={36} className="text-emerald-400 animate-spin" />
+                  <p className="text-sm font-semibold text-white">Transcoding with FFmpeg...</p>
+                  <p className="text-xs text-zinc-400 max-w-xs">
+                    Converting stream to H.264 with FastStart seeking. Playback starts
+                    automatically.
+                  </p>
+                </div>
+              )}
               <video
                 ref={videoRef}
                 controls
                 autoPlay
                 playsInline
                 preload="metadata"
-                src={getMediaStreamUrl(file.id)}
+                src={
+                  useTranscodeStream[file.id]
+                    ? `${getMediaStreamUrl(file.id)}?transcode=1`
+                    : getMediaStreamUrl(file.id)
+                }
+                onCanPlay={() => setIsTranscoding(false)}
+                onPlaying={() => setIsTranscoding(false)}
                 onError={() => handleVideoError(file.id)}
                 onVolumeChange={handleVolumeChange}
                 className="max-h-[82vh] max-w-[85vw] rounded-xl shadow-2xl bg-black border border-white/10 outline-none"

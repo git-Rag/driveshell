@@ -20,6 +20,7 @@ import { getAuthenticatedDrive } from '../sync/oauth-client';
 import { fetchWithGuard } from '../utils/outbound-guard';
 import { resolveSafePath } from '../utils/path-safety';
 import { isRealMedia } from '@driveshell/shared';
+import { isFFmpegAvailable, getCachedTranscodePath, transcodeToH264 } from '../media/transcoder';
 
 export const SAFE_INLINE_MIME_PATTERNS = [
   /^image\/(jpeg|png|webp|avif)$/i,
@@ -109,6 +110,44 @@ export function createRangeSliceStream(start: number, end: number): Transform {
       callback();
     },
   });
+}
+
+/** Serve a locally cached media file with full RFC 7233 HTTP Range 206/416 support. */
+export function serveLocalMediaFile(
+  filePath: string,
+  contentType: string,
+  req: FastifyRequest,
+  reply: FastifyReply,
+) {
+  const stat = fs.statSync(filePath);
+  const totalSize = stat.size;
+  const rangeHeader = req.headers['range'];
+
+  reply.header('Content-Type', contentType);
+  reply.header('Accept-Ranges', 'bytes');
+  reply.header('X-Content-Type-Options', 'nosniff');
+  reply.header('Content-Security-Policy', "sandbox; default-src 'none'");
+  reply.header('Cache-Control', 'public, max-age=86400');
+
+  if (rangeHeader) {
+    const parsed = parseByteRange(rangeHeader, totalSize);
+    if (parsed.isPastEof) {
+      reply.header('Content-Range', `bytes */${totalSize}`);
+      return reply.code(416).send({ error: 'Range Not Satisfiable' });
+    }
+    if (parsed.valid && parsed.range) {
+      const { start, end } = parsed.range;
+      const sliceLen = end - start + 1;
+      reply.code(206);
+      reply.header('Content-Range', `bytes ${start}-${end}/${totalSize}`);
+      reply.header('Content-Length', sliceLen.toString());
+      return reply.send(fs.createReadStream(filePath, { start, end }));
+    }
+  }
+
+  reply.code(200);
+  reply.header('Content-Length', totalSize.toString());
+  return reply.send(fs.createReadStream(filePath));
 }
 
 interface MediaParams {
@@ -331,12 +370,22 @@ export async function registerMediaRoutes(
   );
 
   // -------------------------------------------------------------------------
+  // GET /api/media/transcode/status — Check if Tier 2 FFmpeg is available
+  // -------------------------------------------------------------------------
+  app.get('/api/media/transcode/status', () => {
+    return { available: isFFmpegAvailable() };
+  });
+
+  // -------------------------------------------------------------------------
   // GET /api/media/:fileId/stream — Video / audio / media Range streaming
   // -------------------------------------------------------------------------
   app.get(
     '/api/media/:fileId/stream',
     async (
-      req: FastifyRequest<{ Params: MediaParams; Querystring: { accountId?: string } }>,
+      req: FastifyRequest<{
+        Params: MediaParams;
+        Querystring: { accountId?: string; transcode?: string };
+      }>,
       reply: FastifyReply,
     ) => {
       const { fileId } = req.params;
@@ -355,8 +404,20 @@ export async function registerMediaRoutes(
         return reply.code(404).send({ error: 'File is not a media item' });
       }
 
+      // Handle Tier 2 on-demand video transcoding
+      const wantsTranscode = req.query.transcode === '1' || req.query.transcode === 'true';
+      if (wantsTranscode) {
+        const cachedPath = getCachedTranscodePath(fileId);
+        if (cachedPath) {
+          return serveLocalMediaFile(cachedPath, 'video/mp4', req, reply);
+        }
+        if (!isFFmpegAvailable()) {
+          return reply.code(503).send({ error: 'FFmpeg transcoder not available on host' });
+        }
+      }
+
       const rangeHeader = req.headers['range'];
-      if (rangeHeader && file.size_bytes != null && file.size_bytes > 0) {
+      if (!wantsTranscode && rangeHeader && file.size_bytes != null && file.size_bytes > 0) {
         const parsed = parseByteRange(rangeHeader, file.size_bytes);
         if (parsed.isPastEof) {
           reply.header('Content-Range', `bytes */${file.size_bytes}`);
@@ -380,6 +441,37 @@ export async function registerMediaRoutes(
         port,
         req.log,
       );
+
+      // Perform on-demand transcode if requested
+      if (wantsTranscode) {
+        const abortController = new AbortController();
+        req.raw.on('close', () => {
+          if (!req.raw.complete) {
+            abortController.abort();
+          }
+        });
+
+        try {
+          const transcodedPath = await transcodeToH264({
+            fileId,
+            signal: abortController.signal,
+            sourceStreamFetcher: async () => {
+              const driveRes = await drive.files.get(
+                { fileId, alt: 'media' },
+                { responseType: 'stream' },
+              );
+              return driveRes.data;
+            },
+          });
+          return serveLocalMediaFile(transcodedPath, 'video/mp4', req, reply);
+        } catch (err: unknown) {
+          if (abortController.signal.aborted) {
+            return;
+          }
+          req.log.error({ fileId, err }, 'Failed to transcode video');
+          return reply.code(500).send({ error: 'Transcoding failed' });
+        }
+      }
 
       try {
         const reqOptions = rangeHeader
