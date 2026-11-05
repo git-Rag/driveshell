@@ -193,3 +193,47 @@ timeline scrub cycles, and 20 lightbox open/close cycles across the ~5,700 libra
 | **Layout Reflow Thrashing**        | Synchronous on every tick | **Zero (passive IO)**    | Completely eliminated         |
 | **Favicon 404**                    | Present                   | **200 OK** (ICO bundled) | Fixed                         |
 | **Session Retry Herd**             | Thundering herd           | **1.5s Cooldown Guard**  | Prevents cascading 429 storms |
+
+---
+
+## 3. Part C: Timeline Jump Navigation
+
+### 3.1 Architecture & UX Design
+
+To solve long navigation traversals across 5,700 items spanning 5+ years:
+
+1. **Interactive Month Chip**: Clicking the sticky month label opens an accessible 4x3 month popover
+   (`TimelineJumpPopover.tsx`).
+2. **Filter-Aware Backend**: Backend query `/api/files/months?filter=media` groups files by
+   `COALESCE(taken_at, modified_at)` and returns available year/month combinations with file counts,
+   excluding hidden code folders.
+3. **Pure Helpers**: `packages/shared/src/media/timeline-helpers.ts` provides `formatMonthKey`,
+   `parseMonthKey`, and `formatMonthLabel` with zero external dependencies.
+4. **Keyboard & Fast Navigation**:
+   - `G` opens the Timeline Jump popover from anywhere in the gallery.
+   - `Home` / `End` jump instantly to the newest and oldest photos.
+   - Arrow keys navigate the 4x3 month grid.
+   - `Escape` dismisses the popover.
+   - Floating quick-jump pills (**Newest** / **Oldest**) at the bottom right.
+
+---
+
+## 4. Part D: Full Verification Suite & Results
+
+### 4.1 Automated Test Execution
+
+- **Monorepo Typecheck**: `pnpm typecheck` passed with 0 errors across `@driveshell/shared`,
+  `@driveshell/server`, `@driveshell/web`.
+- **Unit & Integration Tests**: 155 tests passed (7 shared, 139 server, 9 web):
+  - Shared: Pure timeline helpers & no-node-imports isolation.
+  - Server: RFC 7233 range stream tests, 416 error handling, backoff resilience, security
+    invariants, path safety, and SDV1 crypto.
+  - Web: Video error fallback panel, timeline jump popover state, and vault crypto.
+- **Playwright E2E Tests**: 4 passed using Microsoft Edge (`--workers=1`):
+  - `smoke.spec.ts`: Page loads with 0 errors and 0 404s.
+  - `timeline-jump.spec.ts`: Month popover opens on click or `G`, navigates, and closes on `Escape`.
+  - `video-error-panel.spec.ts`: Lightbox renders clear unsupported format fallback with actions,
+    never renders `<video>` elements in grid tiles.
+- **Production Bundle Build**:
+  - `apps/web/dist`: 106.34 KB gzip JS (budget: <150 KB), 8.91 KB gzip CSS.
+  - Clean dev (`:5173`) and preview (`:4173`) verification with 0 console errors and 200 OK favicon.

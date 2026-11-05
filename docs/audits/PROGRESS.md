@@ -150,15 +150,73 @@
   - [x] Update `README.md` with final audit & performance badges
   - [x] Final commit and merge readiness report
 
+- [x] **Hardening Pass 1: Video Playback, Smoothness & Timeline Jump**
+  - [x] **Part A: Video Streaming & Codec Fallback**
+    - [x] Video stream diagnosis across 6 real video files with byte-level range SHA-256 parity
+          verification
+    - [x] Fixed RFC 7233 range status 416 handling and client abort cleanup in
+          `apps/server/src/routes/media.ts`
+    - [x] Added Tier 1 unsupported browser codec fallback panel in `PhotoLightbox.tsx` with negative
+          session caching
+    - [x] Designed Tier 2 local transcoding pipeline in `docs/portability.md`
+    - [x] Enforced video UX constraints (poster thumbnail tiles, `preload="metadata"`, src cleanup
+          on close, volume persistence)
+  - [x] **Part B: Lag, Smoothness & 429 Storm Elimination**
+    - [x] Dev & Preview benchmarks across ~5,700 items (13.5k DOM nodes, 110 long tasks, 2,054
+          requests fired)
+    - [x] Identified and eliminated top 5 performance hotspots (unbounded DOM, layout reflow,
+          request flooding, CSS overhead, $O(N^2)$ tile searches)
+    - [x] Implemented section-level virtualization in `VirtualMonthSection.tsx` and memoized
+          `GalleryTile.tsx`
+    - [x] Replaced synchronous `getBoundingClientRect()` reflows with passive `IntersectionObserver`
+    - [x] Diagnosed user console screenshot: fast-scroll network saturation + unthrottled
+          `ensureSession()` cascading retries
+    - [x] Implemented 1.5s session cooldown guard in `apps/web/src/lib/api.ts` and bundled
+          `apps/web/public/favicon.ico`
+    - [x] Verified post-virtualization metrics: -76% during-scroll DOM nodes, -63% heap, -44% frame
+          drops
+  - [x] **Part C: Timeline Jump Feature**
+    - [x] Designed Timeline Jump specification in `docs/design/timeline-jump.md`
+    - [x] Created pure month key helpers and unit tests in
+          `packages/shared/src/media/timeline-helpers.ts`
+    - [x] Implemented filter-aware `photoMonthsStmt` query in SQLite backend
+          (`/api/files/months?filter=media`)
+    - [x] Created `TimelineJumpPopover.tsx` with 4x3 month grid, year selector, keyboard navigation
+          (G, Home, End, Esc, Arrows)
+    - [x] Verified with unit tests and Playwright E2E spec (`apps/web/e2e/timeline-jump.spec.ts`)
+  - [x] **Part D: Monorepo Verification & Audit Wrap-Up**
+    - [x] Clean monorepo typecheck (3 of 3 projects)
+    - [x] Full test suite execution (155 tests passing across shared, server, web)
+    - [x] Playwright E2E test suite passing (4 of 4 tests)
+    - [x] Production build clean (`shared`, `server`, `web`)
+    - [x] Deliverable `docs/audits/01b-video-and-scroll.md` completed
+    - [x] Updated `CHANGELOG.md` with hardening pass-1 entries
+
 ---
 
 ## Log of Completed Commits
 
-- `f5aaa19` — `chore(tooling): add top-level ESLint ignores for data and build artifacts to prevent OOM`
-- `7191b56` — `test(bench): establish Stage 1 baseline harness, synthetic 100k seed, and audit scoreboard`
+- `f5aaa19` —
+  `chore(tooling): add top-level ESLint ignores for data and build artifacts to prevent OOM`
+- `7191b56` —
+  `test(bench): establish Stage 1 baseline harness, synthetic 100k seed, and audit scoreboard`
 - `577e43d` — `chore(branding): rename project to Sunflower Drive and commit Grand README`
 - `7408f1d` — `feat(security): close SEC-001, SEC-002, SEC-003, SEC-006 and harden server routes`
-- `088c653` — `feat(security): complete Stage 3 hardening with FTS sanitizer, path safety, rate limiting, and security CI`
-- `8da9c5e` — `docs(vault): establish frozen SDV1 cryptographic specification and deterministic test vectors`
+- `088c653` —
+  `feat(security): complete Stage 3 hardening with FTS sanitizer, path safety, rate limiting, and security CI`
+- `8da9c5e` —
+  `docs(vault): establish frozen SDV1 cryptographic specification and deterministic test vectors`
 - `c5ca0af` — `feat(vault): implement pure SDV1 cryptographic core and test suite`
 - `77a5e87` — `feat(perf): complete Stage 5 optimization and Stage 6 portability audit`
+- `232de78` — `docs(audit): publish Stage 7 final verification report and audit scoreboard`
+- `d30b58b` — `feat(ui): complete OneDrive-style UI enhancement pass for Sunflower Drive`
+- `5beb574` — `fix(server,ui): isolate vault rate limiter and restore original sleek blue theme`
+- `59bb093` — `fix(gallery): exclude TS declaration files and code-folder content from media views`
+- `1dad3bf` — `chore: fix pre-commit hook`
+- `9f25926` — `fix(web): shared package resolution caused blank screen`
+- `b275167` — `fix(gallery): count videos without metadata except video/mp2t`
+- `2417cb3` — `feat(sync): backfill video metadata for existing rows`
+- `b3cd646` — `docs(audit): update Stage 1 baselines for corrected dataset and restored videos`
+- `9ddc7b7` — `fix(media): improve video stream range handling and browser codec fallback`
+- `bfe3d0a` — `perf(web): virtualize gallery grid and eliminate scroll reflow thrashing`
+- `2d81a12` — `feat(gallery): add timeline jump month popover and filter-aware quick jump`
