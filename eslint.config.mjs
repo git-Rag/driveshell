@@ -25,6 +25,7 @@ export default tseslint.config(
       'src-tauri/**',
       '**/.system_generated/**',
       '**/.user_uploaded/**',
+      '**/.kilo/**',
     ],
   },
 
@@ -100,7 +101,9 @@ export default tseslint.config(
       'apps/*/tailwind.config.ts',
       'apps/server/test/**/*.ts',
       'apps/server/scripts/**/*.ts',
+      'apps/web/e2e/**/*.ts',
       'packages/*/vitest.config.ts',
+      'packages/shared/test/**/*.ts',
     ],
     extends: [tseslint.configs.disableTypeChecked],
   },

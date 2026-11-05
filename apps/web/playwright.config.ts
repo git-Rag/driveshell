@@ -16,15 +16,14 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: { ...devices['Desktop Chrome'], channel: 'chrome' },
     },
   ],
 
-  // Start Vite dev server before E2E tests (Phase 3+)
-  // webServer: {
-  //   command: 'pnpm dev',
-  //   url: 'http://127.0.0.1:5173',
-  //   reuseExistingServer: !process.env['CI'],
-  // },
-  // TODO(phase-3): Uncomment webServer once the app has a usable screen to test.
+  webServer: {
+    command: 'pnpm --filter @driveshell/web dev',
+    url: 'http://127.0.0.1:5173',
+    reuseExistingServer: !process.env['CI'],
+    timeout: 30000,
+  },
 });
