@@ -33,6 +33,34 @@ let activeSessionToken: string | null = null;
 let sessionPromise: Promise<void> | null = null;
 let lastSessionAttempt = 0;
 
+async function fetchHealthWithRetry(
+  apiBase: string,
+  credentialsMode: RequestCredentials,
+): Promise<{ sessionToken?: string }> {
+  const maxAttempts = isTauriDesktop() ? 10 : 1;
+  let lastErr: unknown;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const res = await fetch(`${apiBase}/health`, { credentials: credentialsMode });
+      if (res.ok) {
+        try {
+          return (await res.json()) as { sessionToken?: string };
+        } catch {
+          return {};
+        }
+      }
+      throw new Error(`Failed to bootstrap session: ${res.status}`);
+    } catch (err) {
+      lastErr = err;
+      if (attempt < maxAttempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
+    }
+  }
+  throw lastErr;
+}
+
 export async function ensureSession(): Promise<void> {
   if (sessionPromise) return sessionPromise;
 
@@ -45,16 +73,10 @@ export async function ensureSession(): Promise<void> {
   const apiBase = getApiBase();
   const credentialsMode: RequestCredentials = isTauriDesktop() ? 'include' : 'same-origin';
 
-  sessionPromise = fetch(`${apiBase}/health`, { credentials: credentialsMode })
-    .then(async (res) => {
-      if (!res.ok) throw new Error(`Failed to bootstrap session: ${res.status}`);
-      try {
-        const body = (await res.json()) as { sessionToken?: string };
-        if (body.sessionToken) {
-          activeSessionToken = body.sessionToken;
-        }
-      } catch {
-        // ignore parse error on health ping
+  sessionPromise = fetchHealthWithRetry(apiBase, credentialsMode)
+    .then((body) => {
+      if (body.sessionToken) {
+        activeSessionToken = body.sessionToken;
       }
     })
     .catch((err: unknown) => {
@@ -141,9 +163,30 @@ export function saveCredentials(clientId: string, clientSecret: string): Promise
   });
 }
 
-/** Navigate the browser to the Google consent screen (server redirects). */
+/** Navigate the browser to the Google consent screen (opens system browser in desktop mode). */
 export function startAuth(scope: 'readonly' | 'full' = 'readonly'): void {
-  window.location.href = `/api/auth/start?scope=${scope}`;
+  const apiBase = getApiBase();
+  const targetUrl = `${apiBase}/api/auth/start?scope=${scope}`;
+  if (isTauriDesktop()) {
+    try {
+      const internals = (
+        window as unknown as {
+          __TAURI_INTERNALS__?: {
+            invoke: (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
+          };
+        }
+      ).__TAURI_INTERNALS__;
+      if (internals?.invoke) {
+        void internals.invoke('open_browser', { url: targetUrl });
+        return;
+      }
+    } catch {
+      // fallback to window.open
+    }
+    window.open(targetUrl, '_blank');
+    return;
+  }
+  window.location.href = targetUrl;
 }
 
 // ---------------------------------------------------------------------------
@@ -185,7 +228,7 @@ export interface SyncProgressEvent {
 
 /** Subscribe to sync progress SSE events. Returns an unsubscribe function. */
 export function subscribeSyncProgress(onEvent: (e: SyncProgressEvent) => void): () => void {
-  const es = new EventSource('/api/sync/progress', { withCredentials: true });
+  const es = new EventSource(`${getApiBase()}/api/sync/progress`, { withCredentials: true });
   es.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data as string) as SyncProgressEvent;

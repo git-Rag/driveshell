@@ -175,7 +175,7 @@ export async function registerSessionMiddleware(
             ? req.headers['authorization'].slice(7)
             : undefined);
 
-        const token = cookieToken || headerToken;
+        const token = cookieToken ?? headerToken;
         if (!token || !safeEqual(token, SESSION_TOKEN)) {
           req.log.warn({ path }, 'Rejected: missing or invalid session cookie or token');
           void reply.code(401).send({ error: 'Unauthorized' });

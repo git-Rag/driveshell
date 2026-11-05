@@ -70,6 +70,8 @@ async function main(): Promise<void> {
       }
     },
     credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-session-token', 'Range'],
+    exposedHeaders: ['Content-Range', 'Accept-Ranges', 'Content-Length'],
   });
 
   // -------------------------------------------------------------------------

@@ -1,7 +1,7 @@
+/* eslint-disable no-undef */
 const fs = require('fs');
 const path = require('path');
 const esbuild = require('esbuild');
-const { spawn } = require('child_process');
 
 function copyDir(src, dest) {
   fs.mkdirSync(dest, { recursive: true });
