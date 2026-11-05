@@ -97,11 +97,19 @@ export async function registerSessionMiddleware(
       }
 
       // -----------------------------------------------------------------------
-      // 2. Sec-Fetch-Site check — reject cross-site requests.
+      // 2. Sec-Fetch-Site check — reject cross-site requests unless from verified desktop client.
       //    Defends against remote malicious sites issuing requests to localhost.
       // -----------------------------------------------------------------------
       const secFetchSite = req.headers['sec-fetch-site'];
-      if (secFetchSite === 'cross-site') {
+      const origin = req.headers['origin'];
+      const isVerifiedDesktop = origin
+        ? isAllowedOrigin(origin, {
+            isProduction: process.env['NODE_ENV'] === 'production',
+            port: _port,
+          })
+        : false;
+
+      if (secFetchSite === 'cross-site' && !isVerifiedDesktop) {
         req.log.warn({ secFetchSite, path }, 'Rejected: Cross-site fetch detected');
         void reply.code(403).send({ error: 'Forbidden cross-site request' });
         return;
@@ -111,7 +119,6 @@ export async function registerSessionMiddleware(
       // 3. Origin check on state-mutating requests (POST, PUT, PATCH, DELETE).
       // -----------------------------------------------------------------------
       const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
-      const origin = req.headers['origin'];
       if (MUTATING.has(method ?? '')) {
         if (
           origin &&
@@ -154,14 +161,23 @@ export async function registerSessionMiddleware(
 
       // -----------------------------------------------------------------------
       // 5. Session token check — all /api/* routes except the exempt list.
+      //    Supports HttpOnly cookie (web browser) and Bearer/Header token (Tauri desktop).
       // -----------------------------------------------------------------------
       const needsSession = path.startsWith('/api/') && !EXEMPT_PATHS.has(path);
 
       if (needsSession) {
         const cookieHeader = req.headers['cookie'] ?? '';
-        const token = parseCookie(cookieHeader, SESSION_COOKIE);
+        const cookieToken = parseCookie(cookieHeader, SESSION_COOKIE);
+        const headerToken =
+          (req.headers['x-session-token'] as string | undefined) ??
+          (typeof req.headers['authorization'] === 'string' &&
+          req.headers['authorization'].startsWith('Bearer ')
+            ? req.headers['authorization'].slice(7)
+            : undefined);
+
+        const token = cookieToken || headerToken;
         if (!token || !safeEqual(token, SESSION_TOKEN)) {
-          req.log.warn({ path }, 'Rejected: missing or invalid session cookie');
+          req.log.warn({ path }, 'Rejected: missing or invalid session cookie or token');
           void reply.code(401).send({ error: 'Unauthorized' });
           return;
         }

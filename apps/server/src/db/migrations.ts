@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type Database from 'better-sqlite3';
 import type { FastifyBaseLogger } from 'fastify';
+import { EMBEDDED_MIGRATIONS } from './embedded-migrations';
 
 /** Extract the integer version from a filename like `001_initial.sql` → 1. */
 function fileVersion(filename: string): number {
@@ -41,19 +42,27 @@ function currentVersion(db: Database.Database): number {
 
 export function runMigrations(db: Database.Database, log: FastifyBaseLogger): void {
   const migrationsDir = path.resolve(__dirname, '..', '..', 'migrations');
-  const files = fs
-    .readdirSync(migrationsDir)
-    .filter((f) => f.endsWith('.sql'))
-    .sort(); // lexicographic = numeric because filenames are zero-padded
+  const hasDiskDir = fs.existsSync(migrationsDir);
+
+  const files = hasDiskDir
+    ? fs
+        .readdirSync(migrationsDir)
+        .filter((f) => f.endsWith('.sql'))
+        .sort()
+    : Object.keys(EMBEDDED_MIGRATIONS).sort();
 
   const applied = currentVersion(db);
-  log.info({ applied }, 'DB migration check');
+  log.info({ applied, source: hasDiskDir ? 'disk' : 'embedded' }, 'DB migration check');
 
   for (const file of files) {
     const version = fileVersion(file);
     if (version <= applied) continue;
 
-    const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
+    const sql = hasDiskDir
+      ? fs.readFileSync(path.join(migrationsDir, file), 'utf8')
+      : EMBEDDED_MIGRATIONS[file];
+
+    if (!sql) continue;
     log.info({ version, file }, 'Applying migration');
 
     // Each migration file runs in a single transaction.

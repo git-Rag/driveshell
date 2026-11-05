@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://127.0.0.1:5173",
-    "beforeBuildCommand": "pnpm build",
+    "beforeBuildCommand": "pnpm build && node scripts/build-desktop-bundle.js",
     "frontendDist": "../apps/web/dist"
   },
   "app": {
@@ -37,6 +37,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "resources": ["resources/bin/node.exe", "resources/server/**/*"],
     "windows": {
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",

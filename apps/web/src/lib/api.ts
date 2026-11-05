@@ -16,6 +16,20 @@ export class ApiError extends Error {
   }
 }
 
+export function isTauriDesktop(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    (Boolean((window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__) ||
+      window.location.origin.includes('tauri.localhost') ||
+      window.location.protocol === 'tauri:')
+  );
+}
+
+export function getApiBase(): string {
+  return isTauriDesktop() ? 'http://127.0.0.1:3001' : '';
+}
+
+let activeSessionToken: string | null = null;
 let sessionPromise: Promise<void> | null = null;
 let lastSessionAttempt = 0;
 
@@ -28,9 +42,20 @@ export async function ensureSession(): Promise<void> {
   }
 
   lastSessionAttempt = Date.now();
-  sessionPromise = fetch('/health', { credentials: 'same-origin' })
-    .then((res) => {
+  const apiBase = getApiBase();
+  const credentialsMode: RequestCredentials = isTauriDesktop() ? 'include' : 'same-origin';
+
+  sessionPromise = fetch(`${apiBase}/health`, { credentials: credentialsMode })
+    .then(async (res) => {
       if (!res.ok) throw new Error(`Failed to bootstrap session: ${res.status}`);
+      try {
+        const body = (await res.json()) as { sessionToken?: string };
+        if (body.sessionToken) {
+          activeSessionToken = body.sessionToken;
+        }
+      } catch {
+        // ignore parse error on health ping
+      }
     })
     .catch((err: unknown) => {
       sessionPromise = null;
@@ -41,26 +66,36 @@ export async function ensureSession(): Promise<void> {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   await ensureSession();
-  let res = await fetch(path, {
-    credentials: 'same-origin', // always send cookies
+  const apiBase = getApiBase();
+  const fullUrl =
+    path.startsWith('http://') || path.startsWith('https://') ? path : `${apiBase}${path}`;
+  const credentialsMode: RequestCredentials = isTauriDesktop() ? 'include' : 'same-origin';
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...((init?.headers as Record<string, string> | undefined) ?? {}),
+  };
+  if (activeSessionToken) {
+    headers['x-session-token'] = activeSessionToken;
+  }
+
+  let res = await fetch(fullUrl, {
+    credentials: credentialsMode,
     ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
+    headers,
   });
 
   // If unauthorized, re-bootstrap session once (e.g. server restarted and token changed)
   if (res.status === 401) {
     sessionPromise = null;
     await ensureSession();
-    res = await fetch(path, {
-      credentials: 'same-origin',
+    if (activeSessionToken) {
+      headers['x-session-token'] = activeSessionToken;
+    }
+    res = await fetch(fullUrl, {
+      credentials: credentialsMode,
       ...init,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(init?.headers ?? {}),
-      },
+      headers,
     });
   }
 
@@ -357,19 +392,19 @@ export function searchFiles(opts: {
 export function getMediaThumbUrl(fileId: string, size = 400, accountId?: string): string {
   const params = new URLSearchParams({ size: String(size) });
   if (accountId) params.set('accountId', accountId);
-  return `/api/media/${encodeURIComponent(fileId)}/thumb?${params.toString()}`;
+  return `${getApiBase()}/api/media/${encodeURIComponent(fileId)}/thumb?${params.toString()}`;
 }
 
 export function getMediaStreamUrl(fileId: string, accountId?: string): string {
   const params = new URLSearchParams();
   if (accountId) params.set('accountId', accountId);
-  return `/api/media/${encodeURIComponent(fileId)}/stream?${params.toString()}`;
+  return `${getApiBase()}/api/media/${encodeURIComponent(fileId)}/stream?${params.toString()}`;
 }
 
 export function getMediaDownloadUrl(fileId: string, accountId?: string): string {
   const params = new URLSearchParams();
   if (accountId) params.set('accountId', accountId);
-  return `/api/media/${encodeURIComponent(fileId)}/download?${params.toString()}`;
+  return `${getApiBase()}/api/media/${encodeURIComponent(fileId)}/download?${params.toString()}`;
 }
 
 // ---------------------------------------------------------------------------

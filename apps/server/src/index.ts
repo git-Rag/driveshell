@@ -2,7 +2,12 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { findAvailablePort } from './utils/port';
 import { openDb, closeDb } from './db/connection';
-import { registerSessionMiddleware, setSessionCookie, isAllowedOrigin } from './auth/session';
+import {
+  registerSessionMiddleware,
+  setSessionCookie,
+  isAllowedOrigin,
+  SESSION_TOKEN,
+} from './auth/session';
 import { registerSecurityHeaders } from './auth/security-headers';
 import { registerAuthRoutes } from './routes/auth';
 import { registerSyncRoutes } from './routes/sync';
@@ -92,7 +97,7 @@ async function main(): Promise<void> {
 
   app.get('/health', async (_req, reply) => {
     setSessionCookie(reply, port);
-    return { status: 'ok', version: '0.1.0' };
+    return { status: 'ok', version: '0.1.0', sessionToken: SESSION_TOKEN };
   });
 
   /**

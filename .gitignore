@@ -11,6 +11,7 @@ build/
 out/
 *.tsbuildinfo
 src-tauri/target/
+src-tauri/resources/
 
 # Local data (never commit — contains your Drive index, SQLite DBs, and cached thumbnails)
 data/
