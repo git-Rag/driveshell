@@ -11,11 +11,11 @@
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
-        .setup(|app| {
+        .setup(|_app| {
             // Desktop initialization hooks
             #[cfg(debug_assertions)]
             {
-                let window = tauri::Manager::get_webview_window(app, "main");
+                let window = tauri::Manager::get_webview_window(_app, "main");
                 if let Some(w) = window {
                     let _ = w.set_title("Sunflower Drive (Dev)");
                 }

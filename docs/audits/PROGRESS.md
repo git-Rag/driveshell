@@ -138,6 +138,9 @@
   - [x] Dual-installer specification: NSIS (`.exe`) vs WiX (`.msi`)
   - [x] Tauri sidecar lifecycle, ephemeral loopback port discovery, and token passing
   - [x] Code signing pipeline (Azure Trusted Signing / Cloud HSM)
+  - [x] **Windows NSIS Installer Packaging Complete**: Produced
+        `Sunflower Drive_0.1.0_x64-setup.exe` (2.88 MiB, SHA-256:
+        `20cdf13edbaa6b5eb2989bd715ea6ea643e6c4507434458314daf3012fdfa406`)
   - [x] Deliverable `docs/portability.md`
   - [x] Deliverable `docs/release-engineering.md`
   - [x] **GATE 6**: Ready for sign-off.
@@ -220,3 +223,6 @@
 - `9ddc7b7` — `fix(media): improve video stream range handling and browser codec fallback`
 - `bfe3d0a` — `perf(web): virtualize gallery grid and eliminate scroll reflow thrashing`
 - `2d81a12` — `feat(gallery): add timeline jump month popover and filter-aware quick jump`
+- `07917af` — `docs: record hardening pass-1 video, virtualization, and timeline jump results`
+- `4a000a5` — `feat(media): implement Tier 2 on-demand FFmpeg video transcoding and caching`
+- `[HEAD]` — `feat(desktop): package Windows NSIS release installer via Tauri v2`

@@ -11,6 +11,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Phase 0: Monorepo scaffold (pnpm workspaces, TypeScript strict, ESLint flat config, Prettier,
   Vitest, Playwright, CI, community files, ADRs, documentation skeleton).
+- **Windows Desktop Packaging (Stage 6)**: Release installer packaged with Tauri v2 and NSIS
+  (Nullsoft Scriptable Install System) yielding `Sunflower Drive_0.1.0_x64-setup.exe` (2.88 MiB)
+  with bundled multi-resolution app icons, sidecar scaffolding, and single-instance handling.
 - **Timeline Jump Navigation**: Month Chip popover with a 4x3 month grid, dynamic year selector,
   filter-aware SQLite month query, and keyboard navigation (`G`, `Home`, `End`, `Esc`, Arrow keys).
 - **Tier 2 Video Transcoding (FFmpeg)**: On-demand transcoding of unsupported video formats (HEVC,
