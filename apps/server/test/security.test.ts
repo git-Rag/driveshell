@@ -204,6 +204,35 @@ describe('SEC-006: Origin, CORS, and Session Hardening', () => {
       expect(JSON.parse(res.body)).toEqual({ status: 'callback_received' });
     });
 
+    it('gracefully accepts empty JSON bodies on POST requests without FST_ERR_CTP_EMPTY_JSON_BODY', async () => {
+      app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => {
+        if (!body || (typeof body === 'string' && body.trim() === '')) {
+          done(null, {});
+          return;
+        }
+        try {
+          const json: unknown = JSON.parse(body as string);
+          done(null, json);
+        } catch (err) {
+          done(err as Error, undefined);
+        }
+      });
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/test-post',
+        headers: {
+          host: '127.0.0.1:3000',
+          cookie: `${SESSION_COOKIE}=${SESSION_TOKEN}`,
+          origin: 'http://127.0.0.1:3000',
+          'content-type': 'application/json',
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.body)).toEqual({ status: 'created' });
+    });
+
     it('rejects state-mutating requests with forbidden Origin', async () => {
       const res = await app.inject({
         method: 'POST',

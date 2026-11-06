@@ -80,6 +80,22 @@ async function main(): Promise<void> {
   await registerSecurityHeaders(app);
 
   // -------------------------------------------------------------------------
+  // Content Type Parsers — gracefully allow empty JSON bodies for POST/PUT routes
+  // -------------------------------------------------------------------------
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => {
+    if (!body || (typeof body === 'string' && body.trim() === '')) {
+      done(null, {});
+      return;
+    }
+    try {
+      const json: unknown = JSON.parse(body as string);
+      done(null, json);
+    } catch (err) {
+      done(err as Error, undefined);
+    }
+  });
+
+  // -------------------------------------------------------------------------
   // Database
   // -------------------------------------------------------------------------
   const db = openDb(app.log);

@@ -94,9 +94,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const credentialsMode: RequestCredentials = isTauriDesktop() ? 'include' : 'same-origin';
 
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
     ...((init?.headers as Record<string, string> | undefined) ?? {}),
   };
+  if (init?.body !== undefined) {
+    headers['Content-Type'] ??= 'application/json';
+  }
   if (activeSessionToken) {
     headers['x-session-token'] = activeSessionToken;
   }
@@ -215,6 +217,7 @@ export function getSyncStatus(): Promise<SyncStatus> {
 export function triggerSync(accountId: string): Promise<{ ok: boolean; message: string }> {
   return request<{ ok: boolean; message: string }>(`/api/sync/start/${accountId}`, {
     method: 'POST',
+    body: JSON.stringify({}),
   });
 }
 
@@ -228,7 +231,11 @@ export interface SyncProgressEvent {
 
 /** Subscribe to sync progress SSE events. Returns an unsubscribe function. */
 export function subscribeSyncProgress(onEvent: (e: SyncProgressEvent) => void): () => void {
-  const es = new EventSource(`${getApiBase()}/api/sync/progress`, { withCredentials: true });
+  const apiBase = getApiBase();
+  const tokenParam = activeSessionToken ? `?token=${encodeURIComponent(activeSessionToken)}` : '';
+  const es = new EventSource(`${apiBase}/api/sync/progress${tokenParam}`, {
+    withCredentials: true,
+  });
   es.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data as string) as SyncProgressEvent;
@@ -647,5 +654,6 @@ export function resetVault(accountId?: string): Promise<{ ok: boolean }> {
   if (accountId) params.set('accountId', accountId);
   return request<{ ok: boolean }>(`/api/vault/reset?${params.toString()}`, {
     method: 'POST',
+    body: JSON.stringify({}),
   });
 }

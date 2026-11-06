@@ -14,6 +14,7 @@ import {
   ChevronDown,
   ArrowUp,
   ArrowDown,
+  AlertCircle,
 } from 'lucide-react';
 import type { AccountSummary, FileRecord, PhotoMonthBucket } from '../../lib/api';
 import { getPhotos, getPhotoMonths, subscribeSyncProgress } from '../../lib/api';
@@ -76,7 +77,7 @@ export function GalleryView({
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [currentVisibleMonth, setCurrentVisibleMonth] = useState<string>('');
 
-  const { syncStatus, isSyncing, triggerSync } = useSyncStatus();
+  const { syncStatus, isSyncing, triggerSync, error } = useSyncStatus();
   const accountSyncInfo = syncStatus?.accounts[0] ?? null;
   const fileCount = accountSyncInfo?.fileCount ?? 0;
   const syncDone = accountSyncInfo?.fullSyncStage === 'done';
@@ -182,16 +183,24 @@ export function GalleryView({
     return () => observer.disconnect();
   }, [loadMorePhotos]);
 
-  // Background sync listener
+  // Background sync listener — refresh library when sync completes or files arrive
   useEffect(() => {
-    if (!isSyncing) return;
     const unsub = subscribeSyncProgress((event) => {
-      if (event.type === 'done') {
+      if (
+        event.type === 'done' ||
+        (event.type === 'progress' && (event.indexed ?? 0) > 0 && photos.length === 0)
+      ) {
         void loadInitial();
       }
     });
     return unsub;
-  }, [isSyncing, loadInitial]);
+  }, [loadInitial, photos.length]);
+
+  useEffect(() => {
+    if (fileCount > 0 && photos.length === 0) {
+      void loadInitial();
+    }
+  }, [fileCount, loadInitial, photos.length]);
 
   // Group photos into chronologically ordered Month Year buckets with running index offsets
   const groupedSections = useMemo(() => {
@@ -529,6 +538,20 @@ export function GalleryView({
               <RefreshCw size={13} className={isSyncing ? 'animate-spin' : ''} />
               {isSyncing ? 'Syncing Drive…' : 'Start Photo Sync'}
             </button>
+            {error && (
+              <div className="mt-4 p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-center gap-2 max-w-md mx-auto animate-in fade-in">
+                <AlertCircle size={14} className="shrink-0 text-rose-400" />
+                <span className="truncate">{error}</span>
+                {account && (
+                  <button
+                    onClick={() => triggerSync(account.id)}
+                    className="font-semibold underline ml-1.5 hover:text-white shrink-0"
+                  >
+                    Retry
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
 

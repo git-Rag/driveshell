@@ -86,7 +86,7 @@ export function Sidebar({
 
   return (
     <aside
-      className={`h-full flex flex-col shrink-0 select-none transition-all duration-200 z-40 ${
+      className={`h-full flex flex-col shrink-0 select-none transition-all duration-200 relative z-50 ${
         isOpen ? 'w-[232px] opacity-100 visible' : 'w-0 opacity-0 invisible overflow-hidden'
       }`}
       style={{
@@ -204,8 +204,8 @@ function NavButton({
         item.disabled
           ? 'opacity-40 cursor-not-allowed text-[var(--ds-text-disabled)]'
           : isActive
-          ? 'bg-[var(--ds-bg-selected)] text-[var(--ds-text-primary)] font-medium shadow-xs'
-          : 'text-[var(--ds-text-secondary)] hover:text-[var(--ds-text-primary)] hover:bg-[var(--ds-bg-hover)]'
+            ? 'bg-[var(--ds-bg-selected)] text-[var(--ds-text-primary)] font-medium shadow-xs'
+            : 'text-[var(--ds-text-secondary)] hover:text-[var(--ds-text-primary)] hover:bg-[var(--ds-bg-hover)]'
       }`}
     >
       {/* Active accent pill on the left */}
@@ -218,9 +218,7 @@ function NavButton({
 
       {/* Icon */}
       <span
-        className={`shrink-0 transition-colors duration-150 ${
-          isChild ? 'mr-2' : 'mr-2.5'
-        } ${
+        className={`shrink-0 transition-colors duration-150 ${isChild ? 'mr-2' : 'mr-2.5'} ${
           isActive
             ? 'text-[var(--ds-brand)]'
             : 'text-[var(--ds-text-tertiary)] group-hover:text-[var(--ds-text-primary)]'
