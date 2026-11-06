@@ -8,7 +8,6 @@ interface VirtualMonthSectionProps {
   zoom: 1 | 2 | 3 | 4;
   zoomConfig: { cols: string; aspect: string; size: number };
   globalStartIndex: number;
-  isScrolling: boolean;
   scrollContainer: HTMLDivElement | null;
   onTileClick: (index: number) => void;
   registerSectionRef: (month: string, el: HTMLDivElement | null) => void;
@@ -34,7 +33,6 @@ export const VirtualMonthSection = React.memo(function VirtualMonthSection({
   zoom,
   zoomConfig,
   globalStartIndex,
-  isScrolling,
   scrollContainer,
   onTileClick,
   registerSectionRef,
@@ -43,7 +41,6 @@ export const VirtualMonthSection = React.memo(function VirtualMonthSection({
   const [isVisible, setIsVisible] = useState(() => {
     return globalStartIndex < 100;
   });
-  const [recordedHeight, setRecordedHeight] = useState<number | null>(null);
 
   const estimatedRows = Math.ceil(items.length / ESTIMATED_COLS[zoom]);
   const estimatedHeight = 44 + estimatedRows * (ESTIMATED_ROW_HEIGHTS[zoom] + 6);
@@ -59,17 +56,11 @@ export const VirtualMonthSection = React.memo(function VirtualMonthSection({
       ([entry]) => {
         if (entry?.isIntersecting) {
           setIsVisible(true);
-        } else {
-          // Scrolled out of view — record real height to prevent scrollbar jumps
-          if (el.offsetHeight > 0) {
-            setRecordedHeight(el.offsetHeight);
-          }
-          setIsVisible(false);
         }
       },
       {
         root: scrollContainer ?? null,
-        rootMargin: '800px 0px 800px 0px',
+        rootMargin: '1200px 0px 1200px 0px',
         threshold: 0,
       },
     );
@@ -87,7 +78,7 @@ export const VirtualMonthSection = React.memo(function VirtualMonthSection({
       data-month={monthLabel}
       className="mb-8"
       style={{
-        minHeight: !isVisible ? `${recordedHeight ?? estimatedHeight}px` : undefined,
+        minHeight: !isVisible ? `${estimatedHeight}px` : undefined,
       }}
     >
       {/* Section Header */}
@@ -98,9 +89,9 @@ export const VirtualMonthSection = React.memo(function VirtualMonthSection({
         </span>
       </div>
 
-      {/* Grid of tiles (only rendered when intersecting viewport ±400px) */}
+      {/* Grid of tiles (only rendered when intersecting viewport ±1200px) */}
       {isVisible ? (
-        <div className={`grid gap-1.5 transition-all duration-300 ease-out ${zoomConfig.cols}`}>
+        <div className={`grid gap-1.5 ${zoomConfig.cols}`}>
           {items.map((file, idx) => (
             <GalleryTile
               key={file.id}
@@ -109,7 +100,6 @@ export const VirtualMonthSection = React.memo(function VirtualMonthSection({
               zoom={zoom}
               aspectClass={zoomConfig.aspect}
               size={zoomConfig.size}
-              isScrolling={isScrolling}
               onClick={onTileClick}
             />
           ))}

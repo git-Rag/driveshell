@@ -9,20 +9,11 @@ export interface GalleryTileProps {
   zoom: 1 | 2 | 3 | 4;
   aspectClass: string;
   size: number;
-  isScrolling?: boolean;
   onClick: (index: number) => void;
 }
 
 export const GalleryTile = memo(
-  function GalleryTile({
-    file,
-    globalIndex,
-    zoom,
-    aspectClass,
-    size,
-    isScrolling: _isScrolling = false,
-    onClick,
-  }: GalleryTileProps) {
+  function GalleryTile({ file, globalIndex, zoom, aspectClass, size, onClick }: GalleryTileProps) {
     const isVideo = file.mime_type.startsWith('video/');
 
     return (
@@ -69,6 +60,5 @@ export const GalleryTile = memo(
     prev.file.id === next.file.id &&
     prev.file.starred === next.file.starred &&
     prev.zoom === next.zoom &&
-    prev.isScrolling === next.isScrolling &&
     prev.globalIndex === next.globalIndex,
 );

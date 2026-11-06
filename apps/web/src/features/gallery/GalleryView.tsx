@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, startTransition } from 'react';
 import {
   Heart,
   RefreshCw,
@@ -78,8 +78,13 @@ export function GalleryView({
   const handleFilterChange = useCallback(
     (filter: 'all' | 'photos' | 'videos' | 'favorites') => {
       if (filter === activeFilter) return;
-      containerRef.current?.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
-      setActiveFilter(filter);
+      sectionRefs.current.clear();
+      if (containerRef.current) {
+        containerRef.current.scrollTop = 0;
+      }
+      startTransition(() => {
+        setActiveFilter(filter);
+      });
     },
     [activeFilter],
   );
@@ -104,16 +109,18 @@ export function GalleryView({
         getPhotoMonths({ type: activeFilter }),
         getPhotos({ offset: 0, limit: PAGE_SIZE, type: activeFilter }),
       ]);
-      setMonths(monthsRes.months);
-      setPhotos(photosRes.files.filter(isRealMedia));
-      setTotalPhotos(photosRes.total);
+      startTransition(() => {
+        setMonths(monthsRes.months);
+        setPhotos(photosRes.files.filter(isRealMedia));
+        setTotalPhotos(photosRes.total);
 
-      if (photosRes.files.length > 0 && photosRes.files[0]) {
-        const firstTime = photosRes.files[0].taken_at ?? photosRes.files[0].modified_at;
-        setCurrentVisibleMonth(formatMonthYear(firstTime));
-      } else if (monthsRes.months.length > 0 && monthsRes.months[0]) {
-        setCurrentVisibleMonth(monthsRes.months[0].label);
-      }
+        if (photosRes.files.length > 0 && photosRes.files[0]) {
+          const firstTime = photosRes.files[0].taken_at ?? photosRes.files[0].modified_at;
+          setCurrentVisibleMonth(formatMonthYear(firstTime));
+        } else if (monthsRes.months.length > 0 && monthsRes.months[0]) {
+          setCurrentVisibleMonth(monthsRes.months[0].label);
+        }
+      });
     } catch {
       // ignore
     } finally {
@@ -243,29 +250,6 @@ export function GalleryView({
     return Array.from(yearSet).sort((a, b) => b - a);
   }, [months]);
 
-  // Track fast-scroll state to disable hover/pointer overhead during motion
-  const [isScrolling, setIsScrolling] = useState(false);
-  const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const onScroll = () => {
-      if (!isScrolling) setIsScrolling(true);
-      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
-      scrollTimerRef.current = setTimeout(() => {
-        setIsScrolling(false);
-      }, 150);
-    };
-
-    container.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      container.removeEventListener('scroll', onScroll);
-      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
-    };
-  }, [isScrolling]);
-
   // Register section element callback
   const registerSectionRef = useCallback((month: string, el: HTMLDivElement | null) => {
     if (el) sectionRefs.current.set(month, el);
@@ -297,7 +281,7 @@ export function GalleryView({
     );
 
     for (const el of sectionRefs.current.values()) {
-      if (el) observer.observe(el);
+      if (el && el.isConnected) observer.observe(el);
     }
 
     return () => observer.disconnect();
@@ -526,9 +510,7 @@ export function GalleryView({
           if (el && el !== scrollContainer) setScrollContainer(el);
         }}
         data-testid="gallery-scroll-container"
-        className={`flex-1 overflow-y-auto px-6 sm:px-10 py-5 pb-32 scroll-smooth ${
-          isScrolling ? 'pointer-events-none' : ''
-        }`}
+        className="flex-1 overflow-y-auto px-6 sm:px-10 py-5 pb-32"
       >
         {/* Sync Prompt if zero files */}
         {!syncDone && fileCount === 0 && !loadingInitial && (
@@ -583,7 +565,6 @@ export function GalleryView({
             zoom={zoom}
             zoomConfig={ZOOM_CONFIGS[zoom]}
             globalStartIndex={globalStartIndex}
-            isScrolling={isScrolling}
             scrollContainer={scrollContainer}
             onTileClick={setLightboxIndex}
             registerSectionRef={registerSectionRef}
