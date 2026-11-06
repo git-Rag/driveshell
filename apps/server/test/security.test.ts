@@ -204,6 +204,21 @@ describe('SEC-006: Origin, CORS, and Session Hardening', () => {
       expect(JSON.parse(res.body)).toEqual({ status: 'callback_received' });
     });
 
+    it('allows cross-site media requests with explicit query token and verified desktop referer', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/test-get?token=${SESSION_TOKEN}`,
+        headers: {
+          host: '127.0.0.1:3000',
+          referer: 'http://tauri.localhost/',
+          'sec-fetch-site': 'cross-site',
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.body)).toEqual({ status: 'ok' });
+    });
+
     it('gracefully accepts empty JSON bodies on POST requests without FST_ERR_CTP_EMPTY_JSON_BODY', async () => {
       app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => {
         if (!body || (typeof body === 'string' && body.trim() === '')) {

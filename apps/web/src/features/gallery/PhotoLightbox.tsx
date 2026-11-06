@@ -146,10 +146,22 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
     }
   }, []);
 
-  const handleVideoError = useCallback((fileId: string) => {
-    markVideoPlaybackFailed(fileId);
-    setVideoFailed(true);
-  }, []);
+  const handleVideoError = useCallback(
+    (fileId: string) => {
+      // If native playback fails and we haven't tried transcoding yet, automatically attempt FFmpeg transcoding!
+      if (!useTranscodeStream[fileId]) {
+        setIsTranscoding(true);
+        setUseTranscodeStream((prev) => ({ ...prev, [fileId]: true }));
+        setVideoFailed(false);
+        return;
+      }
+      // If transcoding also failed, show the fallback unsupported video panel
+      setIsTranscoding(false);
+      markVideoPlaybackFailed(fileId);
+      setVideoFailed(true);
+    },
+    [useTranscodeStream],
+  );
 
   // Reset display states on image switch
   useEffect(() => {
@@ -157,6 +169,8 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
     setIsZoomed(false);
     setRotation(0);
     setAddedAlbumId(null);
+    setVideoFailed(false);
+    setIsTranscoding(false);
   }, [currentIndex]);
 
   // Intelligent deferred pre-fetching: ONLY after the active photo is fully loaded
@@ -473,7 +487,7 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
                 preload="metadata"
                 src={
                   useTranscodeStream[file.id]
-                    ? `${getMediaStreamUrl(file.id)}?transcode=1`
+                    ? getMediaStreamUrl(file.id, undefined, true)
                     : getMediaStreamUrl(file.id)
                 }
                 onCanPlay={() => setIsTranscoding(false)}

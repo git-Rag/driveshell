@@ -442,19 +442,25 @@ export function searchFiles(opts: {
 export function getMediaThumbUrl(fileId: string, size = 400, accountId?: string): string {
   const params = new URLSearchParams({ size: String(size) });
   if (accountId) params.set('accountId', accountId);
+  if (activeSessionToken) params.set('token', activeSessionToken);
   return `${getApiBase()}/api/media/${encodeURIComponent(fileId)}/thumb?${params.toString()}`;
 }
 
-export function getMediaStreamUrl(fileId: string, accountId?: string): string {
+export function getMediaStreamUrl(fileId: string, accountId?: string, transcode?: boolean): string {
   const params = new URLSearchParams();
   if (accountId) params.set('accountId', accountId);
-  return `${getApiBase()}/api/media/${encodeURIComponent(fileId)}/stream?${params.toString()}`;
+  if (transcode) params.set('transcode', '1');
+  if (activeSessionToken) params.set('token', activeSessionToken);
+  const qs = params.toString();
+  return `${getApiBase()}/api/media/${encodeURIComponent(fileId)}/stream${qs ? `?${qs}` : ''}`;
 }
 
 export function getMediaDownloadUrl(fileId: string, accountId?: string): string {
   const params = new URLSearchParams();
   if (accountId) params.set('accountId', accountId);
-  return `${getApiBase()}/api/media/${encodeURIComponent(fileId)}/download?${params.toString()}`;
+  if (activeSessionToken) params.set('token', activeSessionToken);
+  const qs = params.toString();
+  return `${getApiBase()}/api/media/${encodeURIComponent(fileId)}/download${qs ? `?${qs}` : ''}`;
 }
 
 // ---------------------------------------------------------------------------

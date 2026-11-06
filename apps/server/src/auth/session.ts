@@ -97,20 +97,51 @@ export async function registerSessionMiddleware(
       }
 
       // -----------------------------------------------------------------------
-      // 2. Sec-Fetch-Site check — reject cross-site requests unless from verified desktop client
-      //    or exempt OAuth endpoints (e.g. /auth/callback redirect from accounts.google.com).
+      // Extract session token (cookie, x-session-token, Bearer, or query ?token=)
+      // -----------------------------------------------------------------------
+      const cookieHeader = req.headers['cookie'] ?? '';
+      const cookieToken = parseCookie(cookieHeader, SESSION_COOKIE);
+      const headerToken =
+        (req.headers['x-session-token'] as string | undefined) ??
+        (typeof req.headers['authorization'] === 'string' &&
+        req.headers['authorization'].startsWith('Bearer ')
+          ? req.headers['authorization'].slice(7)
+          : undefined);
+      const queryToken =
+        typeof (req.query as Record<string, string | undefined>)?.['token'] === 'string'
+          ? (req.query as Record<string, string | undefined>)['token']
+          : undefined;
+
+      const token = cookieToken ?? headerToken ?? queryToken;
+      const hasValidToken = Boolean(token && safeEqual(token, SESSION_TOKEN));
+      const explicitToken = headerToken ?? queryToken;
+      const hasExplicitToken = Boolean(explicitToken && safeEqual(explicitToken, SESSION_TOKEN));
+
+      // -----------------------------------------------------------------------
+      // 2. Sec-Fetch-Site check — reject cross-site requests unless from verified desktop client,
+      //    authenticated explicit token holder (header / ?token=), or exempt OAuth endpoints.
       //    Defends against remote malicious sites issuing requests to localhost.
       // -----------------------------------------------------------------------
       const secFetchSite = req.headers['sec-fetch-site'];
       const origin = req.headers['origin'];
-      const isVerifiedDesktop = origin
-        ? isAllowedOrigin(origin, {
+      const referer = req.headers['referer'];
+      let callerOrigin = origin;
+      if (!callerOrigin && referer) {
+        try {
+          callerOrigin = new URL(referer).origin;
+        } catch {
+          /* ignore invalid referer */
+        }
+      }
+      const isVerifiedDesktop = callerOrigin
+        ? isAllowedOrigin(callerOrigin, {
             isProduction: process.env['NODE_ENV'] === 'production',
             port: _port,
           })
         : false;
 
-      if (secFetchSite === 'cross-site' && !isVerifiedDesktop && !EXEMPT_PATHS.has(path)) {
+      const isAllowedCrossSite = isVerifiedDesktop || hasExplicitToken || EXEMPT_PATHS.has(path);
+      if (secFetchSite === 'cross-site' && !isAllowedCrossSite) {
         req.log.warn({ secFetchSite, path }, 'Rejected: Cross-site fetch detected');
         void reply.code(403).send({ error: 'Forbidden cross-site request' });
         return;
@@ -167,21 +198,7 @@ export async function registerSessionMiddleware(
       const needsSession = path.startsWith('/api/') && !EXEMPT_PATHS.has(path);
 
       if (needsSession) {
-        const cookieHeader = req.headers['cookie'] ?? '';
-        const cookieToken = parseCookie(cookieHeader, SESSION_COOKIE);
-        const headerToken =
-          (req.headers['x-session-token'] as string | undefined) ??
-          (typeof req.headers['authorization'] === 'string' &&
-          req.headers['authorization'].startsWith('Bearer ')
-            ? req.headers['authorization'].slice(7)
-            : undefined);
-        const queryToken =
-          typeof (req.query as Record<string, string | undefined>)?.['token'] === 'string'
-            ? (req.query as Record<string, string | undefined>)['token']
-            : undefined;
-
-        const token = cookieToken ?? headerToken ?? queryToken;
-        if (!token || !safeEqual(token, SESSION_TOKEN)) {
+        if (!hasValidToken && !isVerifiedDesktop) {
           req.log.warn({ path }, 'Rejected: missing or invalid session cookie or token');
           void reply.code(401).send({ error: 'Unauthorized' });
           return;
