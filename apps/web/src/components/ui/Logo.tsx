@@ -1,4 +1,4 @@
-// DriveShell brand mark — gradient icon + wordmark
+// Sunflower Drive brand mark — warm sunflower icon + wordmark
 // All original artwork. No third-party logos or brand assets.
 
 interface LogoProps {
@@ -13,9 +13,9 @@ export function Logo({ iconOnly = false, size = 28, className }: LogoProps) {
     <span
       style={{ display: 'inline-flex', alignItems: 'center', gap: 10, flexShrink: 0 }}
       className={className}
-      aria-label="DriveShell"
+      aria-label="Sunflower Drive"
     >
-      {/* Brand mark — a rounded square with an abstract "shell/frame" motif */}
+      {/* Brand mark — an elegant golden sunflower motif */}
       <svg
         width={size}
         height={size}
@@ -25,37 +25,46 @@ export function Logo({ iconOnly = false, size = 28, className }: LogoProps) {
         aria-hidden="true"
       >
         <defs>
-          <linearGradient id="brand-g" x1="0" y1="0" x2="28" y2="28" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#3b82f6" />
-            <stop offset="100%" stopColor="#8b5cf6" />
-          </linearGradient>
           <linearGradient
-            id="brand-inner"
+            id="sunflower-bg"
             x1="0"
             y1="0"
             x2="28"
             y2="28"
             gradientUnits="userSpaceOnUse"
           >
-            <stop offset="0%" stopColor="#93c5fd" />
-            <stop offset="100%" stopColor="#c4b5fd" />
+            <stop offset="0%" stopColor="#f59e0b" />
+            <stop offset="100%" stopColor="#d97706" />
+          </linearGradient>
+          <linearGradient
+            id="sunflower-petal"
+            x1="0"
+            y1="0"
+            x2="28"
+            y2="28"
+            gradientUnits="userSpaceOnUse"
+          >
+            <stop offset="0%" stopColor="#fef08a" />
+            <stop offset="100%" stopColor="#fde047" />
           </linearGradient>
         </defs>
-        {/* Outer rounded square */}
-        <rect width="28" height="28" rx="7" fill="url(#brand-g)" />
-        {/* Shell motif: nested L-shaped brackets suggesting a UI frame */}
-        <path
-          d="M7 9.5C7 8.12 8.12 7 9.5 7H12V9.5H9.5V18.5H12V21H9.5C8.12 21 7 19.88 7 18.5V9.5Z"
-          fill="url(#brand-inner)"
-          opacity="0.95"
-        />
-        <path
-          d="M21 9.5C21 8.12 19.88 7 18.5 7H16V9.5H18.5V18.5H16V21H18.5C19.88 21 21 19.88 21 18.5V9.5Z"
-          fill="url(#brand-inner)"
-          opacity="0.95"
-        />
-        {/* Center connector line */}
-        <rect x="11" y="13" width="6" height="2" rx="1" fill="url(#brand-inner)" opacity="0.7" />
+        {/* Outer rounded container */}
+        <rect width="28" height="28" rx="7" fill="url(#sunflower-bg)" />
+        {/* Stylized geometric sunflower petals */}
+        <g transform="translate(14, 14)">
+          {/* Petals radiating in 8 directions */}
+          {[0, 45, 90, 135, 180, 225, 270, 315].map((angle) => (
+            <path
+              key={angle}
+              d="M0 -8.5 C1.5 -6, 1.5 -3, 0 -2 C-1.5 -3, -1.5 -6, 0 -8.5 Z"
+              fill="url(#sunflower-petal)"
+              transform={`rotate(${angle})`}
+            />
+          ))}
+          {/* Center seed disk */}
+          <circle r="3.4" fill="#78350f" />
+          <circle r="2" fill="#92400e" opacity="0.8" />
+        </g>
       </svg>
 
       {!iconOnly && (
@@ -64,11 +73,20 @@ export function Logo({ iconOnly = false, size = 28, className }: LogoProps) {
             fontSize: 15,
             fontWeight: 600,
             letterSpacing: '-0.3px',
-            color: 'var(--ds-text-primary)',
             userSelect: 'none',
           }}
         >
-          DriveShell
+          <span
+            style={{
+              background: 'var(--ds-brand-gradient)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+            }}
+          >
+            Sunflower
+          </span>{' '}
+          <span style={{ color: 'var(--ds-text-primary)' }}>Drive</span>
         </span>
       )}
     </span>

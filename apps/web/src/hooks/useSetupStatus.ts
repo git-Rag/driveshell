@@ -17,6 +17,8 @@ const POLL_INTERVAL = 3000;
 
 export function useSetupStatus(): { status: SetupStatusState; refresh: () => void } {
   const [status, setStatus] = useState<SetupStatusState>({ state: 'loading' });
+  const statusRef = useRef(status);
+  statusRef.current = status;
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetch_ = useCallback(async () => {
@@ -31,7 +33,7 @@ export function useSetupStatus(): { status: SetupStatusState; refresh: () => voi
 
   const startPolling = useCallback(() => {
     void fetch_();
-    intervalRef.current = setInterval(() => void fetch_(), POLL_INTERVAL);
+    intervalRef.current ??= setInterval(() => void fetch_(), POLL_INTERVAL);
   }, [fetch_]);
 
   const stopPolling = useCallback(() => {
@@ -44,7 +46,13 @@ export function useSetupStatus(): { status: SetupStatusState; refresh: () => voi
   useEffect(() => {
     startPolling();
     const onFocus = () => startPolling();
-    const onBlur = () => stopPolling();
+    const onBlur = () => {
+      // While awaiting initial account setup, keep polling so desktop updates
+      // seamlessly when OAuth finishes in the external browser.
+      if (statusRef.current.state === 'ready' && statusRef.current.data.accounts.length > 0) {
+        stopPolling();
+      }
+    };
     window.addEventListener('focus', onFocus);
     window.addEventListener('blur', onBlur);
     return () => {

@@ -6,23 +6,23 @@ import {
   Loader2,
   Minus,
   Plus,
-  Play,
   Calendar,
   Sparkles,
   Film,
-  Menu,
   Search,
   PanelLeft,
+  ChevronDown,
+  ArrowUp,
+  ArrowDown,
+  AlertCircle,
 } from 'lucide-react';
 import type { AccountSummary, FileRecord, PhotoMonthBucket } from '../../lib/api';
-import {
-  getPhotos,
-  getPhotoMonths,
-  getMediaThumbUrl,
-  subscribeSyncProgress,
-} from '../../lib/api';
+import { getPhotos, getPhotoMonths, subscribeSyncProgress } from '../../lib/api';
 import { useSyncStatus } from '../../hooks/useSyncStatus';
 import { PhotoLightbox } from './PhotoLightbox';
+import { VirtualMonthSection } from './VirtualMonthSection';
+import { TimelineJumpPopover } from './TimelineJumpPopover';
+import { isRealMedia } from '@driveshell/shared';
 
 interface GalleryViewProps {
   account?: AccountSummary | null;
@@ -37,8 +37,16 @@ interface GalleryViewProps {
 type ZoomLevel = 1 | 2 | 3 | 4;
 
 const ZOOM_CONFIGS: Record<ZoomLevel, { cols: string; aspect: string; size: number }> = {
-  1: { cols: 'grid-cols-5 sm:grid-cols-7 md:grid-cols-9 lg:grid-cols-11', aspect: 'aspect-square', size: 200 },
-  2: { cols: 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6', aspect: 'aspect-square', size: 400 },
+  1: {
+    cols: 'grid-cols-5 sm:grid-cols-7 md:grid-cols-9 lg:grid-cols-11',
+    aspect: 'aspect-square',
+    size: 200,
+  },
+  2: {
+    cols: 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6',
+    aspect: 'aspect-square',
+    size: 400,
+  },
   3: { cols: 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4', aspect: 'aspect-[4/3]', size: 800 },
   4: { cols: 'grid-cols-1 sm:grid-cols-2', aspect: 'aspect-[16/10]', size: 1200 },
 };
@@ -46,15 +54,6 @@ const ZOOM_CONFIGS: Record<ZoomLevel, { cols: string; aspect: string; size: numb
 function formatMonthYear(ms: number): string {
   const d = new Date(ms);
   return d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
-}
-
-function isStrictMedia(file: FileRecord): boolean {
-  if (file.mime_type === 'application/vnd.google-apps.folder') return false;
-  if (file.mime_type.startsWith('application/vnd.google-apps.')) return false;
-  const isDocExt = /\.(pdf|docx?|xlsx?|pptx?|zip|rar|tar|json|txt|html|css|js|ts|exe|apk)$/i.test(file.name);
-  if (isDocExt) return false;
-  if (file.mime_type.startsWith('image/') || file.mime_type.startsWith('video/')) return true;
-  return /\.(jpg|jpeg|png|gif|webp|heic|heif|bmp|tiff|avif|raw|dng|cr2|nef|arw|mp4|mov|avi|mkv|webm|3gp|m4v)$/i.test(file.name);
 }
 
 const PAGE_SIZE = 120;
@@ -72,16 +71,19 @@ export function GalleryView({
   const [months, setMonths] = useState<PhotoMonthBucket[]>([]);
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [activeFilter, setActiveFilter] = useState<'all' | 'photos' | 'videos' | 'favorites'>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'photos' | 'videos' | 'favorites'>(
+    'all',
+  );
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [currentVisibleMonth, setCurrentVisibleMonth] = useState<string>('');
 
-  const { syncStatus, isSyncing, triggerSync } = useSyncStatus();
+  const { syncStatus, isSyncing, triggerSync, error } = useSyncStatus();
   const accountSyncInfo = syncStatus?.accounts[0] ?? null;
   const fileCount = accountSyncInfo?.fileCount ?? 0;
   const syncDone = accountSyncInfo?.fullSyncStage === 'done';
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const [scrollContainer, setScrollContainer] = useState<HTMLDivElement | null>(null);
   const sectionRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -94,11 +96,11 @@ export function GalleryView({
         getPhotos({ offset: 0, limit: PAGE_SIZE, type: activeFilter }),
       ]);
       setMonths(monthsRes.months);
-      setPhotos(photosRes.files.filter(isStrictMedia));
+      setPhotos(photosRes.files.filter(isRealMedia));
       setTotalPhotos(photosRes.total);
 
       if (photosRes.files.length > 0 && photosRes.files[0]) {
-        const firstTime = photosRes.files[0].taken_at || photosRes.files[0].modified_at;
+        const firstTime = photosRes.files[0].taken_at ?? photosRes.files[0].modified_at;
         setCurrentVisibleMonth(formatMonthYear(firstTime));
       } else if (monthsRes.months.length > 0 && monthsRes.months[0]) {
         setCurrentVisibleMonth(monthsRes.months[0].label);
@@ -129,7 +131,7 @@ export function GalleryView({
       setPhotos((prev) => {
         // De-duplicate by ID and strictly enforce media filter
         const existingIds = new Set(prev.map((p) => p.id));
-        const newItems = res.files.filter((f) => !existingIds.has(f.id) && isStrictMedia(f));
+        const newItems = res.files.filter((f) => !existingIds.has(f.id) && isRealMedia(f));
         return [...prev, ...newItems];
       });
       setTotalPhotos(res.total);
@@ -139,6 +141,29 @@ export function GalleryView({
       setLoadingMore(false);
     }
   }, [photos.length, totalPhotos, loadingMore, loadingInitial, activeFilter]);
+
+  const loadPhotosAtOffset = useCallback(
+    async (offset: number) => {
+      try {
+        const res = await getPhotos({
+          offset,
+          limit: PAGE_SIZE,
+          type: activeFilter,
+        });
+
+        setPhotos((prev) => {
+          const existingIds = new Set(prev.map((p) => p.id));
+          const newItems = res.files.filter((f) => !existingIds.has(f.id) && isRealMedia(f));
+          return [...prev, ...newItems].sort(
+            (a, b) => (b.taken_at ?? b.modified_at) - (a.taken_at ?? a.modified_at),
+          );
+        });
+      } catch {
+        // ignore
+      }
+    },
+    [activeFilter],
+  );
 
   // Infinite scroll trigger via IntersectionObserver
   useEffect(() => {
@@ -158,34 +183,48 @@ export function GalleryView({
     return () => observer.disconnect();
   }, [loadMorePhotos]);
 
-  // Background sync listener
+  // Background sync listener — refresh library when sync completes or files arrive
   useEffect(() => {
-    if (!isSyncing) return;
     const unsub = subscribeSyncProgress((event) => {
-      if (event.type === 'done') {
+      if (
+        event.type === 'done' ||
+        (event.type === 'progress' && (event.indexed ?? 0) > 0 && photos.length === 0)
+      ) {
         void loadInitial();
       }
     });
     return unsub;
-  }, [isSyncing, loadInitial]);
+  }, [loadInitial, photos.length]);
 
-  // Group photos into chronologically ordered Month Year buckets
+  useEffect(() => {
+    if (fileCount > 0 && photos.length === 0) {
+      void loadInitial();
+    }
+  }, [fileCount, loadInitial, photos.length]);
+
+  // Group photos into chronologically ordered Month Year buckets with running index offsets
   const groupedSections = useMemo(() => {
     const groups = new Map<string, FileRecord[]>();
 
     for (const photo of photos) {
-      const time = photo.taken_at || photo.modified_at;
+      const time = photo.taken_at ?? photo.modified_at;
       const key = formatMonthYear(time);
       const existing = groups.get(key) ?? [];
       existing.push(photo);
       groups.set(key, existing);
     }
 
-    return Array.from(groups.entries()).map(([monthLabel, items]) => ({
-      monthLabel,
-      items,
-      count: items.length,
-    }));
+    let runningOffset = 0;
+    return Array.from(groups.entries()).map(([monthLabel, items]) => {
+      const globalStartIndex = runningOffset;
+      runningOffset += items.length;
+      return {
+        monthLabel,
+        items,
+        count: items.length,
+        globalStartIndex,
+      };
+    });
   }, [photos]);
 
   // Extract distinct real years from the DB months for the right rail
@@ -195,28 +234,64 @@ export function GalleryView({
     return Array.from(yearSet).sort((a, b) => b - a);
   }, [months]);
 
-  // Track currently visible month as user scrolls
+  // Track fast-scroll state to disable hover/pointer overhead during motion
+  const [isScrolling, setIsScrolling] = useState(false);
+  const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    const handleScroll = () => {
-      const entries = Array.from(sectionRefs.current.entries());
-      const containerTop = container.getBoundingClientRect().top;
-
-      for (const [month, el] of entries) {
-        if (el) {
-          const rect = el.getBoundingClientRect();
-          if (rect.top - containerTop <= 180 && rect.bottom - containerTop > 80) {
-            setCurrentVisibleMonth(month);
-            break;
-          }
-        }
-      }
+    const onScroll = () => {
+      if (!isScrolling) setIsScrolling(true);
+      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+      scrollTimerRef.current = setTimeout(() => {
+        setIsScrolling(false);
+      }, 150);
     };
 
-    container.addEventListener('scroll', handleScroll, { passive: true });
-    return () => container.removeEventListener('scroll', handleScroll);
+    container.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      container.removeEventListener('scroll', onScroll);
+      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+    };
+  }, [isScrolling]);
+
+  // Register section element callback
+  const registerSectionRef = useCallback((month: string, el: HTMLDivElement | null) => {
+    if (el) sectionRefs.current.set(month, el);
+    else sectionRefs.current.delete(month);
+  }, []);
+
+  // Track currently visible month asynchronously via IntersectionObserver without synchronous layout reflows
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || typeof IntersectionObserver === 'undefined') return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            const month = entry.target.getAttribute('data-month');
+            if (month) {
+              setCurrentVisibleMonth(month);
+              break;
+            }
+          }
+        }
+      },
+      {
+        root: container,
+        rootMargin: '-60px 0px -75% 0px',
+        threshold: 0,
+      },
+    );
+
+    for (const el of sectionRefs.current.values()) {
+      if (el) observer.observe(el);
+    }
+
+    return () => observer.disconnect();
   }, [groupedSections]);
 
   function scrollToSection(monthLabel: string) {
@@ -226,18 +301,87 @@ export function GalleryView({
     }
   }
 
+  const [isJumpPopoverOpen, setIsJumpPopoverOpen] = useState(false);
+
+  const scrollToTop = useCallback(() => {
+    containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  const scrollToBottom = useCallback(() => {
+    const el = containerRef.current;
+    if (el) {
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    }
+  }, []);
+
+  const handleJumpToMonth = useCallback(
+    (monthLabel: string) => {
+      const target = sectionRefs.current.get(monthLabel);
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
+
+      // If month section is not currently in memory, find its offset from `months`
+      const targetIdx = months.findIndex((m) => m.label === monthLabel);
+      if (targetIdx !== -1) {
+        const targetOffset = months.slice(0, targetIdx).reduce((acc, m) => acc + m.count, 0);
+        void loadPhotosAtOffset(targetOffset).then(() => {
+          setTimeout(() => {
+            const el = sectionRefs.current.get(monthLabel);
+            el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }, 100);
+        });
+      }
+    },
+    [months, loadPhotosAtOffset],
+  );
+
+  // Global hotkeys: 'G' opens Jump Popover, 'Home' jumps to newest, 'End' jumps to oldest
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+      ) {
+        return;
+      }
+
+      if (e.key === 'g' || e.key === 'G') {
+        if (lightboxIndex === null) {
+          e.preventDefault();
+          setIsJumpPopoverOpen((prev) => !prev);
+        }
+      } else if (e.key === 'Home') {
+        if (lightboxIndex === null && !isJumpPopoverOpen) {
+          e.preventDefault();
+          scrollToTop();
+        }
+      } else if (e.key === 'End') {
+        if (lightboxIndex === null && !isJumpPopoverOpen) {
+          e.preventDefault();
+          scrollToBottom();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [lightboxIndex, isJumpPopoverOpen, scrollToTop, scrollToBottom]);
+
   function handleZoomIn() {
-    setZoom((z) => (Math.min(4, z + 1) as ZoomLevel));
+    setZoom((z) => Math.min(4, z + 1) as ZoomLevel);
   }
 
   function handleZoomOut() {
-    setZoom((z) => (Math.max(1, z - 1) as ZoomLevel));
+    setZoom((z) => Math.max(1, z - 1) as ZoomLevel);
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 bg-[#09090b] text-white relative select-none overflow-hidden">
+    <div className="flex-1 flex flex-col min-h-0 bg-[var(--ds-bg)] text-white relative select-none overflow-hidden">
       {/* Sleek Floating OneDrive Header */}
-      <div className="z-30 px-6 py-2.5 flex items-center justify-between border-b border-white/5 bg-[#09090b]/80 backdrop-blur-xl">
+      <div className="z-30 px-6 py-2.5 flex items-center justify-between border-b border-[var(--ds-border-subtle)] bg-[var(--ds-bg)]/85 backdrop-blur-xl">
         {/* Left: Sidebar & TopBar Toggles + Dynamic Floating Month Badge */}
         <div className="flex items-center gap-2.5">
           {onToggleSidebar && (
@@ -268,10 +412,21 @@ export function GalleryView({
             </button>
           )}
 
-          <div className="flex items-center gap-2 bg-zinc-900/90 border border-white/10 px-3.5 py-1.5 rounded-full text-xs font-semibold tracking-wide text-white shadow-lg backdrop-blur-md">
-            <Calendar size={13} className="text-brand" />
+          {/* Interactive Month Chip Popover Trigger */}
+          <button
+            onClick={() => setIsJumpPopoverOpen(true)}
+            data-testid="timeline-month-chip"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-900 border border-white/10 hover:border-brand/70 text-xs font-semibold tracking-wide text-zinc-200 hover:text-white transition-all shadow-md active:scale-95 group cursor-pointer"
+            title="Jump to timeline month (G)"
+            aria-label="Open timeline month jump popover"
+          >
+            <Calendar size={13} className="text-brand group-hover:scale-110 transition-transform" />
             <span>{currentVisibleMonth || 'Gallery'}</span>
-          </div>
+            <ChevronDown
+              size={12}
+              className="text-zinc-400 group-hover:text-white transition-colors"
+            />
+          </button>
 
           <span className="hidden md:inline-block text-[11px] font-mono text-zinc-400">
             {totalPhotos > 0 ? `${totalPhotos.toLocaleString()} items` : ''}
@@ -357,8 +512,14 @@ export function GalleryView({
 
       {/* Main Continuous Scroll Area */}
       <div
-        ref={containerRef}
-        className="flex-1 overflow-y-auto px-6 sm:px-10 py-5 pb-32 scroll-smooth"
+        ref={(el) => {
+          containerRef.current = el;
+          if (el && el !== scrollContainer) setScrollContainer(el);
+        }}
+        data-testid="gallery-scroll-container"
+        className={`flex-1 overflow-y-auto px-6 sm:px-10 py-5 pb-32 scroll-smooth ${
+          isScrolling ? 'pointer-events-none' : ''
+        }`}
       >
         {/* Sync Prompt if zero files */}
         {!syncDone && fileCount === 0 && !loadingInitial && (
@@ -366,7 +527,8 @@ export function GalleryView({
             <Sparkles size={28} className="text-brand mx-auto mb-3" />
             <h3 className="text-base font-bold text-white mb-1">Your Photo Library</h3>
             <p className="text-xs text-zinc-400 mb-4 max-w-md mx-auto">
-              Connect and sync your Google Drive to index all photos and videos with EXIF metadata into high-speed local SQLite.
+              Connect and sync your Google Drive to index all photos and videos with EXIF metadata
+              into high-speed local SQLite.
             </p>
             <button
               onClick={() => account && triggerSync(account.id)}
@@ -376,6 +538,20 @@ export function GalleryView({
               <RefreshCw size={13} className={isSyncing ? 'animate-spin' : ''} />
               {isSyncing ? 'Syncing Drive…' : 'Start Photo Sync'}
             </button>
+            {error && (
+              <div className="mt-4 p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-center gap-2 max-w-md mx-auto animate-in fade-in">
+                <AlertCircle size={14} className="shrink-0 text-rose-400" />
+                <span className="truncate">{error}</span>
+                {account && (
+                  <button
+                    onClick={() => triggerSync(account.id)}
+                    className="font-semibold underline ml-1.5 hover:text-white shrink-0"
+                  >
+                    Retry
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -383,100 +559,26 @@ export function GalleryView({
         {loadingInitial && photos.length === 0 && (
           <div className="py-24 flex flex-col items-center justify-center gap-3">
             <Loader2 size={28} className="text-brand animate-spin" />
-            <span className="text-xs text-zinc-500 font-mono tracking-wider">Loading your library…</span>
+            <span className="text-xs text-zinc-500 font-mono tracking-wider">
+              Loading your library…
+            </span>
           </div>
         )}
 
-        {/* Grouped Chronological Sections */}
-        {groupedSections.map(({ monthLabel, items }) => (
-          <div
+        {/* Virtualized Chronological Sections */}
+        {groupedSections.map(({ monthLabel, items, globalStartIndex }) => (
+          <VirtualMonthSection
             key={monthLabel}
-            ref={(el) => {
-              if (el) sectionRefs.current.set(monthLabel, el);
-              else sectionRefs.current.delete(monthLabel);
-            }}
-            data-month={monthLabel}
-            className="mb-8"
-          >
-            {/* Clean Section Header */}
-            <div className="flex items-baseline justify-between mb-2.5 pt-2">
-              <h3 className="text-sm font-semibold tracking-wide text-zinc-200">
-                {monthLabel}
-              </h3>
-              <span className="text-[11px] font-mono text-zinc-500">
-                {items.length} {items.length === 1 ? 'item' : 'items'}
-              </span>
-            </div>
-
-            {/* Photo Grid with fluid zoom transitions */}
-            <div
-              className={`grid gap-1.5 transition-all duration-300 ease-out ${
-                ZOOM_CONFIGS[zoom].cols
-              }`}
-            >
-              {items.map((file) => {
-                const isVideo = file.mime_type.startsWith('video/');
-                const globalIndex = photos.indexOf(file);
-
-                return (
-                  <div
-                    key={file.id}
-                    onClick={() => setLightboxIndex(globalIndex)}
-                    className={`group relative rounded-lg overflow-hidden bg-zinc-900 border border-white/5 cursor-pointer transition-all duration-200 hover:border-brand/70 hover:scale-[1.02] hover:z-10 hover:shadow-2xl ${
-                      ZOOM_CONFIGS[zoom].aspect
-                    }`}
-                  >
-                    {/* Thumbnail Image */}
-                    <img
-                      src={getMediaThumbUrl(file.id, ZOOM_CONFIGS[zoom].size)}
-                      alt={file.name}
-                      loading="lazy"
-                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none';
-                        e.currentTarget.parentElement?.classList.add('flex', 'items-center', 'justify-center', 'bg-zinc-800');
-                      }}
-                    />
-
-                    {/* Hover Overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex flex-col justify-between p-2">
-                      {/* Top Badges */}
-                      <div className="flex items-center justify-between">
-                        {file.starred === 1 ? (
-                          <span className="p-1 rounded-full bg-rose-500/80 text-white backdrop-blur-sm">
-                            <Heart size={11} fill="currentColor" />
-                          </span>
-                        ) : <div />}
-                        {isVideo && (
-                          <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-black/70 backdrop-blur-md text-white font-mono">
-                            <Play size={8} fill="currentColor" /> Video
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Bottom Title on larger zoom */}
-                      {zoom >= 3 && (
-                        <div className="truncate">
-                          <p className="text-[11px] font-medium text-white truncate drop-shadow-sm">
-                            {file.name}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Center Video Indicator */}
-                    {isVideo && (
-                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none group-hover:opacity-0 transition-opacity">
-                        <div className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center text-white/90">
-                          <Play size={12} fill="currentColor" />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+            monthLabel={monthLabel}
+            items={items}
+            zoom={zoom}
+            zoomConfig={ZOOM_CONFIGS[zoom]}
+            globalStartIndex={globalStartIndex}
+            isScrolling={isScrolling}
+            scrollContainer={scrollContainer}
+            onTileClick={setLightboxIndex}
+            registerSectionRef={registerSectionRef}
+          />
         ))}
 
         {/* Sentinel element to trigger infinite scroll */}
@@ -484,7 +586,9 @@ export function GalleryView({
           {loadingMore && (
             <div className="flex items-center gap-2 text-xs text-zinc-500 font-mono">
               <Loader2 size={16} className="animate-spin text-brand" />
-              <span>Loading more items… ({photos.length} of {totalPhotos})</span>
+              <span>
+                Loading more items… ({photos.length} of {totalPhotos})
+              </span>
             </div>
           )}
           {!loadingMore && photos.length >= totalPhotos && totalPhotos > 0 && (
@@ -498,9 +602,7 @@ export function GalleryView({
       {/* Right Timeline Year Scrubber Rail matching OneDrive Screenshot */}
       {timelineYears.length > 0 && (
         <div className="absolute right-2 top-20 bottom-24 w-8 flex flex-col items-center justify-between pointer-events-auto z-20 py-2 select-none">
-          <span className="text-[10px] font-mono font-bold text-zinc-400">
-            {timelineYears[0]}
-          </span>
+          <span className="text-[10px] font-mono font-bold text-zinc-400">{timelineYears[0]}</span>
 
           <div className="flex flex-col items-center gap-2.5 my-auto">
             {timelineYears.map((yr) => (
@@ -526,6 +628,39 @@ export function GalleryView({
           </span>
         </div>
       )}
+
+      {/* Floating Quick Jump Pills (Newest / Oldest) */}
+      <div className="absolute right-14 bottom-6 z-20 flex items-center gap-1.5 select-none pointer-events-auto">
+        <button
+          onClick={scrollToTop}
+          data-testid="jump-to-newest-btn"
+          className="p-2 rounded-full bg-zinc-900/90 hover:bg-zinc-800 border border-white/10 hover:border-brand/60 text-zinc-300 hover:text-white shadow-xl backdrop-blur-md transition-all active:scale-95 group"
+          title="Jump to newest (Home)"
+          aria-label="Jump to newest photos"
+        >
+          <ArrowUp size={14} className="text-brand group-hover:scale-110 transition-transform" />
+        </button>
+        <button
+          onClick={scrollToBottom}
+          data-testid="jump-to-oldest-btn"
+          className="p-2 rounded-full bg-zinc-900/90 hover:bg-zinc-800 border border-white/10 hover:border-brand/60 text-zinc-300 hover:text-white shadow-xl backdrop-blur-md transition-all active:scale-95 group"
+          title="Jump to oldest (End)"
+          aria-label="Jump to oldest photos"
+        >
+          <ArrowDown size={14} className="text-brand group-hover:scale-110 transition-transform" />
+        </button>
+      </div>
+
+      {/* Timeline Jump Month Popover */}
+      <TimelineJumpPopover
+        isOpen={isJumpPopoverOpen}
+        onClose={() => setIsJumpPopoverOpen(false)}
+        months={months}
+        currentVisibleMonth={currentVisibleMonth}
+        onJumpToMonth={handleJumpToMonth}
+        onJumpToNewest={scrollToTop}
+        onJumpToOldest={scrollToBottom}
+      />
 
       {/* Full Lightbox Modal */}
       {lightboxIndex !== null && (

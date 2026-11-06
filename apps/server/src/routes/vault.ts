@@ -9,33 +9,51 @@
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { randomUUID } from 'node:crypto';
+import { z } from 'zod';
 import type { Db } from '../db/connection';
 import { buildVaultQueries } from '../db/queries/vault';
 import { buildAccountQueries } from '../db/queries/accounts';
+import { createRateLimiter } from '../utils/rate-limiter';
 
-interface VaultSetupBody {
-  salt: string;
-  canaryCiphertext: string;
-  canaryIv: string;
-}
+const VaultSetupSchema = z.object({
+  salt: z.string().min(1),
+  canaryCiphertext: z.string().min(1),
+  canaryIv: z.string().min(1),
+});
 
-interface VaultUploadBody {
-  id?: string;
-  name: string;
-  mimeType: string;
-  sizeBytes: number;
-  encryptedPayloadBase64: string;
-  iv: string;
-}
+const VaultUploadSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().min(1).max(255),
+  mimeType: z.string().max(128).default('application/octet-stream'),
+  sizeBytes: z.number().int().min(0).max(52428800).optional(),
+  encryptedPayloadBase64: z.string().min(1),
+  iv: z.string().min(1),
+});
 
-interface VaultFileParams {
-  fileId: string;
-}
+const VaultFileParamsSchema = z.object({
+  fileId: z.string().min(1),
+});
 
 export async function registerVaultRoutes(app: FastifyInstance, db: Db): Promise<void> {
   await Promise.resolve();
   const vaultQ = buildVaultQueries(db);
   const accountQ = buildAccountQueries(db);
+
+  app.addHook('onSend', async (req, reply) => {
+    if (req.url.startsWith('/api/vault')) {
+      void reply.header('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+      void reply.header('Pragma', 'no-cache');
+    }
+  });
+
+  const vaultRateLimiter = createRateLimiter({ maxRequests: 60, windowMs: 60_000 });
+  app.addHook('preHandler', (req, reply, done) => {
+    if (req.url.startsWith('/api/vault')) {
+      vaultRateLimiter(req, reply, done);
+    } else {
+      done();
+    }
+  });
 
   function resolveAccountId(req: FastifyRequest): string | null {
     const query = req.query as { accountId?: string };
@@ -68,21 +86,21 @@ export async function registerVaultRoutes(app: FastifyInstance, db: Db): Promise
   // -------------------------------------------------------------------------
   // POST /api/vault/setup — Initialize or update vault canary
   // -------------------------------------------------------------------------
-  app.post(
-    '/api/vault/setup',
-    async (req: FastifyRequest<{ Body: VaultSetupBody }>, reply: FastifyReply) => {
-      const accountId = resolveAccountId(req);
-      if (!accountId) return reply.code(404).send({ error: 'Account not found' });
+  app.post('/api/vault/setup', async (req: FastifyRequest, reply: FastifyReply) => {
+    const accountId = resolveAccountId(req);
+    if (!accountId) return reply.code(404).send({ error: 'Account not found' });
 
-      const { salt, canaryCiphertext, canaryIv } = req.body ?? {};
-      if (!salt || !canaryCiphertext || !canaryIv) {
-        return reply.code(400).send({ error: 'Missing salt, canaryCiphertext, or canaryIv' });
-      }
+    const parsed = VaultSetupSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply
+        .code(400)
+        .send({ error: 'Invalid vault setup payload', details: parsed.error.format() });
+    }
 
-      vaultQ.setup(accountId, salt, canaryCiphertext, canaryIv);
-      return reply.code(201).send({ ok: true });
-    },
-  );
+    const { salt, canaryCiphertext, canaryIv } = parsed.data;
+    vaultQ.setup(accountId, salt, canaryCiphertext, canaryIv);
+    return reply.code(201).send({ ok: true });
+  });
 
   // -------------------------------------------------------------------------
   // GET /api/vault/files — List encrypted files in vault
@@ -101,24 +119,27 @@ export async function registerVaultRoutes(app: FastifyInstance, db: Db): Promise
   app.post(
     '/api/vault/files',
     { bodyLimit: 50 * 1024 * 1024 }, // 50MB
-    async (req: FastifyRequest<{ Body: VaultUploadBody }>, reply: FastifyReply) => {
+    async (req: FastifyRequest, reply: FastifyReply) => {
       const accountId = resolveAccountId(req);
       if (!accountId) return reply.code(404).send({ error: 'Account not found' });
 
-      const { name, mimeType, sizeBytes, encryptedPayloadBase64, iv } = req.body ?? {};
-      if (!name || !encryptedPayloadBase64 || !iv) {
-        return reply.code(400).send({ error: 'Missing required file data' });
+      const parsed = VaultUploadSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply
+          .code(400)
+          .send({ error: 'Invalid vault file payload', details: parsed.error.format() });
       }
 
-      const id = req.body.id || randomUUID();
+      const { name, mimeType, sizeBytes, encryptedPayloadBase64, iv } = parsed.data;
+      const id = parsed.data.id ?? randomUUID();
       const payloadBuf = Buffer.from(encryptedPayloadBase64, 'base64');
 
       vaultQ.saveFile(
         accountId,
         id,
         name,
-        mimeType || 'application/octet-stream',
-        sizeBytes || payloadBuf.length,
+        mimeType,
+        sizeBytes ?? payloadBuf.length,
         payloadBuf,
         iv,
       );
@@ -130,44 +151,48 @@ export async function registerVaultRoutes(app: FastifyInstance, db: Db): Promise
   // -------------------------------------------------------------------------
   // GET /api/vault/files/:fileId/data — Retrieve encrypted file payload
   // -------------------------------------------------------------------------
-  app.get(
-    '/api/vault/files/:fileId/data',
-    async (req: FastifyRequest<{ Params: VaultFileParams }>, reply: FastifyReply) => {
-      const accountId = resolveAccountId(req);
-      if (!accountId) return reply.code(404).send({ error: 'Account not found' });
+  app.get('/api/vault/files/:fileId/data', async (req: FastifyRequest, reply: FastifyReply) => {
+    const accountId = resolveAccountId(req);
+    if (!accountId) return reply.code(404).send({ error: 'Account not found' });
 
-      const { fileId } = req.params;
-      const file = vaultQ.getFile(accountId, fileId);
-      if (!file) return reply.code(404).send({ error: 'Vault file not found' });
+    const parsedParams = VaultFileParamsSchema.safeParse(req.params);
+    if (!parsedParams.success) {
+      return reply.code(400).send({ error: 'Invalid file ID param' });
+    }
 
-      return reply.send({
-        id: file.id,
-        name: file.name,
-        mimeType: file.mime_type,
-        sizeBytes: file.size_bytes,
-        iv: file.iv,
-        createdAt: file.created_at,
-        encryptedPayloadBase64: file.encrypted_payload.toString('base64'),
-      });
-    },
-  );
+    const { fileId } = parsedParams.data;
+    const file = vaultQ.getFile(accountId, fileId);
+    if (!file) return reply.code(404).send({ error: 'Vault file not found' });
+
+    return reply.send({
+      id: file.id,
+      name: file.name,
+      mimeType: file.mime_type,
+      sizeBytes: file.size_bytes,
+      iv: file.iv,
+      createdAt: file.created_at,
+      encryptedPayloadBase64: file.encrypted_payload.toString('base64'),
+    });
+  });
 
   // -------------------------------------------------------------------------
   // DELETE /api/vault/files/:fileId — Delete file from vault
   // -------------------------------------------------------------------------
-  app.delete(
-    '/api/vault/files/:fileId',
-    async (req: FastifyRequest<{ Params: VaultFileParams }>, reply: FastifyReply) => {
-      const accountId = resolveAccountId(req);
-      if (!accountId) return reply.code(404).send({ error: 'Account not found' });
+  app.delete('/api/vault/files/:fileId', async (req: FastifyRequest, reply: FastifyReply) => {
+    const accountId = resolveAccountId(req);
+    if (!accountId) return reply.code(404).send({ error: 'Account not found' });
 
-      const { fileId } = req.params;
-      const deleted = vaultQ.deleteFile(accountId, fileId);
-      if (!deleted) return reply.code(404).send({ error: 'Vault file not found' });
+    const parsedParams = VaultFileParamsSchema.safeParse(req.params);
+    if (!parsedParams.success) {
+      return reply.code(400).send({ error: 'Invalid file ID param' });
+    }
 
-      return reply.send({ ok: true });
-    },
-  );
+    const { fileId } = parsedParams.data;
+    const deleted = vaultQ.deleteFile(accountId, fileId);
+    if (!deleted) return reply.code(404).send({ error: 'Vault file not found' });
+
+    return reply.send({ ok: true });
+  });
 
   // -------------------------------------------------------------------------
   // POST /api/vault/reset — Reset vault

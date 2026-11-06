@@ -329,7 +329,7 @@ export function VaultView() {
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-[#09090b] text-white/50 text-sm">
+      <div className="flex-1 flex items-center justify-center bg-[var(--ds-bg)] text-white/50 text-sm">
         Checking Private Vault security status…
       </div>
     );
@@ -340,7 +340,7 @@ export function VaultView() {
   // -------------------------------------------------------------------------
   if (!status?.initialized) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-6 bg-[#09090b] text-white select-none">
+      <div className="flex-1 flex flex-col items-center justify-center p-6 bg-[var(--ds-bg)] text-white select-none">
         <form
           onSubmit={handleSetup}
           className="w-full max-w-md bg-zinc-900 border border-white/10 rounded-3xl p-8 flex flex-col gap-6 shadow-2xl relative overflow-hidden"
@@ -427,7 +427,7 @@ export function VaultView() {
   // -------------------------------------------------------------------------
   if (!vaultKey) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-6 bg-[#09090b] text-white select-none">
+      <div className="flex-1 flex flex-col items-center justify-center p-6 bg-[var(--ds-bg)] text-white select-none">
         <form
           onSubmit={handleUnlock}
           className="w-full max-w-sm bg-zinc-900 border border-white/10 rounded-3xl p-8 flex flex-col gap-6 shadow-2xl relative overflow-hidden"
@@ -501,9 +501,9 @@ export function VaultView() {
   const timeDisplay = `${minutes}:${seconds.toString().padStart(2, '0')}`;
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#09090b] text-white overflow-hidden select-none">
+    <div className="flex-1 flex flex-col h-full bg-[var(--ds-bg)] text-white overflow-hidden select-none">
       {/* Top Bar */}
-      <div className="px-8 py-5 border-b border-white/5 bg-zinc-950/60 backdrop-blur-md flex items-center justify-between">
+      <div className="px-8 py-5 border-b border-[var(--ds-border-subtle)] bg-[var(--ds-bg-raised)]/80 backdrop-blur-md flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
             <Unlock size={20} />

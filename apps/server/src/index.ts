@@ -2,7 +2,13 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { findAvailablePort } from './utils/port';
 import { openDb, closeDb } from './db/connection';
-import { registerSessionMiddleware, setSessionCookie } from './auth/session';
+import {
+  registerSessionMiddleware,
+  setSessionCookie,
+  isAllowedOrigin,
+  SESSION_TOKEN,
+} from './auth/session';
+import { registerSecurityHeaders } from './auth/security-headers';
 import { registerAuthRoutes } from './routes/auth';
 import { registerSyncRoutes } from './routes/sync';
 import { registerFileRoutes } from './routes/files';
@@ -23,23 +29,30 @@ async function main(): Promise<void> {
   const app = Fastify({
     logger: {
       level: LOG_LEVEL,
-      // Redact sensitive fields from all log output
+      // Redact sensitive secrets and tokens from all log output
       redact: {
         paths: [
           'req.headers.cookie',
           'req.headers.authorization',
           '*.access_token',
+          '*.accessToken',
           '*.refresh_token',
+          '*.refreshToken',
           '*.client_secret',
           '*.clientSecret',
+          '*.password',
+          '*.token',
+          '*.code_verifier',
+          '*.canaryCiphertext',
+          '*.encryptedPayloadBase64',
         ],
-        remove: true,
+        censor: '[REDACTED]',
       },
     },
   });
 
   // -------------------------------------------------------------------------
-  // CORS — allow only localhost origins (loopback)
+  // CORS — allow only verified loopback and Tauri origins
   // -------------------------------------------------------------------------
   await app.register(cors, {
     origin: (origin, cb) => {
@@ -48,29 +61,38 @@ async function main(): Promise<void> {
         cb(null, true);
         return;
       }
-      // Allow any loopback origin (127.0.0.1 or localhost, any port)
-      const loopback = /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/;
-      if (loopback.test(origin)) {
+      if (
+        isAllowedOrigin(origin, { isProduction: process.env['NODE_ENV'] === 'production', port })
+      ) {
         cb(null, true);
       } else {
         cb(new Error('CORS: origin not allowed'), false);
       }
     },
     credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-session-token', 'Range'],
+    exposedHeaders: ['Content-Range', 'Accept-Ranges', 'Content-Length'],
   });
 
   // -------------------------------------------------------------------------
-  // Security headers
+  // Baseline defensive security headers
   // -------------------------------------------------------------------------
-  app.addHook('onSend', (_req, reply, _payload, done) => {
-    reply.header('X-Content-Type-Options', 'nosniff');
-    reply.header('X-Frame-Options', 'DENY');
-    reply.header('Referrer-Policy', 'same-origin');
-    reply.header(
-      'Content-Security-Policy',
-      "default-src 'self'; img-src 'self' https://lh3.googleusercontent.com data:; style-src 'self' 'unsafe-inline'; script-src 'self'",
-    );
-    done();
+  await registerSecurityHeaders(app);
+
+  // -------------------------------------------------------------------------
+  // Content Type Parsers — gracefully allow empty JSON bodies for POST/PUT routes
+  // -------------------------------------------------------------------------
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => {
+    if (!body || (typeof body === 'string' && body.trim() === '')) {
+      done(null, {});
+      return;
+    }
+    try {
+      const json: unknown = JSON.parse(body as string);
+      done(null, json);
+    } catch (err) {
+      done(err as Error, undefined);
+    }
   });
 
   // -------------------------------------------------------------------------
@@ -93,16 +115,147 @@ async function main(): Promise<void> {
 
   app.get('/health', async (_req, reply) => {
     setSessionCookie(reply, port);
-    return { status: 'ok', version: '0.1.0' };
+    return { status: 'ok', version: '0.1.0', sessionToken: SESSION_TOKEN };
   });
 
   /**
-   * Root ping / bootstrap.
+   * Root ping / bootstrap / OAuth redirect completion page.
    */
 
-  app.get('/', async (_req, reply) => {
+  app.get('/', async (req, reply) => {
     setSessionCookie(reply, port);
-    return { status: 'ok', message: 'DriveShell API server' };
+    const qs = req.query as Record<string, string | undefined>;
+
+    if (qs['auth_success'] === '1') {
+      reply.type('text/html');
+      return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Account Connected — Sunflower Drive</title>
+  <style>
+    body {
+      margin: 0;
+      background: #09090b;
+      color: #fafafa;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .card {
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 16px;
+      padding: 36px 32px;
+      max-width: 400px;
+      text-align: center;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+    .icon {
+      font-size: 44px;
+      margin-bottom: 16px;
+    }
+    h1 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      margin: 0 0 8px 0;
+      color: #a3e635;
+    }
+    p {
+      color: #a1a1aa;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      margin: 0 0 24px 0;
+    }
+    .btn {
+      display: inline-block;
+      background: #a3e635;
+      color: #09090b;
+      font-weight: 600;
+      font-size: 0.9rem;
+      padding: 10px 24px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.2s;
+    }
+    .btn:hover {
+      background: #bef264;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">🌻</div>
+    <h1>Account Connected!</h1>
+    <p>Your Google account was successfully linked. You can close this tab and return to <strong>Sunflower Drive</strong>.</p>
+    <button class="btn" onclick="window.close()">Close tab</button>
+  </div>
+</body>
+</html>`;
+    }
+
+    if (qs['auth_error']) {
+      reply.type('text/html');
+      return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Authentication Error — Sunflower Drive</title>
+  <style>
+    body {
+      margin: 0;
+      background: #09090b;
+      color: #fafafa;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .card {
+      background: #18181b;
+      border: 1px solid #ef4444;
+      border-radius: 16px;
+      padding: 36px 32px;
+      max-width: 400px;
+      text-align: center;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+    .icon {
+      font-size: 44px;
+      margin-bottom: 16px;
+    }
+    h1 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      margin: 0 0 8px 0;
+      color: #ef4444;
+    }
+    p {
+      color: #a1a1aa;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      margin: 0 0 24px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">⚠️</div>
+    <h1>Authentication Failed</h1>
+    <p>Google authentication could not be completed: <code>${encodeURIComponent(qs['auth_error'])}</code>.<br>Please return to Sunflower Drive and try again.</p>
+  </div>
+</body>
+</html>`;
+    }
+
+    return { status: 'ok', message: 'Sunflower Drive API server' };
   });
 
   // Auth + setup routes (Phase 1)
@@ -149,7 +302,7 @@ async function main(): Promise<void> {
   await app.listen({ port, host: '127.0.0.1' });
 
   // Print a clean startup line regardless of log level
-  process.stdout.write(`\n  ✓ DriveShell server  http://127.0.0.1:${port}\n\n`);
+  process.stdout.write(`\n  ✓ Sunflower Drive server  http://127.0.0.1:${port}\n\n`);
 }
 
 main().catch((err: unknown) => {

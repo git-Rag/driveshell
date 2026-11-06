@@ -10,9 +10,17 @@ dist/
 build/
 out/
 *.tsbuildinfo
+src-tauri/target/
+src-tauri/resources/
 
-# Local data (never commit — contains your Drive index and cached thumbnails)
+# Local data (never commit — contains your Drive index, SQLite DBs, and cached thumbnails)
 data/
+apps/server/data/
+*.db
+*.db-wal
+*.db-shm
+*.db-*
+.kilo/
 
 # Environment
 .env
@@ -45,4 +53,5 @@ pnpm-debug.log*
 
 # Misc
 *.pem
+*.exe
 

@@ -1,0 +1,38 @@
+{
+  "format": "SDV1",
+  "version": 1,
+  "kdf": {
+    "algorithm": "Argon2id",
+    "params": {
+      "m": 65536,
+      "t": 3,
+      "p": 4
+    },
+    "test_password": "correct-horse-battery-staple",
+    "salt_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "derived_kek_hex": "b24fbafef54ba475512a3af30bfe5761a7b0701f17350d12968773ceb2e153b4"
+  },
+  "master_key": {
+    "raw_hex": "fffefdfcfbfaf9f8f7f6f5f4f3f2f1f0000102030405060708090a0b0c0d0e0f",
+    "wrap_iv_hex": "a0a1a2a3a4a5a6a7a8a9aaab",
+    "wrapped_ciphertext_hex": "e37d5b8431d44cb65b1c9bc1b722a548ea0c993ba42dc4f73a6ec5d0bf5e869f",
+    "auth_tag_hex": "f08a8608de1fcdf2be4ff5a8338f0f2f"
+  },
+  "file_key_derivation": {
+    "info": "sunflower-vault-v1-file-key",
+    "file_salt_hex": "b0b1b2b3b4b5b6b7b8b9babbbcbdbebf00112233445566778899aabbccddeeff",
+    "derived_file_key_hex": "d4870beae50ba9a3345c3f8ecf44b91b6f7222d9d54ae448a02fed8b40ba7428"
+  },
+  "header": {
+    "plaintext": "{\"name\":\"contract.pdf\",\"mimeType\":\"application/pdf\",\"size\":1048576}",
+    "iv_hex": "c0c1c2c3c4c5c6c7c8c9cacb",
+    "ciphertext_hex": "539b30c85e9b052a1a7aa8cc88ead074e617d2a24686154a324055d62577c58953b9de34e8614c9d85d4485f3c0ed4592d4350a142614cc282a36b54bf0f34ffd58356",
+    "auth_tag_hex": "0627054ffdf07ecdaaa12d34c0f4e882"
+  },
+  "chunk": {
+    "plaintext_utf8": "Hello, Sunflower Drive encrypted vault specification!",
+    "nonce_hex": "d0d1d2d30000000000000001",
+    "ciphertext_hex": "2c24735f16c1ecd6176a546a455cba59b807ac3b7df826298b6399a99ce1f2fa54ff309bdf84d0f1c668d2a2bbebc4260cd7855e32",
+    "auth_tag_hex": "f588f1346c73d5b5dea91ce4365a374c"
+  }
+}

@@ -207,26 +207,7 @@ function FeatureCard({
   desc: string;
 }) {
   return (
-    <div
-      style={{
-        padding: '16px 18px',
-        borderRadius: 'var(--ds-radius-lg)',
-        border: '1px solid var(--ds-border)',
-        background: 'var(--ds-bg-elevated)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 8,
-        transition: 'border-color 150ms ease, box-shadow 150ms ease',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = 'var(--ds-border-strong)';
-        e.currentTarget.style.boxShadow = 'var(--ds-shadow-sm)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = 'var(--ds-border)';
-        e.currentTarget.style.boxShadow = 'none';
-      }}
-    >
+    <div className="feature-card">
       <span
         style={{
           width: 32,

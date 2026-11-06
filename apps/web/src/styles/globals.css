@@ -156,6 +156,13 @@
     --ds-t-base: 0ms;
     --ds-t-slow: 0ms;
   }
+
+  /* ── Brand ─────────────────────────────────────────────────────────────── */
+  --ds-brand: var(--blue-500);
+  --ds-brand-hover: var(--blue-600);
+  --ds-brand-muted: rgba(59, 130, 246, 0.12);
+  --ds-brand-border: rgba(59, 130, 246, 0.30);
+  --ds-brand-shadow: 0 4px 20px rgba(59, 130, 246, 0.25), 0 2px 8px rgba(59, 130, 246, 0.15);
 }
 
 /* ── Light Theme ────────────────────────────────────────────────────────── */
@@ -191,6 +198,9 @@
   --ds-shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
   --ds-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.07);
   --ds-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12), 0 4px 8px rgba(0, 0, 0, 0.08);
+
+  --ds-brand-muted: rgba(37, 99, 235, 0.08);
+  --ds-brand-border: rgba(37, 99, 235, 0.25);
 }
 
 /* ── Base Reset ─────────────────────────────────────────────────────────── */
@@ -295,8 +305,17 @@ body {
     -webkit-backdrop-filter: blur(20px) saturate(180%);
     border: 1px solid var(--ds-border);
   }
+  [data-theme='light'] .glass {
+    background: rgba(255, 255, 255, 0.75);
+  }
 
   .text-brand {
+    background: var(--ds-brand-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .text-brand-gradient {
     background: var(--ds-brand-gradient);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -305,6 +324,19 @@ body {
 
   .bg-brand {
     background: var(--ds-brand-gradient);
+  }
+  .bg-brand-gradient {
+    background: var(--ds-brand-gradient);
+  }
+
+  .border-brand {
+    border-color: var(--ds-brand-border);
+  }
+  .shadow-brand {
+    box-shadow: var(--ds-brand-shadow);
+  }
+  .ring-brand {
+    --tw-ring-color: var(--ds-brand);
   }
 
   .glow-accent {
@@ -425,5 +457,22 @@ body {
   .wizard-step .btn-ghost {
     width: 100%;
     max-width: 24rem;
+  }
+
+  /* Feature card — WelcomeScreen */
+  .feature-card {
+    padding: 16px 18px;
+    border-radius: var(--ds-radius-lg);
+    border: 1px solid var(--ds-border);
+    background: var(--ds-bg-elevated);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+    cursor: default;
+  }
+  .feature-card:hover {
+    border-color: var(--ds-border-strong);
+    box-shadow: var(--ds-shadow-sm);
   }
 }

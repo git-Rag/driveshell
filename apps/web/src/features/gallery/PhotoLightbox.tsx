@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   X,
   ChevronLeft,
@@ -18,8 +18,12 @@ import {
   FolderPlus,
   Check,
   Plus,
+  Film,
+  Zap,
+  Loader2,
 } from 'lucide-react';
 import type { FileRecord, Album } from '../../lib/api';
+import { MediaThumbnail } from './MediaThumbnail';
 import {
   getMediaThumbUrl,
   getMediaStreamUrl,
@@ -28,6 +32,7 @@ import {
   listAlbums,
   createAlbum,
   addItemsToAlbum,
+  transcodeVideo,
 } from '../../lib/api';
 
 interface PhotoLightboxProps {
@@ -57,12 +62,38 @@ function formatFullDate(ms: number | null): string {
   });
 }
 
+// Session cache to prevent re-requesting failed video streams
+const failedVideoPlaybackSet = new Set<string>();
+
+export function isVideoPlaybackFailed(fileId: string): boolean {
+  return failedVideoPlaybackSet.has(fileId);
+}
+
+export function markVideoPlaybackFailed(fileId: string): void {
+  failedVideoPlaybackSet.add(fileId);
+}
+
+export function detectProbableCodec(fileName: string, mimeType: string): string {
+  const lowerName = fileName.toLowerCase();
+  if (lowerName.endsWith('.mts') || lowerName.endsWith('.m2ts')) {
+    return 'MPEG-2 Transport Stream (AVCHD)';
+  }
+  if (lowerName.includes('snapchat') || lowerName.endsWith('.mp4')) {
+    return 'HEVC / H.265';
+  }
+  if (lowerName.endsWith('.mov') || mimeType === 'video/quicktime') {
+    return 'Apple ProRes / HEVC';
+  }
+  return 'HEVC / H.265 or Unsupported Codec';
+}
+
 export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: PhotoLightboxProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [showInfo, setShowInfo] = useState(false);
   const [isZoomed, setIsZoomed] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [highResLoaded, setHighResLoaded] = useState(false);
+  const [photoFailed, setPhotoFailed] = useState(false);
 
   // Album Picker modal state
   const [showAlbumPicker, setShowAlbumPicker] = useState(false);
@@ -74,13 +105,87 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
 
   const file = files[currentIndex];
   const isVideo = file?.mime_type?.startsWith('video/') ?? false;
+  const [videoFailed, setVideoFailed] = useState(false);
+  const [isTranscoding, setIsTranscoding] = useState(false);
+  const [useTranscodeStream, setUseTranscodeStream] = useState<Record<string, boolean>>({});
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Sync failed video state on item switch
+  useEffect(() => {
+    setIsTranscoding(false);
+    if (file) {
+      setVideoFailed(isVideoPlaybackFailed(file.id));
+    }
+  }, [file, currentIndex]);
+
+  // Pause and release video resources on index change or unmount
+  useEffect(() => {
+    const videoEl = videoRef.current;
+    return () => {
+      if (videoEl) {
+        videoEl.pause();
+        videoEl.removeAttribute('src');
+        videoEl.load();
+      }
+    };
+  }, [currentIndex]);
+
+  // Volume & mute persistence across video sessions
+  useEffect(() => {
+    if (videoRef.current && isVideo) {
+      const savedVol = localStorage.getItem('ds_video_volume');
+      const savedMuted = localStorage.getItem('ds_video_muted');
+      if (savedVol !== null) videoRef.current.volume = parseFloat(savedVol);
+      if (savedMuted !== null) videoRef.current.muted = savedMuted === 'true';
+    }
+  }, [currentIndex, isVideo, videoFailed]);
+
+  const handleVolumeChange = useCallback(() => {
+    if (videoRef.current) {
+      localStorage.setItem('ds_video_volume', videoRef.current.volume.toString());
+      localStorage.setItem('ds_video_muted', videoRef.current.muted.toString());
+    }
+  }, []);
+
+  const startTranscoding = useCallback(async (fileId: string) => {
+    setIsTranscoding(true);
+    setVideoFailed(false);
+    try {
+      const res = await transcodeVideo(fileId);
+      if (res.ready) {
+        setUseTranscodeStream((prev) => ({ ...prev, [fileId]: true }));
+        setVideoFailed(false);
+      } else {
+        setVideoFailed(true);
+      }
+    } catch {
+      setVideoFailed(true);
+    } finally {
+      setIsTranscoding(false);
+    }
+  }, []);
+
+  const handleVideoError = useCallback(
+    (fileId: string) => {
+      if (isTranscoding) return;
+      // When native playback is not supported by the browser, display the fallback
+      // options panel (Transcode & Play, Open in Drive, Download)
+      setIsTranscoding(false);
+      markVideoPlaybackFailed(fileId);
+      setVideoFailed(true);
+    },
+    [isTranscoding],
+  );
 
   // Reset display states on image switch
   useEffect(() => {
     setHighResLoaded(false);
+    setPhotoFailed(false);
     setIsZoomed(false);
     setRotation(0);
     setAddedAlbumId(null);
+    setVideoFailed(false);
+    setIsTranscoding(false);
   }, [currentIndex]);
 
   // Intelligent deferred pre-fetching: ONLY after the active photo is fully loaded
@@ -297,18 +402,122 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
 
         {/* Media Canvas Area */}
         <div className="flex-1 flex items-center justify-center p-4 relative overflow-hidden">
-          {isVideo ? (
-            /* High performance video streaming with seek range support */
+          {isVideo &&
+          (videoFailed || isVideoPlaybackFailed(file.id)) &&
+          !useTranscodeStream[file.id] ? (
+            /* Clear Unsupported Format Fallback Panel (Tier 1 & Tier 2) */
+            <div
+              data-testid="unsupported-video-panel"
+              className="relative max-h-[82vh] max-w-xl w-full rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-zinc-950/90 flex flex-col items-center justify-center p-8 text-center"
+            >
+              {/* Drive thumbnail as blurred background if available */}
+              {file.thumbnail_url && (
+                <img
+                  src={getMediaThumbUrl(file.id, 800)}
+                  alt=""
+                  aria-hidden="true"
+                  className="absolute inset-0 w-full h-full object-cover opacity-20 filter blur-md pointer-events-none"
+                />
+              )}
+
+              <div className="relative z-10 flex flex-col items-center max-w-md">
+                <div className="w-14 h-14 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 mb-4 shadow-lg">
+                  <Film size={28} />
+                </div>
+
+                <h3 className="text-lg font-semibold text-white mb-1.5">
+                  This browser can't play this video's format
+                </h3>
+
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="px-2.5 py-0.5 rounded-full bg-zinc-800 border border-white/10 text-[11px] font-mono font-medium text-amber-300">
+                    {detectProbableCodec(file.name, file.mime_type)}
+                  </span>
+                  <span className="text-xs text-zinc-400 truncate max-w-[200px]">
+                    • {file.name}
+                  </span>
+                </div>
+
+                <p className="text-xs text-zinc-300 leading-relaxed mb-6">
+                  This video is encoded in a format that your current browser cannot decode
+                  natively. You can transcode it on-the-fly to universal H.264, open it in Google
+                  Drive, or download the original file.
+                </p>
+
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  <button
+                    type="button"
+                    data-testid="transcode-play-btn"
+                    onClick={() => {
+                      void startTranscoding(file.id);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white active:scale-95 transition-all shadow-md cursor-pointer"
+                  >
+                    <Zap size={14} />
+                    Transcode &amp; Play (H.264)
+                  </button>
+
+                  {file.web_view_link && (
+                    <a
+                      href={file.web_view_link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-brand text-white hover:opacity-90 active:scale-95 transition-all shadow-md"
+                    >
+                      <ExternalLink size={14} />
+                      Open in Drive
+                    </a>
+                  )}
+                  <a
+                    href={getMediaDownloadUrl(file.id)}
+                    download
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium bg-white/10 hover:bg-white/20 text-white border border-white/10 active:scale-95 transition-all shadow-md"
+                  >
+                    <Download size={14} />
+                    Download
+                  </a>
+                </div>
+              </div>
+            </div>
+          ) : isVideo ? (
+            /* High performance video streaming with seek range support & transcode */
             <div className="relative max-h-[85vh] max-w-[85vw] flex items-center justify-center">
+              {isTranscoding && (
+                <div className="absolute inset-0 z-20 rounded-xl bg-black/85 backdrop-blur-md flex flex-col items-center justify-center gap-3 p-6 text-center border border-white/10">
+                  <Loader2 size={36} className="text-emerald-400 animate-spin" />
+                  <p className="text-sm font-semibold text-white">Transcoding with FFmpeg...</p>
+                  <p className="text-xs text-zinc-400 max-w-xs">
+                    Converting stream to H.264 with FastStart seeking. Playback starts
+                    automatically.
+                  </p>
+                </div>
+              )}
               <video
+                ref={videoRef}
                 controls
                 autoPlay
                 playsInline
-                src={getMediaStreamUrl(file.id)}
+                preload="metadata"
+                src={
+                  useTranscodeStream[file.id]
+                    ? getMediaStreamUrl(file.id, undefined, true)
+                    : getMediaStreamUrl(file.id)
+                }
+                onCanPlay={() => setIsTranscoding(false)}
+                onPlaying={() => setIsTranscoding(false)}
+                onError={() => handleVideoError(file.id)}
+                onVolumeChange={handleVolumeChange}
                 className="max-h-[82vh] max-w-[85vw] rounded-xl shadow-2xl bg-black border border-white/10 outline-none"
               >
                 Your browser does not support HTML5 video streaming.
               </video>
+            </div>
+          ) : photoFailed ? (
+            /* Fallback when photo has genuinely failed to load */
+            <div className="flex flex-col items-center justify-center p-12 bg-zinc-900/80 border border-white/10 rounded-2xl text-center select-none max-w-md">
+              <Camera size={48} className="text-zinc-600 mb-3" />
+              <span className="text-sm font-medium text-white mb-1">{file.name}</span>
+              <span className="text-xs text-zinc-500">Preview not available from Google Drive</span>
             </div>
           ) : (
             /* High resolution photo presentation with Instant Blur-Up + Crossfade */
@@ -337,6 +546,10 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
                 fetchPriority="high"
                 decoding="async"
                 onLoad={() => setHighResLoaded(true)}
+                onError={() => {
+                  setPhotoFailed(true);
+                  setHighResLoaded(true);
+                }}
                 className={`max-h-[82vh] max-w-[85vw] object-contain rounded-lg shadow-2xl transition-opacity duration-300 ease-out select-none ${
                   highResLoaded ? 'opacity-100' : 'opacity-0 absolute'
                 }`}
@@ -397,16 +610,9 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
                     : 'border-white/20 opacity-50 hover:opacity-100 hover:border-white/50'
                 }`}
               >
-                <img
-                  src={getMediaThumbUrl(f.id, 400)}
-                  alt={f.name}
-                  loading="lazy"
-                  fetchPriority="low"
-                  decoding="async"
-                  className="w-full h-full object-cover"
-                />
+                <MediaThumbnail file={f} size={400} />
                 {f.mime_type.startsWith('video/') && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
                     <Play size={10} className="text-white fill-white" />
                   </div>
                 )}

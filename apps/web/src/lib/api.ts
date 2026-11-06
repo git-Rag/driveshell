@@ -16,44 +16,133 @@ export class ApiError extends Error {
   }
 }
 
+export function isTauriDesktop(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    (Boolean((window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__) ||
+      window.location.origin.includes('tauri.localhost') ||
+      window.location.protocol === 'tauri:')
+  );
+}
+
+export function getApiBase(): string {
+  return isTauriDesktop() ? 'http://127.0.0.1:3001' : '';
+}
+
+const SESSION_STORAGE_KEY = 'sunflower_session_token';
+
+let activeSessionToken: string | null =
+  typeof window !== 'undefined' ? window.sessionStorage.getItem(SESSION_STORAGE_KEY) : null;
 let sessionPromise: Promise<void> | null = null;
+let lastSessionAttempt = 0;
+
+function getValidToken(): string | null {
+  if (activeSessionToken) return activeSessionToken;
+  try {
+    return typeof window !== 'undefined'
+      ? window.sessionStorage.getItem(SESSION_STORAGE_KEY)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchHealthWithRetry(
+  apiBase: string,
+  credentialsMode: RequestCredentials,
+): Promise<{ sessionToken?: string }> {
+  const maxAttempts = isTauriDesktop() ? 10 : 1;
+  let lastErr: unknown;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const res = await fetch(`${apiBase}/health`, { credentials: credentialsMode });
+      if (res.ok) {
+        try {
+          const data = (await res.json()) as { sessionToken?: string };
+          if (data.sessionToken) {
+            activeSessionToken = data.sessionToken;
+            try {
+              window.sessionStorage.setItem(SESSION_STORAGE_KEY, data.sessionToken);
+            } catch {
+              /* ignore */
+            }
+          }
+          return data;
+        } catch {
+          return {};
+        }
+      }
+      throw new Error(`Failed to bootstrap session: ${res.status}`);
+    } catch (err) {
+      lastErr = err;
+      if (attempt < maxAttempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
+    }
+  }
+  throw lastErr;
+}
 
 export async function ensureSession(): Promise<void> {
-  if (!sessionPromise) {
-    sessionPromise = fetch('/health', { credentials: 'same-origin' })
-      .then((res) => {
-        if (!res.ok) throw new Error('Failed to bootstrap session');
-      })
-      .catch((err: unknown) => {
-        sessionPromise = null;
-        throw err;
-      });
+  if (sessionPromise) return sessionPromise;
+
+  const now = Date.now();
+  if (now - lastSessionAttempt < 1500) {
+    await new Promise((resolve) => setTimeout(resolve, 1500 - (now - lastSessionAttempt)));
   }
+
+  lastSessionAttempt = Date.now();
+  const apiBase = getApiBase();
+  const credentialsMode: RequestCredentials = isTauriDesktop() ? 'include' : 'same-origin';
+
+  sessionPromise = fetchHealthWithRetry(apiBase, credentialsMode)
+    .then((body) => {
+      if (body.sessionToken) {
+        activeSessionToken = body.sessionToken;
+      }
+    })
+    .catch((err: unknown) => {
+      sessionPromise = null;
+      throw err;
+    });
   return sessionPromise;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   await ensureSession();
-  let res = await fetch(path, {
-    credentials: 'same-origin', // always send cookies
+  const apiBase = getApiBase();
+  const fullUrl =
+    path.startsWith('http://') || path.startsWith('https://') ? path : `${apiBase}${path}`;
+  const credentialsMode: RequestCredentials = isTauriDesktop() ? 'include' : 'same-origin';
+
+  const headers: Record<string, string> = {
+    ...((init?.headers as Record<string, string> | undefined) ?? {}),
+  };
+  if (init?.body !== undefined) {
+    headers['Content-Type'] ??= 'application/json';
+  }
+  if (activeSessionToken) {
+    headers['x-session-token'] = activeSessionToken;
+  }
+
+  let res = await fetch(fullUrl, {
+    credentials: credentialsMode,
     ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
+    headers,
   });
 
   // If unauthorized, re-bootstrap session once (e.g. server restarted and token changed)
   if (res.status === 401) {
     sessionPromise = null;
     await ensureSession();
-    res = await fetch(path, {
-      credentials: 'same-origin',
+    if (activeSessionToken) {
+      headers['x-session-token'] = activeSessionToken;
+    }
+    res = await fetch(fullUrl, {
+      credentials: credentialsMode,
       ...init,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(init?.headers ?? {}),
-      },
+      headers,
     });
   }
 
@@ -99,9 +188,30 @@ export function saveCredentials(clientId: string, clientSecret: string): Promise
   });
 }
 
-/** Navigate the browser to the Google consent screen (server redirects). */
+/** Navigate the browser to the Google consent screen (opens system browser in desktop mode). */
 export function startAuth(scope: 'readonly' | 'full' = 'readonly'): void {
-  window.location.href = `/api/auth/start?scope=${scope}`;
+  const apiBase = getApiBase();
+  const targetUrl = `${apiBase}/api/auth/start?scope=${scope}`;
+  if (isTauriDesktop()) {
+    try {
+      const internals = (
+        window as unknown as {
+          __TAURI_INTERNALS__?: {
+            invoke: (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
+          };
+        }
+      ).__TAURI_INTERNALS__;
+      if (internals?.invoke) {
+        void internals.invoke('open_browser', { url: targetUrl });
+        return;
+      }
+    } catch {
+      // fallback to window.open
+    }
+    window.open(targetUrl, '_blank');
+    return;
+  }
+  window.location.href = targetUrl;
 }
 
 // ---------------------------------------------------------------------------
@@ -130,6 +240,7 @@ export function getSyncStatus(): Promise<SyncStatus> {
 export function triggerSync(accountId: string): Promise<{ ok: boolean; message: string }> {
   return request<{ ok: boolean; message: string }>(`/api/sync/start/${accountId}`, {
     method: 'POST',
+    body: JSON.stringify({}),
   });
 }
 
@@ -143,7 +254,11 @@ export interface SyncProgressEvent {
 
 /** Subscribe to sync progress SSE events. Returns an unsubscribe function. */
 export function subscribeSyncProgress(onEvent: (e: SyncProgressEvent) => void): () => void {
-  const es = new EventSource('/api/sync/progress', { withCredentials: true });
+  const apiBase = getApiBase();
+  const tokenParam = activeSessionToken ? `?token=${encodeURIComponent(activeSessionToken)}` : '';
+  const es = new EventSource(`${apiBase}/api/sync/progress${tokenParam}`, {
+    withCredentials: true,
+  });
   es.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data as string) as SyncProgressEvent;
@@ -179,6 +294,10 @@ export interface FileRecord {
   web_view_link: string | null;
   image_width: number | null;
   image_height: number | null;
+  duration_ms?: number | null;
+  is_media?: number;
+  is_hidden?: number;
+  hidden_reason?: string | null;
   taken_at: number | null;
   camera_make: string | null;
   camera_model: string | null;
@@ -263,9 +382,16 @@ export function getPhotos(opts: {
 
 export const listPhotos = getPhotos;
 
-export function getPhotoMonths(accountId?: string): Promise<MonthsResponse> {
+export function getPhotoMonths(
+  opts?: { accountId?: string; type?: 'all' | 'photos' | 'videos' } | string,
+): Promise<MonthsResponse> {
   const params = new URLSearchParams();
-  if (accountId) params.set('accountId', accountId);
+  if (typeof opts === 'string') {
+    params.set('accountId', opts);
+  } else if (opts) {
+    if (opts.accountId) params.set('accountId', opts.accountId);
+    if (opts.type) params.set('type', opts.type);
+  }
   return request<MonthsResponse>(`/api/files/months?${params.toString()}`);
 }
 
@@ -339,19 +465,49 @@ export function searchFiles(opts: {
 export function getMediaThumbUrl(fileId: string, size = 400, accountId?: string): string {
   const params = new URLSearchParams({ size: String(size) });
   if (accountId) params.set('accountId', accountId);
-  return `/api/media/${encodeURIComponent(fileId)}/thumb?${params.toString()}`;
+  const token = getValidToken();
+  if (token) params.set('token', token);
+  return `${getApiBase()}/api/media/${encodeURIComponent(fileId)}/thumb?${params.toString()}`;
 }
 
-export function getMediaStreamUrl(fileId: string, accountId?: string): string {
+export function getMediaStreamUrl(fileId: string, accountId?: string, transcode?: boolean): string {
   const params = new URLSearchParams();
   if (accountId) params.set('accountId', accountId);
-  return `/api/media/${encodeURIComponent(fileId)}/stream?${params.toString()}`;
+  if (transcode) params.set('transcode', '1');
+  const token = getValidToken();
+  if (token) params.set('token', token);
+  const qs = params.toString();
+  return `${getApiBase()}/api/media/${encodeURIComponent(fileId)}/stream${qs ? `?${qs}` : ''}`;
 }
 
 export function getMediaDownloadUrl(fileId: string, accountId?: string): string {
   const params = new URLSearchParams();
   if (accountId) params.set('accountId', accountId);
-  return `/api/media/${encodeURIComponent(fileId)}/download?${params.toString()}`;
+  const token = getValidToken();
+  if (token) params.set('token', token);
+  const qs = params.toString();
+  return `${getApiBase()}/api/media/${encodeURIComponent(fileId)}/download${qs ? `?${qs}` : ''}`;
+}
+
+export interface TranscodeResponse {
+  ready: boolean;
+  cached?: boolean;
+}
+
+export async function transcodeVideo(
+  fileId: string,
+  accountId?: string,
+): Promise<TranscodeResponse> {
+  const params = new URLSearchParams();
+  if (accountId) params.set('accountId', accountId);
+  const qs = params.toString();
+  return request<TranscodeResponse>(
+    `/api/media/${encodeURIComponent(fileId)}/transcode${qs ? `?${qs}` : ''}`,
+    {
+      method: 'POST',
+      body: JSON.stringify({}),
+    },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -551,5 +707,6 @@ export function resetVault(accountId?: string): Promise<{ ok: boolean }> {
   if (accountId) params.set('accountId', accountId);
   return request<{ ok: boolean }>(`/api/vault/reset?${params.toString()}`, {
     method: 'POST',
+    body: JSON.stringify({}),
   });
 }

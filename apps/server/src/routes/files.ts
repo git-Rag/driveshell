@@ -18,36 +18,39 @@ import type { Db } from '../db/connection';
 import { buildFileQueries } from '../db/queries/files';
 import { buildAccountQueries } from '../db/queries/accounts';
 
-interface PhotosQuery {
-  accountId?: string;
-  offset?: string;
-  limit?: string;
-  type?: 'all' | 'photos' | 'videos' | 'favorites';
-  year?: string;
-  month?: string;
-}
+const PhotosQuerySchema = z.object({
+  accountId: z.string().optional(),
+  offset: z.coerce.number().int().min(0).default(0),
+  limit: z.coerce.number().int().min(1).max(200).default(120),
+  type: z.enum(['all', 'photos', 'videos', 'favorites']).default('all'),
+  year: z.coerce.number().int().min(1970).max(2100).optional(),
+  month: z
+    .string()
+    .regex(/^\d{4}-\d{2}$/)
+    .optional(),
+});
 
-interface ListQuery {
-  accountId?: string;
-  offset?: string;
-  limit?: string;
-}
+const ListQuerySchema = z.object({
+  accountId: z.string().optional(),
+  offset: z.coerce.number().int().min(0).default(0),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+});
 
-interface BrowseQuery {
-  accountId?: string;
-  parentId?: string;
-  offset?: string;
-  limit?: string;
-  search?: string;
-  sortBy?: 'name' | 'modified_at' | 'size_bytes';
-  sortDir?: 'asc' | 'desc';
-}
+const BrowseQuerySchema = z.object({
+  accountId: z.string().optional(),
+  parentId: z.string().optional(),
+  offset: z.coerce.number().int().min(0).default(0),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  search: z.string().max(200).optional(),
+  sortBy: z.enum(['name', 'modified_at', 'size_bytes']).optional(),
+  sortDir: z.enum(['asc', 'desc']).optional(),
+});
 
-interface SearchQuery {
-  accountId?: string;
-  q?: string;
-  limit?: string;
-}
+const SearchQuerySchema = z.object({
+  accountId: z.string().optional(),
+  q: z.string().min(1).max(200),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
 
 const UpdateFileSchema = z.object({
   name: z.string().min(1).optional(),
@@ -77,49 +80,48 @@ export async function registerFileRoutes(app: FastifyInstance, db: Db): Promise<
   // GET /api/files/list
   // -------------------------------------------------------------------------
 
-  app.get(
-    '/api/files/list',
-    async (req: FastifyRequest<{ Querystring: ListQuery }>, reply: FastifyReply) => {
-      const accountId = resolveAccountId(req.query.accountId);
-      if (!accountId) return reply.code(404).send({ error: 'No account found' });
+  app.get('/api/files/list', async (req: FastifyRequest, reply: FastifyReply) => {
+    const parsed = ListQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return reply
+        .code(400)
+        .send({ error: 'Invalid query parameters', details: parsed.error.format() });
+    }
+    const { offset, limit } = parsed.data;
+    const accountId = resolveAccountId(parsed.data.accountId);
+    if (!accountId) return reply.code(404).send({ error: 'No account found' });
 
-      const offset = Math.max(0, parseInt(req.query.offset ?? '0', 10) || 0);
-      const limit = Math.min(200, Math.max(1, parseInt(req.query.limit ?? '50', 10) || 50));
+    const files = fileQ.listFiles(accountId, { offset, limit });
+    const total = fileQ.countByAccount(accountId);
 
-      const files = fileQ.listFiles(accountId, { offset, limit });
-      const total = fileQ.countByAccount(accountId);
-
-      return reply.send({ files, total, offset, limit });
-    },
-  );
+    return reply.send({ files, total, offset, limit });
+  });
 
   // -------------------------------------------------------------------------
   // GET /api/files/photos — Progressive loading & filtering
   // -------------------------------------------------------------------------
 
-  app.get(
-    '/api/files/photos',
-    async (req: FastifyRequest<{ Querystring: PhotosQuery }>, reply: FastifyReply) => {
-      const accountId = resolveAccountId(req.query.accountId);
-      if (!accountId) return reply.code(404).send({ error: 'No account found' });
+  app.get('/api/files/photos', async (req: FastifyRequest, reply: FastifyReply) => {
+    const parsed = PhotosQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return reply
+        .code(400)
+        .send({ error: 'Invalid query parameters', details: parsed.error.format() });
+    }
+    const { offset, limit, type, year, month } = parsed.data;
+    const accountId = resolveAccountId(parsed.data.accountId);
+    if (!accountId) return reply.code(404).send({ error: 'No account found' });
 
-      const offset = Math.max(0, parseInt(req.query.offset ?? '0', 10) || 0);
-      const limit = Math.min(200, Math.max(1, parseInt(req.query.limit ?? '120', 10) || 120));
-      const year = req.query.year ? parseInt(req.query.year, 10) : undefined;
-      const month = req.query.month;
-      const type = req.query.type ?? 'all';
+    const { files, total } = fileQ.listPhotos(accountId, {
+      offset,
+      limit,
+      type,
+      year,
+      month,
+    });
 
-      const { files, total } = fileQ.listPhotos(accountId, {
-        offset,
-        limit,
-        type,
-        year: isNaN(year ?? NaN) ? undefined : year,
-        month,
-      });
-
-      return reply.send({ files, total, offset, limit });
-    },
-  );
+    return reply.send({ files, total, offset, limit });
+  });
 
   // -------------------------------------------------------------------------
   // GET /api/files/months — Timeline groupings
@@ -127,12 +129,18 @@ export async function registerFileRoutes(app: FastifyInstance, db: Db): Promise<
 
   app.get(
     '/api/files/months',
-    async (req: FastifyRequest<{ Querystring: { accountId?: string } }>, reply: FastifyReply) => {
+    async (
+      req: FastifyRequest<{
+        Querystring: { accountId?: string; type?: 'all' | 'photos' | 'videos' };
+      }>,
+      reply: FastifyReply,
+    ) => {
       const accountId = resolveAccountId(req.query.accountId);
       if (!accountId) return reply.code(404).send({ error: 'No account found' });
 
-      const months = fileQ.getPhotoMonths(accountId);
-      const total = fileQ.countPhotos(accountId);
+      const type = req.query.type;
+      const months = fileQ.getPhotoMonths(accountId, type);
+      const total = fileQ.countPhotos(accountId, type);
 
       return reply.send({ months, total });
     },
@@ -142,50 +150,49 @@ export async function registerFileRoutes(app: FastifyInstance, db: Db): Promise<
   // GET /api/files/browse — Folder drilldown with sorting & count
   // -------------------------------------------------------------------------
 
-  app.get(
-    '/api/files/browse',
-    async (req: FastifyRequest<{ Querystring: BrowseQuery }>, reply: FastifyReply) => {
-      const accountId = resolveAccountId(req.query.accountId);
-      if (!accountId) return reply.code(404).send({ error: 'No account found' });
+  app.get('/api/files/browse', async (req: FastifyRequest, reply: FastifyReply) => {
+    const parsed = BrowseQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return reply
+        .code(400)
+        .send({ error: 'Invalid query parameters', details: parsed.error.format() });
+    }
+    const { parentId: rawParentId, offset, limit, search, sortBy, sortDir } = parsed.data;
+    const accountId = resolveAccountId(parsed.data.accountId);
+    if (!accountId) return reply.code(404).send({ error: 'No account found' });
 
-      const parentId =
-        req.query.parentId && req.query.parentId !== 'root' ? req.query.parentId : null;
-      const offset = Math.max(0, parseInt(req.query.offset ?? '0', 10) || 0);
-      const limit = Math.min(200, Math.max(1, parseInt(req.query.limit ?? '50', 10) || 50));
+    const parentId = rawParentId && rawParentId !== 'root' ? rawParentId : null;
+    const { files, total } = fileQ.listByParent(accountId, parentId, {
+      offset,
+      limit,
+      search,
+      sortBy,
+      sortDir,
+    });
 
-      const { files, total } = fileQ.listByParent(accountId, parentId, {
-        offset,
-        limit,
-        search: req.query.search,
-        sortBy: req.query.sortBy,
-        sortDir: req.query.sortDir,
-      });
+    const breadcrumbs = fileQ.getBreadcrumbs(accountId, parentId);
 
-      const breadcrumbs = fileQ.getBreadcrumbs(accountId, parentId);
-
-      return reply.send({ files, total, offset, limit, breadcrumbs, parentId });
-    },
-  );
+    return reply.send({ files, total, offset, limit, breadcrumbs, parentId });
+  });
 
   // -------------------------------------------------------------------------
   // GET /api/files/search
   // -------------------------------------------------------------------------
 
-  app.get(
-    '/api/files/search',
-    async (req: FastifyRequest<{ Querystring: SearchQuery }>, reply: FastifyReply) => {
-      const accountId = resolveAccountId(req.query.accountId);
-      if (!accountId) return reply.code(404).send({ error: 'No account found' });
+  app.get('/api/files/search', async (req: FastifyRequest, reply: FastifyReply) => {
+    const parsed = SearchQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return reply
+        .code(400)
+        .send({ error: 'Invalid query parameters', details: parsed.error.format() });
+    }
+    const { q, limit } = parsed.data;
+    const accountId = resolveAccountId(parsed.data.accountId);
+    if (!accountId) return reply.code(404).send({ error: 'No account found' });
 
-      const q = (req.query.q ?? '').trim();
-      if (!q) return reply.send({ files: [], query: q, limit: 50 });
-
-      const limit = Math.min(100, Math.max(1, parseInt(req.query.limit ?? '50', 10) || 50));
-      const files = fileQ.searchFiles(accountId, q, limit);
-
-      return reply.send({ files, query: q, limit });
-    },
-  );
+    const files = fileQ.searchFiles(accountId, q, limit);
+    return reply.send({ files, query: q, limit });
+  });
 
   // -------------------------------------------------------------------------
   // PATCH /api/files/:fileId — Star, Rename, Trash

@@ -9,6 +9,8 @@ import { FilesView } from './features/files/FilesView';
 import { VaultView } from './features/vault/VaultView';
 import { SettingsView } from './features/settings/SettingsView';
 import { useSetupStatus } from './hooks/useSetupStatus';
+import { useSyncStatus } from './hooks/useSyncStatus';
+import { SyncToast } from './components/SyncToast';
 
 // Phase 1: Setup wizard + auth flow wired up.
 // TODO(phase-1): Replace activeId state with React Router location
@@ -57,6 +59,17 @@ export function App() {
   // Poll setup status
   const { status, refresh } = useSetupStatus();
 
+  // Sync state for bottom-left floating popup
+  const {
+    isSyncing,
+    syncPhase,
+    syncEvent,
+    error: syncError,
+    toastDismissed,
+    dismissToast,
+    triggerSync,
+  } = useSyncStatus();
+
   // Handle post-OAuth redirect params (?auth_success=1 or ?auth_error=…)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -95,7 +108,7 @@ export function App() {
           fontSize: '0.875rem',
         }}
       >
-        Starting DriveShell…
+        Starting Sunflower Drive…
       </div>
     );
   }
@@ -130,7 +143,7 @@ export function App() {
       {sidebarOpen && isGallery && (
         <div
           onClick={() => setSidebarOpen(false)}
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity"
+          className="fixed inset-y-0 right-0 left-[232px] bg-black/60 backdrop-blur-sm z-40 transition-opacity"
         />
       )}
 
@@ -196,6 +209,22 @@ export function App() {
           )}
         </main>
       </div>
+
+      {/* Floating Sync Status Toast in Bottom-Left */}
+      <SyncToast
+        sidebarOpen={sidebarOpen}
+        syncPhase={syncPhase}
+        isSyncing={isSyncing}
+        syncEvent={syncEvent}
+        error={syncError}
+        toastDismissed={toastDismissed}
+        onDismiss={dismissToast}
+        onRetry={
+          status.state === 'ready' && status.data.accounts[0]
+            ? () => void triggerSync(status.data.accounts[0]!.id)
+            : undefined
+        }
+      />
     </div>
   );
 }

@@ -34,24 +34,56 @@ export const SESSION_TOKEN: string = crypto.randomBytes(16).toString('hex');
 export const SESSION_COOKIE = 'ds_session';
 
 /** Routes that do NOT require the session token. */
-const EXEMPT_PATHS = new Set(['/auth/callback']);
+const EXEMPT_PATHS = new Set(['/', '/auth/callback', '/api/auth/start', '/auth/start']);
 
 const LOOPBACK_HOST_REGEX = /^(127\.0\.0\.1|localhost)(:\d+)?$/;
-const LOOPBACK_ORIGIN_REGEX = /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/;
+/** Allowed loopback and Tauri desktop origins */
+export const ALLOWED_ORIGIN_REGEX =
+  /^(https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?|tauri:\/\/localhost|https?:\/\/tauri\.localhost)$/;
+
+/**
+ * Validates whether an Origin header is permitted.
+ * In production mode (NODE_ENV === 'production'), dev Vite server origins (:5173) are rejected.
+ */
+export function isAllowedOrigin(
+  origin: string,
+  options: { isProduction?: boolean; port?: number } = {},
+): boolean {
+  if (!origin) return false;
+  if (!ALLOWED_ORIGIN_REGEX.test(origin)) return false;
+
+  const isProd = options.isProduction ?? process.env['NODE_ENV'] === 'production';
+  if (isProd) {
+    try {
+      const parsed = new URL(origin);
+      if (parsed.port === '5173') {
+        return false;
+      }
+    } catch {
+      return false;
+    }
+  }
+
+  return true;
+}
 
 /**
  * Register:
- *  1. `onRequest` hook — DNS rebinding + Origin checks + session validation.
+ *  1. `onRequest` hook — DNS rebinding + Origin checks + Sec-Fetch-Site + session validation.
  *  2. `GET /` passthrough that stamps the session cookie on the first browser load.
  *
  * Call this BEFORE registering any API route plugins.
  */
 // eslint-disable-next-line @typescript-eslint/require-await -- Fastify plugin convention: addHook is synchronous, async used for consistency
-export async function registerSessionMiddleware(app: FastifyInstance, port: number): Promise<void> {
+export async function registerSessionMiddleware(
+  app: FastifyInstance,
+  _port: number,
+): Promise<void> {
   app.addHook(
     'onRequest',
     (req: FastifyRequest, reply: FastifyReply, done: HookHandlerDoneFunction) => {
       const { url, method } = req;
+      const path = url?.split('?')[0] ?? '/';
 
       // -----------------------------------------------------------------------
       // 1. DNS rebinding protection — Host must be a loopback address.
@@ -65,29 +97,109 @@ export async function registerSessionMiddleware(app: FastifyInstance, port: numb
       }
 
       // -----------------------------------------------------------------------
-      // 2. Origin check on state-mutating requests.
+      // Extract session token (cookie, x-session-token, Bearer, or query ?token=)
+      // -----------------------------------------------------------------------
+      const cookieHeader = req.headers['cookie'] ?? '';
+      const cookieToken = parseCookie(cookieHeader, SESSION_COOKIE);
+      const headerToken =
+        (req.headers['x-session-token'] as string | undefined) ??
+        (typeof req.headers['authorization'] === 'string' &&
+        req.headers['authorization'].startsWith('Bearer ')
+          ? req.headers['authorization'].slice(7)
+          : undefined);
+      const queryToken =
+        typeof (req.query as Record<string, string | undefined>)?.['token'] === 'string'
+          ? (req.query as Record<string, string | undefined>)['token']
+          : undefined;
+
+      const token = cookieToken ?? headerToken ?? queryToken;
+      const hasValidToken = Boolean(token && safeEqual(token, SESSION_TOKEN));
+      const explicitToken = headerToken ?? queryToken;
+      const hasExplicitToken = Boolean(explicitToken && safeEqual(explicitToken, SESSION_TOKEN));
+
+      // -----------------------------------------------------------------------
+      // 2. Sec-Fetch-Site check — reject cross-site requests unless from verified desktop client,
+      //    authenticated explicit token holder (header / ?token=), or exempt OAuth endpoints.
+      //    Defends against remote malicious sites issuing requests to localhost.
+      // -----------------------------------------------------------------------
+      const secFetchSite = req.headers['sec-fetch-site'];
+      const origin = req.headers['origin'];
+      const referer = req.headers['referer'];
+      let callerOrigin = origin;
+      if (!callerOrigin && referer) {
+        try {
+          callerOrigin = new URL(referer).origin;
+        } catch {
+          /* ignore invalid referer */
+        }
+      }
+      const isVerifiedDesktop = callerOrigin
+        ? isAllowedOrigin(callerOrigin, {
+            isProduction: process.env['NODE_ENV'] === 'production',
+            port: _port,
+          })
+        : false;
+
+      const isAllowedCrossSite = isVerifiedDesktop || hasExplicitToken || EXEMPT_PATHS.has(path);
+      if (secFetchSite === 'cross-site' && !isAllowedCrossSite) {
+        req.log.warn({ secFetchSite, path }, 'Rejected: Cross-site fetch detected');
+        void reply.code(403).send({ error: 'Forbidden cross-site request' });
+        return;
+      }
+
+      // -----------------------------------------------------------------------
+      // 3. Origin check on state-mutating requests (POST, PUT, PATCH, DELETE).
       // -----------------------------------------------------------------------
       const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
       if (MUTATING.has(method ?? '')) {
-        const origin = req.headers['origin'];
-        if (origin && !LOOPBACK_ORIGIN_REGEX.test(origin)) {
-          req.log.warn({ origin }, 'Rejected: Origin mismatch');
+        if (
+          origin &&
+          !isAllowedOrigin(origin, {
+            isProduction: process.env['NODE_ENV'] === 'production',
+            port: _port,
+          })
+        ) {
+          req.log.warn({ origin, path }, 'Rejected: Forbidden origin on mutating route');
           void reply.code(403).send({ error: 'Forbidden origin' });
           return;
         }
       }
 
       // -----------------------------------------------------------------------
-      // 3. Session token check — all /api/* routes except the exempt list.
+      // 4. Strict Vault Route Protection (/api/vault/*).
+      //    - Reject direct browser navigation (sec-fetch-mode: navigate).
+      //    - Require valid Origin on all requests when Origin header is present.
+      //    - Ensure encrypted payloads are never cached.
       // -----------------------------------------------------------------------
-      const path = url?.split('?')[0] ?? '/';
+      if (path.startsWith('/api/vault')) {
+        const secFetchMode = req.headers['sec-fetch-mode'];
+        if (secFetchMode === 'navigate') {
+          req.log.warn({ path }, 'Rejected: Direct navigation forbidden on vault route');
+          void reply.code(403).send({ error: 'Forbidden direct navigation on vault routes' });
+          return;
+        }
+        if (
+          origin &&
+          !isAllowedOrigin(origin, {
+            isProduction: process.env['NODE_ENV'] === 'production',
+            port: _port,
+          })
+        ) {
+          req.log.warn({ origin, path }, 'Rejected: Forbidden origin on vault route');
+          void reply.code(403).send({ error: 'Forbidden origin on vault route' });
+          return;
+        }
+      }
+
+      // -----------------------------------------------------------------------
+      // 5. Session token check — all /api/* routes except the exempt list.
+      //    Supports HttpOnly cookie (web browser) and Bearer/Header token (Tauri desktop).
+      // -----------------------------------------------------------------------
       const needsSession = path.startsWith('/api/') && !EXEMPT_PATHS.has(path);
 
       if (needsSession) {
-        const cookieHeader = req.headers['cookie'] ?? '';
-        const token = parseCookie(cookieHeader, SESSION_COOKIE);
-        if (!token || !safeEqual(token, SESSION_TOKEN)) {
-          req.log.warn({ path }, 'Rejected: missing or invalid session cookie');
+        if (!hasValidToken && !isVerifiedDesktop) {
+          req.log.warn({ path }, 'Rejected: missing or invalid session cookie or token');
           void reply.code(401).send({ error: 'Unauthorized' });
           return;
         }

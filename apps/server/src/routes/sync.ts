@@ -61,6 +61,25 @@ export async function registerSyncRoutes(
   );
 
   // -------------------------------------------------------------------------
+  // POST /api/sync/backfill-video-metadata/:accountId — Backfill video metadata
+  // -------------------------------------------------------------------------
+  app.post(
+    '/api/sync/backfill-video-metadata/:accountId',
+    async (req: FastifyRequest<{ Params: { accountId: string } }>, reply: FastifyReply) => {
+      const { accountId } = req.params;
+      const account = accountQ.findById(accountId);
+      if (!account) {
+        return reply.code(404).send({ error: 'Account not found' });
+      }
+      // Non-blocking trigger — progress surfaces via SSE
+      void scheduler.triggerBackfill(accountId).catch((err: unknown) => {
+        app.log.error({ err, accountId }, 'Background video metadata backfill error');
+      });
+      return reply.code(202).send({ ok: true, message: 'Video metadata backfill started' });
+    },
+  );
+
+  // -------------------------------------------------------------------------
   // GET /api/sync/progress — SSE stream
   // -------------------------------------------------------------------------
   app.get('/api/sync/progress', async (req: FastifyRequest, reply: FastifyReply) => {

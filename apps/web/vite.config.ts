@@ -9,6 +9,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@driveshell/shared': path.resolve(__dirname, '../../packages/shared/src/index.ts'),
     },
   },
 
@@ -18,6 +19,25 @@ export default defineConfig({
     host: '127.0.0.1',
     proxy: {
       // Forward API calls and OAuth redirect to the Fastify server
+      '/api': {
+        target: 'http://127.0.0.1:3001',
+        changeOrigin: true,
+      },
+      '/auth': {
+        target: 'http://127.0.0.1:3001',
+        changeOrigin: true,
+      },
+      '/health': {
+        target: 'http://127.0.0.1:3001',
+        changeOrigin: true,
+      },
+    },
+  },
+
+  preview: {
+    port: 4173,
+    host: '127.0.0.1',
+    proxy: {
       '/api': {
         target: 'http://127.0.0.1:3001',
         changeOrigin: true,

@@ -18,6 +18,7 @@ import type { FileQueries } from '../db/queries/files';
 import type { Keychain } from '../auth/keychain';
 import type { EmitFn } from './full-sync';
 import { runIncrementalSync } from './incremental-sync';
+import type { BackfillStats } from './backfill-video-metadata';
 
 const SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -26,6 +27,8 @@ export interface SyncScheduler {
   triggerSync(accountId: string): void;
   /** Trigger an immediate full sync for `accountId`. No-op if already syncing. */
   triggerFullSync(accountId: string): void;
+  /** Trigger video metadata backfill for existing video rows without full resync. */
+  triggerBackfill(accountId: string): Promise<BackfillStats>;
   /** Stop all timers (called on graceful shutdown). */
   shutdown(): void;
   /** Subscribe to progress events. Returns an unsubscribe function. */
@@ -117,6 +120,11 @@ export function createSyncScheduler(
       void runFull(accountId);
     },
 
+    async triggerBackfill(accountId: string): Promise<BackfillStats> {
+      const { runBackfillVideoMetadata } = await import('./backfill-video-metadata');
+      return runBackfillVideoMetadata(accountId, db, keychain, accountQ, fileQ, port, log, emit);
+    },
+
     shutdown(): void {
       for (const [, id] of intervals) {
         clearInterval(id);
@@ -131,4 +139,3 @@ export function createSyncScheduler(
     },
   };
 }
-

@@ -9,12 +9,13 @@
     "dev": "tsx watch src/index.ts",
     "build": "cross-env NODE_OPTIONS=--max-old-space-size=4096 tsc --project tsconfig.json",
     "start": "node dist/index.js",
-    "typecheck": "cross-env NODE_OPTIONS=--max-old-space-size=4096 tsc --noEmit",
+    "typecheck": "cross-env NODE_OPTIONS=--max-old-space-size=4096 tsc --project tsconfig.json --noEmit",
     "test": "cross-env NODE_OPTIONS=--max-old-space-size=4096 vitest run",
     "test:watch": "cross-env NODE_OPTIONS=--max-old-space-size=4096 vitest",
     "seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
+    "@driveshell/shared": "workspace:*",
     "@fastify/cookie": "^11.1.5",
     "@fastify/cors": "^10.0.1",
     "@napi-rs/keyring": "^2.1.2",
@@ -23,7 +24,7 @@
     "google-auth-library": "^11.3.2",
     "googleapis": "^189.0.0",
     "pino": "^9.5.0",
-    "zod": "^3.23.8"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",

@@ -27,6 +27,7 @@ import {
   KC_CLIENT_SECRET,
   kcTokenKey,
 } from '../auth/keychain';
+import { createRateLimiter } from '../utils/rate-limiter';
 import { generatePkce, generateState } from '../auth/pkce';
 import { setSessionCookie } from '../auth/session';
 import { buildAccountQueries } from '../db/queries/accounts';
@@ -59,11 +60,8 @@ function purgePkceExpired(): void {
 // Drive OAuth scopes
 // ---------------------------------------------------------------------------
 
-const SCOPES: Record<ScopeLevel, string[]> = {
-  readonly: [
-    'https://www.googleapis.com/auth/drive.readonly',
-    'https://www.googleapis.com/auth/drive.metadata.readonly',
-  ],
+export const SCOPES: Record<ScopeLevel, string[]> = {
+  readonly: ['https://www.googleapis.com/auth/drive.readonly'],
   full: ['https://www.googleapis.com/auth/drive'],
 };
 
@@ -86,20 +84,25 @@ export async function registerAuthRoutes(
   const accountQ = buildAccountQueries(db);
 
   const redirectUri = `http://127.0.0.1:${port}/auth/callback`;
+  const credentialsRateLimiter = createRateLimiter({ maxRequests: 20, windowMs: 60_000 });
 
   // -------------------------------------------------------------------------
   // POST /api/setup/credentials
   // Store the Google OAuth client ID and secret as SEPARATE keychain entries.
   // -------------------------------------------------------------------------
-  app.post('/api/setup/credentials', async (req: FastifyRequest, reply: FastifyReply) => {
-    const body = CredentialsSchema.safeParse(req.body);
-    if (!body.success) {
-      return reply.code(400).send({ error: 'Invalid body', details: body.error.format() });
-    }
-    keychain.set(KC_SERVICE, KC_CLIENT_ID, body.data.clientId);
-    keychain.set(KC_SERVICE, KC_CLIENT_SECRET, body.data.clientSecret);
-    return reply.code(200).send({ ok: true });
-  });
+  app.post(
+    '/api/setup/credentials',
+    { preHandler: credentialsRateLimiter },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const body = CredentialsSchema.safeParse(req.body);
+      if (!body.success) {
+        return reply.code(400).send({ error: 'Invalid body', details: body.error.format() });
+      }
+      keychain.set(KC_SERVICE, KC_CLIENT_ID, body.data.clientId);
+      keychain.set(KC_SERVICE, KC_CLIENT_SECRET, body.data.clientSecret);
+      return reply.code(200).send({ ok: true });
+    },
+  );
 
   // -------------------------------------------------------------------------
   // GET /api/setup/status
@@ -118,10 +121,10 @@ export async function registerAuthRoutes(
   });
 
   // -------------------------------------------------------------------------
-  // GET /api/auth/start?scope=readonly|full
+  // GET /api/auth/start & GET /auth/start?scope=readonly|full
   // Initiates the OAuth PKCE flow; redirects the browser to Google consent.
   // -------------------------------------------------------------------------
-  app.get('/api/auth/start', async (req: FastifyRequest, reply: FastifyReply) => {
+  const handleAuthStart = async (req: FastifyRequest, reply: FastifyReply) => {
     const clientId = keychain.get(KC_SERVICE, KC_CLIENT_ID);
     const clientSecret = keychain.get(KC_SERVICE, KC_CLIENT_SECRET);
 
@@ -170,7 +173,10 @@ export async function registerAuthRoutes(
     // before it returns to our callback page.
     setSessionCookie(reply, port);
     return reply.redirect(url);
-  });
+  };
+
+  app.get('/api/auth/start', handleAuthStart);
+  app.get('/auth/start', handleAuthStart);
 
   // -------------------------------------------------------------------------
   // GET /auth/callback  (NO session cookie required — browser redirect from Google)

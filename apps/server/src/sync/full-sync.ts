@@ -101,6 +101,10 @@ export async function runFullSync(
       pageToken = nextPageToken;
     }
 
+    // Recompute hidden flags for code folders (node_modules, .git, etc.)
+    const hiddenCount = fileQ.recomputeHiddenFiles();
+    log.info({ accountId, hiddenCount }, 'Recomputed hidden flags for code folders');
+
     // Obtain changes start token now that full sync is complete
     const changesToken = await getStartPageToken(drive, log);
 

@@ -1,5 +1,5 @@
 {
-  "name": "driveshell",
+  "name": "sunflower-drive",
   "version": "0.1.0",
   "private": true,
   "engines": {
@@ -8,14 +8,15 @@
   },
   "scripts": {
     "dev": "pnpm --parallel --filter=./apps/* dev",
-    "build": "cross-env NODE_OPTIONS=--max-old-space-size=4096 pnpm -r build",
-    "typecheck": "cross-env NODE_OPTIONS=--max-old-space-size=4096 pnpm -r typecheck",
+    "build": "pnpm --filter @driveshell/shared build && cross-env NODE_OPTIONS=--max-old-space-size=4096 pnpm -r build",
+    "typecheck": "cross-env NODE_OPTIONS=--max-old-space-size=4096 pnpm -r --workspace-concurrency=1 typecheck",
     "lint": "cross-env NODE_OPTIONS=--max-old-space-size=4096 eslint .",
     "lint:fix": "cross-env NODE_OPTIONS=--max-old-space-size=4096 eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "pnpm -r test",
     "test:e2e": "pnpm --filter @driveshell/web test:e2e",
+    "bench": "pnpm --filter @driveshell/server exec tsx ../../scripts/bench/run-all.ts",
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build",
     "tauri": "tauri",
@@ -23,7 +24,9 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@tauri-apps/cli": "^2.12.4",
     "cross-env": "^7.0.3",
+    "esbuild": "^0.28.2",
     "eslint": "^10.14.0",
     "eslint-plugin-react-hooks": "^5.0.0",
     "globals": "^15.12.0",
@@ -35,7 +38,7 @@
   },
   "lint-staged": {
     "*.{ts,tsx}": [
-      "cross-env NODE_OPTIONS=--max-old-space-size=4096 eslint --fix",
+      "cross-env NODE_OPTIONS=--max-old-space-size=3072 eslint --fix",
       "prettier --write"
     ],
     "*.{json,md,css,yaml,yml}": [

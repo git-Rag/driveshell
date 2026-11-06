@@ -13,3 +13,11 @@
 // TODO(phase-3): export TimelineSchemas (buckets, items)
 
 export const SHARED_VERSION = '0.1.0' as const;
+
+export * from './vault/types';
+export * from './vault/format';
+export * from './vault/webcrypto-provider';
+export * from './vault/vault-engine';
+export * from './vault/migration';
+export * from './media/media-classifier';
+export * from './media/timeline-helpers';

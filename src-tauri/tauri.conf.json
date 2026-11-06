@@ -1,18 +1,18 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/refs/heads/v2/crates/tauri-cli/schema.json",
-  "productName": "DriveShell",
+  "productName": "Sunflower Drive",
   "version": "0.1.0",
-  "identifier": "com.driveshell.app",
+  "identifier": "com.sunflowerdrive.desktop",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://127.0.0.1:5173",
-    "beforeBuildCommand": "pnpm build",
+    "beforeBuildCommand": "pnpm build && node scripts/build-desktop-bundle.js",
     "frontendDist": "../apps/web/dist"
   },
   "app": {
     "windows": [
       {
-        "title": "DriveShell",
+        "title": "Sunflower Drive",
         "width": 1280,
         "height": 820,
         "minWidth": 960,
@@ -24,12 +24,12 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' http://127.0.0.1:*; img-src 'self' http://127.0.0.1:* https://lh3.googleusercontent.com blob: data:; media-src 'self' http://127.0.0.1:* blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+      "csp": "default-src 'self' http://127.0.0.1:*; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:*; img-src 'self' http://127.0.0.1:* https://lh3.googleusercontent.com blob: data:; media-src 'self' http://127.0.0.1:* blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'"
     }
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -37,6 +37,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "resources": ["resources/bin/node.exe", "resources/server/**/*"],
     "windows": {
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",

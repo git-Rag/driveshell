@@ -11,6 +11,24 @@ import globals from 'globals';
 // TODO(phase-1): re-enable eslint-plugin-react when v8 ships with ESLint 10 support.
 
 export default tseslint.config(
+  // Global ignores (applies to all configurations and prevents traversal of large data dirs)
+  {
+    ignores: [
+      '**/dist/**',
+      '**/build/**',
+      '**/node_modules/**',
+      '**/coverage/**',
+      '**/*.tsbuildinfo',
+      'data/**',
+      'apps/server/data/**',
+      'src-tauri/target/**',
+      'src-tauri/**',
+      '**/.system_generated/**',
+      '**/.user_uploaded/**',
+      '**/.kilo/**',
+    ],
+  },
+
   // Base JS rules
   js.configs.recommended,
 
@@ -20,11 +38,7 @@ export default tseslint.config(
     extends: [...tseslint.configs.recommendedTypeChecked],
     languageOptions: {
       parserOptions: {
-        project: [
-          './apps/server/tsconfig.json',
-          './apps/web/tsconfig.json',
-          './packages/shared/tsconfig.json',
-        ],
+        projectService: true,
         tsconfigRootDir: import.meta.dirname,
       },
       globals: {
@@ -80,13 +94,16 @@ export default tseslint.config(
   // Run base TS rules only (no type-aware rules — they need parserOptions.project).
   {
     files: [
+      'scripts/**/*.ts',
       'apps/*/vitest.config.ts',
       'apps/*/vite.config.ts',
       'apps/*/playwright.config.ts',
       'apps/*/tailwind.config.ts',
       'apps/server/test/**/*.ts',
       'apps/server/scripts/**/*.ts',
+      'apps/web/e2e/**/*.ts',
       'packages/*/vitest.config.ts',
+      'packages/shared/test/**/*.ts',
     ],
     extends: [tseslint.configs.disableTypeChecked],
   },

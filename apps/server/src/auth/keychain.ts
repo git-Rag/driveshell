@@ -152,20 +152,30 @@ export function createKeychain(log: FastifyBaseLogger): Keychain {
 
   return {
     get(service: string, key: string): string | null {
-      if (useNative && kr) {
-        try {
-          return new kr.Entry(service, key).getPassword();
-        } catch (err) {
-          log.warn(
-            { err, service, key: '[REDACTED]' },
-            'Keychain native get failed; falling back to file',
-          );
+      const fetchOne = (svc: string): string | null => {
+        if (useNative && kr) {
+          try {
+            return new kr.Entry(svc, key).getPassword();
+          } catch (err) {
+            log.warn(
+              { err, service: svc, key: '[REDACTED]' },
+              'Keychain native get failed; falling back to file',
+            );
+          }
         }
+        const store = readStore();
+        const blob = store[`${svc}:${key}`];
+        if (!blob) return null;
+        return decryptValue(blob);
+      };
+
+      const val = fetchOne(service);
+      if (val !== null) return val;
+      // Seamless migration fallback from legacy driveshell service name
+      if (service === KC_SERVICE) {
+        return fetchOne(KC_SERVICE_LEGACY);
       }
-      const store = readStore();
-      const blob = store[`${service}:${key}`];
-      if (!blob) return null;
-      return decryptValue(blob);
+      return null;
     },
 
     set(service: string, key: string, value: string): void {
@@ -207,7 +217,8 @@ export function createKeychain(log: FastifyBaseLogger): Keychain {
 // ---------------------------------------------------------------------------
 // Keychain key constants (single source of truth)
 // ---------------------------------------------------------------------------
-export const KC_SERVICE = 'driveshell';
+export const KC_SERVICE = 'sunflowerdrive';
+export const KC_SERVICE_LEGACY = 'driveshell';
 export const KC_CLIENT_ID = 'client-id';
 export const KC_CLIENT_SECRET = 'client-secret';
 export function kcTokenKey(permissionId: string): string {

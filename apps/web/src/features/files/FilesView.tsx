@@ -7,12 +7,7 @@ import {
   Image as ImageIcon,
   FileVideo,
   File,
-  MoreVertical,
-  ArrowUpDown,
-  Upload,
   FolderPlus,
-  HardDrive,
-  Share2,
   Search,
   Loader2,
   ChevronRight,
@@ -24,8 +19,6 @@ import {
   Download,
   Edit2,
   X,
-  Plus,
-  AlertCircle,
 } from 'lucide-react';
 import {
   browseFiles,
@@ -74,7 +67,7 @@ export function FilesView() {
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([]);
   const [files, setFiles] = useState<FileRecord[]>([]);
-  const [total, setTotal] = useState(0);
+  const [_total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
@@ -86,7 +79,7 @@ export function FilesView() {
   const [newFolderName, setNewFolderName] = useState('');
   const [renameTarget, setRenameTarget] = useState<FileRecord | null>(null);
   const [renameValue, setRenameValue] = useState('');
-  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const [_activeMenuId, setActiveMenuId] = useState<string | null>(null);
 
   // Lightbox
   const [lightboxFile, setLightboxFile] = useState<FileRecord | null>(null);
@@ -169,9 +162,9 @@ export function FilesView() {
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 bg-[#08080a] text-ds-text-primary">
+    <div className="flex-1 flex flex-col min-h-0 bg-[var(--ds-bg)] text-ds-text-primary">
       {/* Top Action Toolbar */}
-      <div className="sticky top-0 z-20 glass border-b border-white/10 px-6 py-2.5 flex items-center justify-between gap-4 backdrop-blur-xl">
+      <div className="sticky top-0 z-20 glass border-b border-[var(--ds-border-subtle)] px-6 py-2.5 flex items-center justify-between gap-4 backdrop-blur-xl">
         {/* Left: Actions */}
         <div className="flex items-center gap-2">
           <button
@@ -248,7 +241,7 @@ export function FilesView() {
       </div>
 
       {/* Breadcrumb Navigation Bar */}
-      <div className="px-6 py-2.5 border-b border-white/5 bg-zinc-950/40 flex items-center gap-1.5 text-xs text-zinc-400 overflow-x-auto">
+      <div className="px-6 py-2.5 border-b border-[var(--ds-border-subtle)] bg-[var(--ds-bg-raised)] flex items-center gap-1.5 text-xs text-[var(--ds-text-secondary)] overflow-x-auto">
         <button
           onClick={() => handleNavigateFolder(null)}
           className={`flex items-center gap-1.5 px-2 py-1 rounded-md transition-colors hover:text-white hover:bg-white/5 ${
@@ -283,17 +276,19 @@ export function FilesView() {
             </div>
             <p className="text-sm font-semibold text-zinc-300">This folder is empty</p>
             <p className="text-xs text-zinc-500 mt-1 max-w-xs">
-              {search ? `No items match "${search}"` : 'Add files or create folders to organize your Drive.'}
+              {search
+                ? `No items match "${search}"`
+                : 'Add files or create folders to organize your Drive.'}
             </p>
           </div>
         )}
 
         {viewMode === 'list' ? (
           /* Table View */
-          <div className="card overflow-hidden border border-white/10 bg-zinc-950/60">
+          <div className="card overflow-hidden border border-[var(--ds-border)] bg-[var(--ds-bg-raised)]">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-white/10 bg-zinc-900/60 text-zinc-400 font-semibold select-none">
+                <tr className="border-b border-[var(--ds-border-subtle)] bg-[var(--ds-bg-elevated)] text-[var(--ds-text-secondary)] font-semibold select-none">
                   <th className="py-2.5 px-4 w-10"></th>
                   <th className="py-2.5 px-4">Name</th>
                   <th className="py-2.5 px-4">Modified</th>
@@ -302,7 +297,7 @@ export function FilesView() {
                   <th className="py-2.5 px-4 w-16 text-right"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
+              <tbody className="divide-y divide-[var(--ds-border-subtle)]">
                 {files.map((file) => {
                   const isFolder = file.mime_type === 'application/vnd.google-apps.folder';
 
@@ -321,7 +316,10 @@ export function FilesView() {
                             {file.name}
                           </span>
                           {file.starred === 1 && (
-                            <Heart size={12} className="text-rose-400 fill-rose-400 flex-shrink-0" />
+                            <Heart
+                              size={12}
+                              className="text-rose-400 fill-rose-400 flex-shrink-0"
+                            />
                           )}
                         </div>
                       </td>
@@ -333,7 +331,9 @@ export function FilesView() {
                       </td>
                       <td className="py-2.5 px-4 text-zinc-400">
                         <span className="inline-flex items-center text-[10px] px-2 py-0.5 rounded-full bg-zinc-900 border border-white/10 font-mono">
-                          {isFolder ? 'Folder' : file.mime_type.split('/').pop()?.toUpperCase().slice(0, 8)}
+                          {isFolder
+                            ? 'Folder'
+                            : file.mime_type.split('/').pop()?.toUpperCase().slice(0, 8)}
                         </span>
                       </td>
                       <td className="py-2.5 px-4 text-right">
@@ -394,7 +394,8 @@ export function FilesView() {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
             {files.map((file) => {
               const isFolder = file.mime_type === 'application/vnd.google-apps.folder';
-              const isMedia = file.mime_type.startsWith('image/') || file.mime_type.startsWith('video/');
+              const isMedia =
+                file.mime_type.startsWith('image/') || file.mime_type.startsWith('video/');
 
               return (
                 <div

@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Heart, Play, ZoomIn, ZoomOut } from 'lucide-react';
 import type { FileRecord } from '../../lib/api';
-import { listPhotos, getMediaThumbUrl, updateFile } from '../../lib/api';
+import { listPhotos, updateFile } from '../../lib/api';
 import { PhotoLightbox } from '../gallery/PhotoLightbox';
+import { MediaThumbnail } from '../gallery/MediaThumbnail';
+import { isRealMedia } from '@driveshell/shared';
 
 export function FavoritesView() {
   const [favorites, setFavorites] = useState<FileRecord[]>([]);
@@ -14,7 +16,7 @@ export function FavoritesView() {
     setLoading(true);
     try {
       const res = await listPhotos({ type: 'favorites', limit: 300 });
-      setFavorites(res.files);
+      setFavorites(res.files.filter(isRealMedia));
     } catch (err) {
       console.error('Failed to load favorites', err);
     } finally {
@@ -54,9 +56,9 @@ export function FavoritesView() {
           : 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3';
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#09090b] text-white overflow-hidden select-none">
+    <div className="flex-1 flex flex-col h-full bg-[var(--ds-bg)] text-white overflow-hidden select-none">
       {/* Top Bar */}
-      <div className="px-8 py-5 border-b border-white/5 bg-zinc-950/60 backdrop-blur-md flex items-center justify-between">
+      <div className="px-8 py-5 border-b border-[var(--ds-border-subtle)] bg-[var(--ds-bg-raised)]/80 backdrop-blur-md flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500">
             <Heart size={20} fill="currentColor" />
@@ -124,12 +126,7 @@ export function FavoritesView() {
                   onClick={() => setActiveLightboxIndex(idx)}
                   className="group relative aspect-square rounded-xl overflow-hidden bg-zinc-900 border border-white/5 hover:border-brand/40 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-xl hover:scale-[1.02]"
                 >
-                  <img
-                    src={getMediaThumbUrl(file.id, 400)}
-                    alt={file.name}
-                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                    loading="lazy"
-                  />
+                  <MediaThumbnail file={file} size={400} />
 
                   {isVideo && (
                     <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md flex items-center gap-1 text-[10px] text-white font-medium">
