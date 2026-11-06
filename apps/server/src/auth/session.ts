@@ -34,7 +34,7 @@ export const SESSION_TOKEN: string = crypto.randomBytes(16).toString('hex');
 export const SESSION_COOKIE = 'ds_session';
 
 /** Routes that do NOT require the session token. */
-const EXEMPT_PATHS = new Set(['/auth/callback', '/api/auth/start', '/auth/start']);
+const EXEMPT_PATHS = new Set(['/', '/auth/callback', '/api/auth/start', '/auth/start']);
 
 const LOOPBACK_HOST_REGEX = /^(127\.0\.0\.1|localhost)(:\d+)?$/;
 /** Allowed loopback and Tauri desktop origins */
@@ -97,7 +97,8 @@ export async function registerSessionMiddleware(
       }
 
       // -----------------------------------------------------------------------
-      // 2. Sec-Fetch-Site check — reject cross-site requests unless from verified desktop client.
+      // 2. Sec-Fetch-Site check — reject cross-site requests unless from verified desktop client
+      //    or exempt OAuth endpoints (e.g. /auth/callback redirect from accounts.google.com).
       //    Defends against remote malicious sites issuing requests to localhost.
       // -----------------------------------------------------------------------
       const secFetchSite = req.headers['sec-fetch-site'];
@@ -109,7 +110,7 @@ export async function registerSessionMiddleware(
           })
         : false;
 
-      if (secFetchSite === 'cross-site' && !isVerifiedDesktop) {
+      if (secFetchSite === 'cross-site' && !isVerifiedDesktop && !EXEMPT_PATHS.has(path)) {
         req.log.warn({ secFetchSite, path }, 'Rejected: Cross-site fetch detected');
         void reply.code(403).send({ error: 'Forbidden cross-site request' });
         return;

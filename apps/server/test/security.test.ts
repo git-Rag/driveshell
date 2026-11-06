@@ -167,6 +167,7 @@ describe('SEC-006: Origin, CORS, and Session Hardening', () => {
       app.post('/api/vault/files', async () => ({ saved: true }));
       app.get('/api/auth/start', async () => ({ status: 'redirect_to_google' }));
       app.get('/auth/start', async () => ({ status: 'redirect_to_google' }));
+      app.get('/auth/callback', async () => ({ status: 'callback_received' }));
       await app.ready();
     });
 
@@ -187,6 +188,20 @@ describe('SEC-006: Origin, CORS, and Session Hardening', () => {
 
       expect(res.statusCode).toBe(403);
       expect(JSON.parse(res.body)).toEqual({ error: 'Forbidden cross-site request' });
+    });
+
+    it('allows cross-site OAuth callback redirects via Sec-Fetch-Site: cross-site', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/auth/callback?code=test-code&state=test-state',
+        headers: {
+          host: '127.0.0.1:3000',
+          'sec-fetch-site': 'cross-site',
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.body)).toEqual({ status: 'callback_received' });
     });
 
     it('rejects state-mutating requests with forbidden Origin', async () => {
