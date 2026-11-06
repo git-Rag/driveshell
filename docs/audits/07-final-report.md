@@ -49,17 +49,19 @@ improvement was verified against both a real-world ~25,000-file Google Drive dat
 
 ## 2. Monorepo Verification & Test Integrity
 
-Every stage was verified through clean end-to-end command execution. The test suite expanded from 37
-initial tests to **111 automated tests** across 13 test suites, covering unit, integration,
-cryptographic, and security regression domains.
+Every stage was verified through clean end-to-end command execution. During the initial Stage 7
+hardening pass, the test suite expanded from 37 initial tests to **111 automated tests** across 13
+test suites (98.69 KB gzip JS bundle). In subsequent feature passes (Tier 2 FFmpeg transcoding,
+Month Jump popovers, video error lightbox fallback, SSE keepalive, and backfill workers), the suite
+further matured to **172 automated tests** across 24 test suites (108.61 KB gzip JS bundle):
 
-| Command             |  Status  | Output / Metric                                                                  |
-| :------------------ | :------: | :------------------------------------------------------------------------------- |
-| `pnpm typecheck`    | **PASS** | 0 errors across 3 workspace packages (`web`, `server`, `shared`)                 |
-| `pnpm lint`         | **PASS** | 0 errors across all TypeScript and React files                                   |
-| `pnpm -r test`      | **PASS** | **111 passed, 0 failed** across 13 test suites (12.69s execution)                |
-| `pnpm build`        | **PASS** | Built `packages/shared`, `apps/server`, and `apps/web` (98.69 KB gzip JS)        |
-| `pnpm audit --prod` | **PASS** | **0 vulnerabilities** (upgraded `zod` to `^4.6.7` resolving GHSA-mrhx-c7xc-m3w5) |
+| Command             |  Status  | Stage 7 Baseline                                                   | Final v1.0.0 Release Metric                                   |
+| :------------------ | :------: | :----------------------------------------------------------------- | :------------------------------------------------------------ |
+| `pnpm typecheck`    | **PASS** | 0 errors across 3 workspace packages                               | 0 errors across all workspace packages                        |
+| `pnpm lint`         | **PASS** | 0 errors across all TypeScript and React files                     | 0 errors across all workspace files                           |
+| `pnpm -r test`      | **PASS** | **111 passed, 0 failed** across 13 test suites                     | **172 passed, 0 failed** across 24 test suites                |
+| `pnpm build`        | **PASS** | Built `packages/shared`, `apps/server`, `apps/web` (98.69 KB gzip) | Built all packages with production assets (108.61 KB gzip JS) |
+| `pnpm audit --prod` | **PASS** | **0 vulnerabilities**                                              | **0 vulnerabilities**                                         |
 
 ---
 

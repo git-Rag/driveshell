@@ -92,7 +92,7 @@ users.
 3. **Inlined Database Migrations:**  
    All 7 relational migrations are compiled directly into the application
    (`embedded-migrations.ts`), executing automatically on first boot in
-   `%LOCALAPPDATA%\ProjectSunflower\data\driveshell.db`.
+   `%LOCALAPPDATA%\ProjectSunflower\data\sunflower.db`.
 4. **Seamless Browser OAuth with PKCE:**  
    When connecting a Google account, Project Sunflower opens your system's default browser (Edge,
    Chrome, Firefox, or Brave) using PKCE. Upon user consent, the callback page presents a verified
@@ -128,7 +128,7 @@ users.
 │                                        ▼                                        │
 │  ┌───────────────────────────────────────────────────────────────────────────┐  │
 │  │                  Isolated Storage (%LOCALAPPDATA%\ProjectSunflower)       │  │
-│  │  ├── driveshell.db         ──► Relational Metadata Index & Accounts      │  │
+│  │  ├── sunflower.db          ──► Relational Metadata Index & Accounts      │  │
 │  │  ├── thumbs/               ──► WebP Disk Thumbnail Cache (LRU Bounded)   │  │
 │  │  └── transcode_cache/      ──► FastStart Transcoded Universal MP4 Video   │  │
 │  └───────────────────────────────────────────────────────────────────────────┘  │
@@ -269,14 +269,14 @@ Verified on synthetic and real-world datasets (`scripts/bench/`):
 | **Video Stream Range Latency**       |    **0.107 ms**    |     < 5 ms     |         **PASS**         |
 | **Sync Event Loop Delay (p99)**      |    **0.001 ms**    |    < 50 ms     | **PASS (Zero blocking)** |
 | **Full Sync Rate (25k rows)**        | **5,788.9 rows/s** | > 3,000 rows/s |         **PASS**         |
-| **Web Production Bundle (gzip JS)**  |   **106.90 KB**    |    < 150 KB    |         **PASS**         |
+| **Web Production Bundle (gzip JS)**  |   **108.61 KB**    |    < 150 KB    |         **PASS**         |
 
 ---
 
 ## Workspace Structure
 
 ```
-driveshell/
+project-sunflower/
 ├── apps/
 │   ├── server/                   # Fastify 5 Loopback Backend
 │   │   ├── src/

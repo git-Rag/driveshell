@@ -92,8 +92,8 @@ signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /a "src-ta
 
 - **Application Binaries**: `%LOCALAPPDATA%\Programs\Project Sunflower\`
 - **Database & Thumbnails**: `%LOCALAPPDATA%\ProjectSunflower\data\`
-  - `driveshell.db` (SQLite database)
-  - `driveshell.db-wal` (Write-ahead log)
+  - `sunflower.db` (SQLite database)
+  - `sunflower.db-wal` (Write-ahead log)
   - `thumbs/` (Cache files)
   - `vault/` (Encrypted `.sdv` files)
 

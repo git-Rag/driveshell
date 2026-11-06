@@ -1,9 +1,13 @@
 [package]
-name = "driveshell-desktop"
+name = "project-sunflower-desktop"
 version = "1.0.0"
 description = "Project Sunflower — Fast, local-first Google Drive photo-first client"
 authors = ["git-Rag"]
 edition = "2021"
+
+[lib]
+name = "project_sunflower_desktop"
+crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2.0.0", features = [] }

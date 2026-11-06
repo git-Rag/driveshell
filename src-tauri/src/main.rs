@@ -2,6 +2,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    driveshell_desktop::run()
+    project_sunflower_desktop::run()
 }
 

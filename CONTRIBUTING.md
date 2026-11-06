@@ -1,4 +1,4 @@
-# Contributing to DriveShell
+# Contributing to Project Sunflower
 
 Thank you for your interest in contributing! This document explains how to get involved.
 
@@ -12,7 +12,7 @@ constructive.
 ## Getting started
 
 1. Fork the repository.
-2. Clone your fork: `git clone https://github.com/YOUR_USERNAME/driveshell.git`
+2. Clone your fork: `git clone https://github.com/YOUR_USERNAME/thesunflowerproject.git`
 3. Install dependencies: `pnpm install`
 4. Create a `.env` from `.env.example`.
 5. Start the dev environment: `pnpm dev`
@@ -47,5 +47,5 @@ don't require deep context.
 
 ## Questions
 
-Open a [GitHub Discussion](https://github.com/your-username/driveshell/discussions) for questions
+Open a [GitHub Discussion](https://github.com/git-Rag/thesunflowerproject/discussions) for questions
 and ideas.

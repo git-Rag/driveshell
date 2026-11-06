@@ -18,7 +18,7 @@ loopback API server.
 | **Server-Side Request Forgery (SSRF)**  |   **YES**   | Outbound Network Guard (`validateOutboundUrl`, `fetchWithGuard`): HTTPS-only, disallows direct IPs, metadata IP (`169.254.169.254`), non-standard ports; strict domain suffix matching against official Google media hosts; manual redirect inspection (max 3); 10s timeout; 15 MB limit; zero OAuth token forwarding.                                                   |
 | **Stored-XSS via Media Stream**         |   **YES**   | Stream isolation: only safe raster images (JPEG, PNG, WebP, AVIF) and media (MP4, WebM, QuickTime, Ogg) served inline. SVG, HTML, PDF, JS force `Content-Disposition: attachment`. All media responses send `X-Content-Type-Options: nosniff` and `Content-Security-Policy: sandbox; default-src 'none'`. Filenames sanitized against CRLF injection and path traversal. |
 | **Cross-Site Request Forgery (CSRF)**   |   **YES**   | `SameSite=Strict` session cookie; `Origin` header validation on mutating verbs (`POST`, `PUT`, `PATCH`, `DELETE`) and `/api/vault/*` routes.                                                                                                                                                                                                                             |
-| **Token Exfiltration at Rest**          |   **YES**   | OAuth tokens stored in OS Keychain (`sunflowerdrive` service with fallback to legacy `driveshell` service). File fallback encrypted with AES-256-GCM.                                                                                                                                                                                                                    |
+| **Token Exfiltration at Rest**          |   **YES**   | OAuth tokens stored in OS Keychain (`projectsunflower` service with fallback to legacy `sunflowerdrive` and `driveshell` services). File fallback encrypted with AES-256-GCM.                                                                                                                                                                                            |
 | **Vault Snooping via Iframe/Tab**       |   **YES**   | Rejection of `Sec-Fetch-Mode: navigate` on all `/api/vault/*` routes. Cache-Control headers set to `no-store, no-cache, must-revalidate, private`.                                                                                                                                                                                                                       |
 | **Local Malware on User Workstation**   | **Partial** | _Limitation documented_: The loopback cookie protects against remote websites executing unauthorized requests. Any local binary under the same OS user can communicate with loopback. For Tauri desktop packaging, tokens should be exchanged via native IPC.                                                                                                            |
 | **Google Account Compromise**           |   **NO**    | Out of scope: User's credential security with Google.                                                                                                                                                                                                                                                                                                                    |
@@ -145,8 +145,8 @@ enforces the following invariants:
      - Full/Modify: `https://www.googleapis.com/auth/drive`
 5. **Keychain Security**:
    - Tokens stored in the OS Keychain via `@napi-rs/keyring`.
-   - Primary service name: `sunflowerdrive`.
-   - Backward-compatible read fallback: `driveshell`.
+   - Primary service name: `projectsunflower`.
+   - Backward-compatible read fallbacks: `sunflowerdrive`, `driveshell`.
    - File fallback encrypted with AES-256-GCM.
 
 ---

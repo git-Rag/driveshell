@@ -1,9 +1,9 @@
-# DriveShell — Roadmap
+# Project Sunflower — Roadmap
 
 > Not affiliated with or endorsed by Google or Microsoft.
 
-This roadmap tracks the planned phases of DriveShell. Each phase ends with a review before the next
-begins.
+This roadmap tracks the planned phases of Project Sunflower. Each phase ends with a review before
+the next begins.
 
 ## Phase status
 

@@ -75,8 +75,8 @@ function deriveKey(machineSecret: string, salt: Buffer): Buffer {
  * This protects the file at rest against casual access; it is NOT a HSM.
  * The file should still have restricted filesystem permissions (600).
  */
-function machineSecret(): string {
-  return `driveshell:${process.env['DATA_DIR'] ?? ''}:${process.env['COMPUTERNAME'] ?? process.env['HOSTNAME'] ?? 'local'}`;
+function machineSecret(prefix = 'projectsunflower'): string {
+  return `${prefix}:${process.env['DATA_DIR'] ?? ''}:${process.env['COMPUTERNAME'] ?? process.env['HOSTNAME'] ?? 'local'}`;
 }
 
 type EncryptedStore = Record<string, string>; // "service:key" → base64 ciphertext blob
@@ -114,19 +114,22 @@ function encryptValue(plaintext: string): string {
 
 /** Decrypt a base64 blob → plaintext. Returns null on any error. */
 function decryptValue(blob: string): string | null {
-  try {
-    const buf = Buffer.from(blob, 'base64');
-    const salt = buf.subarray(0, SALT_LEN);
-    const iv = buf.subarray(SALT_LEN, SALT_LEN + IV_LEN);
-    const tag = buf.subarray(SALT_LEN + IV_LEN, SALT_LEN + IV_LEN + TAG_LEN);
-    const ct = buf.subarray(SALT_LEN + IV_LEN + TAG_LEN);
-    const key = deriveKey(machineSecret(), salt);
-    const decipher = crypto.createDecipheriv(ALGO, key, iv);
-    decipher.setAuthTag(tag);
-    return decipher.update(ct, undefined, 'utf8') + decipher.final('utf8');
-  } catch {
-    return null;
+  for (const prefix of ['projectsunflower', 'sunflowerdrive', 'driveshell']) {
+    try {
+      const buf = Buffer.from(blob, 'base64');
+      const salt = buf.subarray(0, SALT_LEN);
+      const iv = buf.subarray(SALT_LEN, SALT_LEN + IV_LEN);
+      const tag = buf.subarray(SALT_LEN + IV_LEN, SALT_LEN + IV_LEN + TAG_LEN);
+      const ct = buf.subarray(SALT_LEN + IV_LEN + TAG_LEN);
+      const key = deriveKey(machineSecret(prefix), salt);
+      const decipher = crypto.createDecipheriv(ALGO, key, iv);
+      decipher.setAuthTag(tag);
+      return decipher.update(ct, undefined, 'utf8') + decipher.final('utf8');
+    } catch {
+      continue;
+    }
   }
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -171,9 +174,11 @@ export function createKeychain(log: FastifyBaseLogger): Keychain {
 
       const val = fetchOne(service);
       if (val !== null) return val;
-      // Seamless migration fallback from legacy driveshell service name
+      // Seamless migration fallback from legacy service names
       if (service === KC_SERVICE) {
-        return fetchOne(KC_SERVICE_LEGACY);
+        const legacyVal = fetchOne(KC_SERVICE_LEGACY);
+        if (legacyVal !== null) return legacyVal;
+        return fetchOne(KC_SERVICE_LEGACY_OLD);
       }
       return null;
     },
@@ -217,8 +222,9 @@ export function createKeychain(log: FastifyBaseLogger): Keychain {
 // ---------------------------------------------------------------------------
 // Keychain key constants (single source of truth)
 // ---------------------------------------------------------------------------
-export const KC_SERVICE = 'sunflowerdrive';
-export const KC_SERVICE_LEGACY = 'driveshell';
+export const KC_SERVICE = 'projectsunflower';
+export const KC_SERVICE_LEGACY = 'sunflowerdrive';
+export const KC_SERVICE_LEGACY_OLD = 'driveshell';
 export const KC_CLIENT_ID = 'client-id';
 export const KC_CLIENT_SECRET = 'client-secret';
 export function kcTokenKey(permissionId: string): string {

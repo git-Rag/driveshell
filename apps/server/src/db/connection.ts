@@ -8,8 +8,9 @@
  *  - `busy_timeout = 5000` — wait up to 5 s before returning SQLITE_BUSY.
  *  - `journal_size_limit`  — cap WAL file growth.
  *
- * The DB file lives at `<dataDir>/driveshell.db` where `dataDir` defaults to
+ * The DB file lives at `<dataDir>/sunflower.db` where `dataDir` defaults to
  * `./data` relative to the working directory (overridable via DATA_DIR env var).
+ * Legacy `driveshell.db` databases are migrated automatically on startup.
  */
 
 import path from 'node:path';
@@ -28,11 +29,32 @@ export function getDataDir(): string {
   return dir;
 }
 
+/** Get path to the SQLite database file, handling legacy migration if needed. */
+export function getDbPath(log?: FastifyBaseLogger): string {
+  const dataDir = getDataDir();
+  const primaryDb = path.join(dataDir, 'sunflower.db');
+  const legacyDb = path.join(dataDir, 'driveshell.db');
+
+  if (!fs.existsSync(primaryDb) && fs.existsSync(legacyDb)) {
+    try {
+      fs.renameSync(legacyDb, primaryDb);
+      if (fs.existsSync(legacyDb + '-wal')) fs.renameSync(legacyDb + '-wal', primaryDb + '-wal');
+      if (fs.existsSync(legacyDb + '-shm')) fs.renameSync(legacyDb + '-shm', primaryDb + '-shm');
+      log?.info('Migrated legacy driveshell.db to sunflower.db');
+    } catch {
+      // In case of filesystem lock, fallback to legacyDb
+      return legacyDb;
+    }
+  }
+
+  return fs.existsSync(primaryDb) || !fs.existsSync(legacyDb) ? primaryDb : legacyDb;
+}
+
 /** Open (or return the already-open) SQLite database and run pending migrations. */
 export function openDb(log: FastifyBaseLogger): Db {
   if (_db) return _db;
 
-  const dbPath = path.join(getDataDir(), 'driveshell.db');
+  const dbPath = getDbPath(log);
   log.info({ dbPath }, 'Opening SQLite database');
 
   const db = new BetterSqlite3(dbPath);

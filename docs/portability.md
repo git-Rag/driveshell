@@ -52,7 +52,7 @@ export interface SecretKeyStore {
 }
 ```
 
-- **Windows Desktop**: `@napi-rs/keyring` (service: `sunflowerdrive`).
+- **Windows Desktop**: `@napi-rs/keyring` (service: `projectsunflower`).
 - **Android**: Android Keystore with AES-256-GCM hardware-backed master key.
 
 ### 3.2 `DatabaseConnection`
@@ -111,8 +111,8 @@ graph TD
   Google sends the authorization code back to localhost.
 - **Android**: Loopback servers are prohibited on mobile. Instead:
   1. App launches **Chrome Custom Tabs** using the system browser.
-  2. Redirect URI uses a custom scheme (e.g. `com.sunflowerdrive.app:/oauth2redirect`) or **Android
-     App Links** (`https://app.sunflowerdrive.com/auth/callback`).
+  2. Redirect URI uses a custom scheme (e.g. `com.projectsunflower.app:/oauth2redirect`) or
+     **Android App Links** (`https://app.projectsunflower.com/auth/callback`).
   3. Android OS catches the intent and resumes the app with the authorization code.
 
 ### 5.2 Legal & Google Policy Reality (Important Decision)
