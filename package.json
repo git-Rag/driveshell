@@ -38,7 +38,7 @@
   },
   "lint-staged": {
     "*.{ts,tsx}": [
-      "cross-env NODE_OPTIONS=--max-old-space-size=4096 eslint --fix",
+      "cross-env NODE_OPTIONS=--max-old-space-size=3072 eslint --fix",
       "prettier --write"
     ],
     "*.{json,md,css,yaml,yml}": [

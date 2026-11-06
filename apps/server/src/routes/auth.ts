@@ -121,10 +121,10 @@ export async function registerAuthRoutes(
   });
 
   // -------------------------------------------------------------------------
-  // GET /api/auth/start?scope=readonly|full
+  // GET /api/auth/start & GET /auth/start?scope=readonly|full
   // Initiates the OAuth PKCE flow; redirects the browser to Google consent.
   // -------------------------------------------------------------------------
-  app.get('/api/auth/start', async (req: FastifyRequest, reply: FastifyReply) => {
+  const handleAuthStart = async (req: FastifyRequest, reply: FastifyReply) => {
     const clientId = keychain.get(KC_SERVICE, KC_CLIENT_ID);
     const clientSecret = keychain.get(KC_SERVICE, KC_CLIENT_SECRET);
 
@@ -173,7 +173,10 @@ export async function registerAuthRoutes(
     // before it returns to our callback page.
     setSessionCookie(reply, port);
     return reply.redirect(url);
-  });
+  };
+
+  app.get('/api/auth/start', handleAuthStart);
+  app.get('/auth/start', handleAuthStart);
 
   // -------------------------------------------------------------------------
   // GET /auth/callback  (NO session cookie required — browser redirect from Google)

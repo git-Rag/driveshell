@@ -34,7 +34,7 @@ export const SESSION_TOKEN: string = crypto.randomBytes(16).toString('hex');
 export const SESSION_COOKIE = 'ds_session';
 
 /** Routes that do NOT require the session token. */
-const EXEMPT_PATHS = new Set(['/auth/callback']);
+const EXEMPT_PATHS = new Set(['/auth/callback', '/api/auth/start', '/auth/start']);
 
 const LOOPBACK_HOST_REGEX = /^(127\.0\.0\.1|localhost)(:\d+)?$/;
 /** Allowed loopback and Tauri desktop origins */
@@ -174,8 +174,12 @@ export async function registerSessionMiddleware(
           req.headers['authorization'].startsWith('Bearer ')
             ? req.headers['authorization'].slice(7)
             : undefined);
+        const queryToken =
+          typeof (req.query as Record<string, string | undefined>)?.['token'] === 'string'
+            ? (req.query as Record<string, string | undefined>)['token']
+            : undefined;
 
-        const token = cookieToken ?? headerToken;
+        const token = cookieToken ?? headerToken ?? queryToken;
         if (!token || !safeEqual(token, SESSION_TOKEN)) {
           req.log.warn({ path }, 'Rejected: missing or invalid session cookie or token');
           void reply.code(401).send({ error: 'Unauthorized' });

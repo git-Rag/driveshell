@@ -103,11 +103,142 @@ async function main(): Promise<void> {
   });
 
   /**
-   * Root ping / bootstrap.
+   * Root ping / bootstrap / OAuth redirect completion page.
    */
 
-  app.get('/', async (_req, reply) => {
+  app.get('/', async (req, reply) => {
     setSessionCookie(reply, port);
+    const qs = req.query as Record<string, string | undefined>;
+
+    if (qs['auth_success'] === '1') {
+      reply.type('text/html');
+      return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Account Connected — Sunflower Drive</title>
+  <style>
+    body {
+      margin: 0;
+      background: #09090b;
+      color: #fafafa;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .card {
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 16px;
+      padding: 36px 32px;
+      max-width: 400px;
+      text-align: center;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+    .icon {
+      font-size: 44px;
+      margin-bottom: 16px;
+    }
+    h1 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      margin: 0 0 8px 0;
+      color: #a3e635;
+    }
+    p {
+      color: #a1a1aa;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      margin: 0 0 24px 0;
+    }
+    .btn {
+      display: inline-block;
+      background: #a3e635;
+      color: #09090b;
+      font-weight: 600;
+      font-size: 0.9rem;
+      padding: 10px 24px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.2s;
+    }
+    .btn:hover {
+      background: #bef264;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">🌻</div>
+    <h1>Account Connected!</h1>
+    <p>Your Google account was successfully linked. You can close this tab and return to <strong>Sunflower Drive</strong>.</p>
+    <button class="btn" onclick="window.close()">Close tab</button>
+  </div>
+</body>
+</html>`;
+    }
+
+    if (qs['auth_error']) {
+      reply.type('text/html');
+      return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Authentication Error — Sunflower Drive</title>
+  <style>
+    body {
+      margin: 0;
+      background: #09090b;
+      color: #fafafa;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .card {
+      background: #18181b;
+      border: 1px solid #ef4444;
+      border-radius: 16px;
+      padding: 36px 32px;
+      max-width: 400px;
+      text-align: center;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+    .icon {
+      font-size: 44px;
+      margin-bottom: 16px;
+    }
+    h1 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      margin: 0 0 8px 0;
+      color: #ef4444;
+    }
+    p {
+      color: #a1a1aa;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      margin: 0 0 24px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">⚠️</div>
+    <h1>Authentication Failed</h1>
+    <p>Google authentication could not be completed: <code>${encodeURIComponent(qs['auth_error'])}</code>.<br>Please return to Sunflower Drive and try again.</p>
+  </div>
+</body>
+</html>`;
+    }
+
     return { status: 'ok', message: 'Sunflower Drive API server' };
   });
 

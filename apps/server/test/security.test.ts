@@ -165,6 +165,8 @@ describe('SEC-006: Origin, CORS, and Session Hardening', () => {
       app.post('/api/test-post', async () => ({ status: 'created' }));
       app.get('/api/vault/status', async () => ({ vault: 'ready' }));
       app.post('/api/vault/files', async () => ({ saved: true }));
+      app.get('/api/auth/start', async () => ({ status: 'redirect_to_google' }));
+      app.get('/auth/start', async () => ({ status: 'redirect_to_google' }));
       await app.ready();
     });
 
@@ -245,6 +247,24 @@ describe('SEC-006: Origin, CORS, and Session Hardening', () => {
 
       expect(res.statusCode).toBe(400);
       expect(JSON.parse(res.body)).toEqual({ error: 'Bad Host header' });
+    });
+
+    it('allows OAuth start endpoints without existing session cookies or headers', async () => {
+      const resApi = await app.inject({
+        method: 'GET',
+        url: '/api/auth/start?scope=readonly',
+        headers: { host: '127.0.0.1:3000' },
+      });
+      expect(resApi.statusCode).toBe(200);
+      expect(JSON.parse(resApi.body)).toEqual({ status: 'redirect_to_google' });
+
+      const resRoot = await app.inject({
+        method: 'GET',
+        url: '/auth/start?scope=readonly',
+        headers: { host: '127.0.0.1:3000' },
+      });
+      expect(resRoot.statusCode).toBe(200);
+      expect(JSON.parse(resRoot.body)).toEqual({ status: 'redirect_to_google' });
     });
   });
 });
