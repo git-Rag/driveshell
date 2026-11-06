@@ -39,7 +39,31 @@ export interface DriveChangePage {
 // Exponential backoff with ±25% jitter
 // ---------------------------------------------------------------------------
 
-const RETRYABLE_STATUS = new Set([429, 500, 503]);
+const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
+
+function isRateLimitOrTransientError(err: unknown, status: number): boolean {
+  if (RETRYABLE_STATUS.has(status)) return true;
+  if (status === 403) {
+    const gErr = err as {
+      errors?: Array<{ reason?: string; domain?: string }>;
+      message?: string;
+    };
+    const reason = gErr.errors?.[0]?.reason ?? '';
+    const msg = typeof gErr.message === 'string' ? gErr.message.toLowerCase() : '';
+    if (
+      reason === 'rateLimitExceeded' ||
+      reason === 'userRateLimitExceeded' ||
+      reason === 'dailyLimitExceeded' ||
+      reason === 'quotaExceeded' ||
+      msg.includes('ratelimitexceeded') ||
+      msg.includes('userratelimitexceeded') ||
+      msg.includes('quota exceeded')
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
 
 function jitter(base: number): number {
   // ±25% of base
@@ -48,7 +72,7 @@ function jitter(base: number): number {
 
 /**
  * Wraps an async Drive API call with exponential backoff.
- * Retries on 429, 500, 503. Re-throws immediately on other errors.
+ * Retries on 429, 500, 502, 503, 504, and 403 rate limits. Re-throws immediately on other errors.
  */
 export async function withBackoff<T>(
   fn: () => Promise<T>,
@@ -70,7 +94,7 @@ export async function withBackoff<T>(
         (err as { code?: number; status?: number }).status ??
         0;
 
-      const isRetryable = RETRYABLE_STATUS.has(status);
+      const isRetryable = isRateLimitOrTransientError(err, status);
 
       if (!isRetryable || attempt >= maxRetries) {
         log.error({ err, attempt, status }, 'Drive API call failed (not retrying)');
@@ -228,7 +252,10 @@ export function extractMediaDate(
     // Exclude Snapchat random ID numbers (Snapchat-20...)
     if (!filename.toLowerCase().startsWith('snapchat-')) {
       // 1. Screenshot_2026-06-13-22-45-48 or 2026-06-13
-      const m1 = /(?:^|\D)(20\d\d)[-_](\d{2})[-_](\d{2})(?:[-_](\d{2})[-_](\d{2})[-_](\d{2}))?/.exec(filename);
+      const m1 =
+        /(?:^|\D)(20\d\d)[-_](\d{2})[-_](\d{2})(?:[-_](\d{2})[-_](\d{2})[-_](\d{2}))?/.exec(
+          filename,
+        );
       if (m1 && m1[1] && m1[2] && m1[3]) {
         const y = parseInt(m1[1], 10);
         const mo = parseInt(m1[2], 10);
@@ -247,7 +274,10 @@ export function extractMediaDate(
       }
 
       // 2. IMG20260723170306 or IMG-20260526-WA or 20260723
-      const m2 = /(?:IMG|VID|PHOTO|PXL)?[-_]?(20\d\d)(\d{2})(\d{2})(?:[-_]?(\d{2})(\d{2})(\d{2}))?/.exec(filename);
+      const m2 =
+        /(?:IMG|VID|PHOTO|PXL)?[-_]?(20\d\d)(\d{2})(\d{2})(?:[-_]?(\d{2})(\d{2})(\d{2}))?/.exec(
+          filename,
+        );
       if (m2 && m2[1] && m2[2] && m2[3]) {
         const y = parseInt(m2[1], 10);
         const mo = parseInt(m2[2], 10);
@@ -316,4 +346,3 @@ export function mapDriveFile(accountId: string, f: drive_v3.Schema$File): Mapped
     camera_model: f.imageMediaMetadata?.cameraModel ?? null,
   };
 }
-

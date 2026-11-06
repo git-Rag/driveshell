@@ -33,7 +33,8 @@ export function SyncToast({
 
   if (!visible) return null;
 
-  const isActuallySyncing = isSyncing || syncPhase === 'syncing';
+  const isReconnecting = Boolean(error?.includes('Reconnecting'));
+  const isActuallySyncing = isSyncing || syncPhase === 'syncing' || isReconnecting;
   const isError = !isActuallySyncing && (syncPhase === 'error' || Boolean(error));
   const isDone = !isActuallySyncing && !isError && syncPhase === 'completed';
 
@@ -66,7 +67,9 @@ export function SyncToast({
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-white tracking-wide">
               {isActuallySyncing
-                ? 'Syncing Google Drive…'
+                ? isReconnecting
+                  ? 'Reconnecting Live Stream…'
+                  : 'Syncing Google Drive…'
                 : isDone
                   ? 'Sync Complete'
                   : 'Sync Encountered an Issue'}
@@ -77,9 +80,11 @@ export function SyncToast({
           </div>
           <p className="text-[11px] text-zinc-400 truncate mt-0.5 font-mono">
             {isActuallySyncing
-              ? syncEvent?.type === 'progress' && syncEvent.indexed != null
-                ? `${syncEvent.indexed.toLocaleString()} items indexed…`
-                : 'Scanning media & metadata…'
+              ? isReconnecting
+                ? 'Re-establishing SSE progress link…'
+                : syncEvent?.type === 'progress' && syncEvent.indexed != null
+                  ? `${syncEvent.indexed.toLocaleString()} items indexed…`
+                  : 'Scanning media & metadata…'
               : isDone
                 ? syncEvent?.type === 'done' && syncEvent.indexed != null
                   ? `${syncEvent.indexed.toLocaleString()} photos & videos indexed`

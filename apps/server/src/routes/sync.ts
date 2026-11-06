@@ -87,10 +87,16 @@ export async function registerSyncRoutes(
     void reply.hijack();
     const raw = reply.raw;
     raw.setHeader('Content-Type', 'text/event-stream');
-    raw.setHeader('Cache-Control', 'no-cache');
+    raw.setHeader('Cache-Control', 'no-cache, no-transform');
     raw.setHeader('Connection', 'keep-alive');
     raw.setHeader('X-Accel-Buffering', 'no'); // disable Nginx buffering if proxied
     raw.flushHeaders();
+
+    if (raw.socket) {
+      raw.socket.setTimeout(0);
+      raw.socket.setNoDelay(true);
+      raw.socket.setKeepAlive(true, 10_000);
+    }
 
     function sendEvent(data: object): void {
       if (!raw.destroyed) {
@@ -109,7 +115,7 @@ export async function registerSyncRoutes(
       }
     });
 
-    // Heartbeat every 15s to prevent proxy timeouts
+    // Heartbeat every 10s to prevent proxy timeouts
     const heartbeat = setInterval(() => {
       if (!raw.destroyed) {
         raw.write(': heartbeat\n\n');
@@ -117,7 +123,7 @@ export async function registerSyncRoutes(
         clearInterval(heartbeat);
         unsubscribe();
       }
-    }, 15_000);
+    }, 10_000);
 
     // Cleanup on client disconnect
     raw.on('close', () => {

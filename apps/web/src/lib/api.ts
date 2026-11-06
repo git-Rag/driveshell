@@ -245,33 +245,79 @@ export function triggerSync(accountId: string): Promise<{ ok: boolean; message: 
 }
 
 export interface SyncProgressEvent {
-  type: 'progress' | 'done' | 'error' | 'connected';
+  type: 'progress' | 'done' | 'error' | 'connected' | 'reconnecting';
   accountId?: string;
   indexed?: number;
   stage?: string;
   message?: string;
 }
 
-/** Subscribe to sync progress SSE events. Returns an unsubscribe function. */
+/** Subscribe to sync progress SSE events with automatic backoff reconnection. Returns an unsubscribe function. */
 export function subscribeSyncProgress(onEvent: (e: SyncProgressEvent) => void): () => void {
   const apiBase = getApiBase();
   const tokenParam = activeSessionToken ? `?token=${encodeURIComponent(activeSessionToken)}` : '';
-  const es = new EventSource(`${apiBase}/api/sync/progress${tokenParam}`, {
-    withCredentials: true,
-  });
-  es.onmessage = (event) => {
+  const url = `${apiBase}/api/sync/progress${tokenParam}`;
+
+  let es: EventSource | null = null;
+  let closed = false;
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let retryCount = 0;
+
+  function connect() {
+    if (closed) return;
     try {
-      const data = JSON.parse(event.data as string) as SyncProgressEvent;
-      onEvent(data);
+      es = new EventSource(url, { withCredentials: true });
+
+      es.onopen = () => {
+        retryCount = 0;
+        onEvent({ type: 'connected' });
+      };
+
+      es.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data as string) as SyncProgressEvent;
+          onEvent(data);
+        } catch {
+          /* ignore malformed events */
+        }
+      };
+
+      es.onerror = () => {
+        if (closed) return;
+        es?.close();
+        es = null;
+
+        // Exponential backoff with jitter: 1s, 1.5s, 2.25s, max 15s
+        retryCount++;
+        const baseDelay = Math.min(1000 * Math.pow(1.5, retryCount - 1), 15000);
+        const jitter = baseDelay * (0.8 + Math.random() * 0.4);
+
+        onEvent({
+          type: 'reconnecting',
+          message: 'Reconnecting live sync stream…',
+        });
+
+        if (reconnectTimer) clearTimeout(reconnectTimer);
+        reconnectTimer = setTimeout(connect, Math.round(jitter));
+      };
     } catch {
-      /* ignore malformed events */
+      if (!closed) {
+        if (reconnectTimer) clearTimeout(reconnectTimer);
+        reconnectTimer = setTimeout(connect, 3000);
+      }
+    }
+  }
+
+  connect();
+
+  return () => {
+    closed = true;
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    if (es) {
+      es.close();
+      es = null;
     }
   };
-  es.onerror = () => {
-    // EventSource auto-reconnects; just emit an error event so UI can react
-    onEvent({ type: 'error', message: 'SSE connection lost — reconnecting…' });
-  };
-  return () => es.close();
 }
 
 // ---------------------------------------------------------------------------

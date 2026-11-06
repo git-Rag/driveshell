@@ -64,7 +64,18 @@ export function useSyncStatus() {
   // Subscribe to real-time SSE progress events
   useEffect(() => {
     const unsubscribe = subscribeSyncProgress((event) => {
-      if (event.type === 'connected') return;
+      if (event.type === 'connected') {
+        setError((prev) =>
+          prev?.includes('Reconnecting') || prev?.includes('connection lost') ? null : prev,
+        );
+        void fetchStatus();
+        return;
+      }
+
+      if (event.type === 'reconnecting') {
+        // Transparent stream reconnecting — keep progress intact without displaying fatal error
+        return;
+      }
 
       setSyncEvent(event);
       setToastDismissed(false);
@@ -125,8 +136,15 @@ export function useSyncStatus() {
         await fetchStatus();
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Sync trigger failed';
-        setError(msg);
-        setSyncPhase('error');
+        if (msg.includes('already in progress') || msg.includes('409')) {
+          // Already running — clear error, ensure syncing phase, and refresh status
+          setError(null);
+          setSyncPhase('syncing');
+          await fetchStatus();
+        } else {
+          setError(msg);
+          setSyncPhase('error');
+        }
       } finally {
         setIsTriggering(false);
       }

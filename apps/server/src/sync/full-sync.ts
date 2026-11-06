@@ -99,6 +99,8 @@ export async function runFullSync(
 
       if (!nextPageToken) break;
       pageToken = nextPageToken;
+      // Gentle pacing between pages to stay well clear of Drive user rate limits
+      await new Promise((resolve) => setTimeout(resolve, 100));
     }
 
     // Recompute hidden flags for code folders (node_modules, .git, etc.)

@@ -199,17 +199,40 @@ export function GalleryView({
     return () => observer.disconnect();
   }, [loadMorePhotos]);
 
-  // Background sync listener — refresh library when sync completes or files arrive
+  const lastReloadTimeRef = useRef<number>(0);
+  const reloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Background sync listener — refresh library when sync completes or as files arrive (throttled to 15s to prevent rate limits)
   useEffect(() => {
+    const THROTTLE_MS = 15_000;
+
     const unsub = subscribeSyncProgress((event) => {
-      if (
-        event.type === 'done' ||
-        (event.type === 'progress' && (event.indexed ?? 0) > 0 && photos.length === 0)
-      ) {
+      if (event.type === 'done') {
+        if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current);
         void loadInitial();
+      } else if (event.type === 'progress' && (event.indexed ?? 0) > 0) {
+        const now = Date.now();
+        if (photos.length === 0) {
+          lastReloadTimeRef.current = now;
+          void loadInitial();
+        } else if (now - lastReloadTimeRef.current >= THROTTLE_MS) {
+          lastReloadTimeRef.current = now;
+          void loadInitial();
+        } else if (!reloadTimerRef.current) {
+          const delay = Math.max(1000, THROTTLE_MS - (now - lastReloadTimeRef.current));
+          reloadTimerRef.current = setTimeout(() => {
+            reloadTimerRef.current = null;
+            lastReloadTimeRef.current = Date.now();
+            void loadInitial();
+          }, delay);
+        }
       }
     });
-    return unsub;
+
+    return () => {
+      unsub();
+      if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current);
+    };
   }, [loadInitial, photos.length]);
 
   useEffect(() => {

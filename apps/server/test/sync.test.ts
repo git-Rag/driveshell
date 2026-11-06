@@ -29,10 +29,7 @@ function openTestDb(tmpDir: string): Database {
 }
 
 function applyMigration(db: Database, file: string): void {
-  const sql = fs.readFileSync(
-    path.resolve(__dirname, '..', 'migrations', file),
-    'utf8',
-  );
+  const sql = fs.readFileSync(path.resolve(__dirname, '..', 'migrations', file), 'utf8');
   db.exec(sql);
 }
 
@@ -57,9 +54,7 @@ describe('Migration 002', () => {
 
   it('creates files table with correct columns', () => {
     applyMigration(db, '002_files.sql');
-    const cols = db
-      .prepare(`PRAGMA table_info(files)`)
-      .all() as Array<{ name: string }>;
+    const cols = db.prepare(`PRAGMA table_info(files)`).all() as Array<{ name: string }>;
     const names = cols.map((c) => c.name);
     expect(names).toContain('rowid');
     expect(names).toContain('account_id');
@@ -160,7 +155,9 @@ describe('FileQueries.upsertFile', () => {
     stmt.run(makeRow());
 
     const row = db
-      .prepare<[string, string], { name: string }>(`SELECT name FROM files WHERE account_id = ? AND id = ?`)
+      .prepare<[string, string], { name: string }>(
+        `SELECT name FROM files WHERE account_id = ? AND id = ?`,
+      )
       .get('acct-1', 'drive-file-1');
     expect(row?.name).toBe('photo.jpg');
   });
@@ -186,7 +183,9 @@ describe('FileQueries.upsertFile', () => {
     expect(count?.c).toBe(1);
 
     const row = db
-      .prepare<[string, string], { name: string }>(`SELECT name FROM files WHERE account_id = ? AND id = ?`)
+      .prepare<[string, string], { name: string }>(
+        `SELECT name FROM files WHERE account_id = ? AND id = ?`,
+      )
       .get('acct-1', 'drive-file-1');
     expect(row?.name).toBe('renamed.jpg');
   });
@@ -250,12 +249,14 @@ describe('FileQueries.searchFiles', () => {
   it('FTS5 trigram search finds substring matches (3+ chars)', () => {
     const ftsQuery = '"beach"';
     const rows = db
-      .prepare<[string, string, number], { name: string }>(`
+      .prepare<[string, string, number], { name: string }>(
+        `
         SELECT f.name FROM files f
         JOIN files_fts fts ON fts.rowid = f.rowid
         WHERE f.account_id = ? AND fts.name MATCH ?
         ORDER BY rank LIMIT ?
-      `)
+      `,
+      )
       .all('acct-1', ftsQuery, 10);
     const names = rows.map((r) => r.name);
     expect(names).toContain('Vacation_Beach.jpg');
@@ -265,11 +266,13 @@ describe('FileQueries.searchFiles', () => {
 
   it('LIKE fallback works for short queries', () => {
     const rows = db
-      .prepare<[string, string, number], { name: string }>(`
+      .prepare<[string, string, number], { name: string }>(
+        `
         SELECT name FROM files
         WHERE account_id = ? AND name LIKE ? ESCAPE '\\'
         ORDER BY modified_at DESC LIMIT ?
-      `)
+      `,
+      )
       .all('acct-1', '%Do%', 10);
     const names = rows.map((r) => r.name);
     expect(names).toContain('Work_Document.pdf');
@@ -290,14 +293,16 @@ describe('FTS update trigger is name-only', () => {
     applyMigration(db, '001_initial.sql');
     applyMigration(db, '002_files.sql');
 
-    db.prepare(`
+    db.prepare(
+      `
       INSERT INTO files (account_id, id, name, mime_type, parent_id,
         size_bytes, modified_at, created_at_ms, starred, trashed,
         thumbnail_url, web_view_link, image_width, image_height,
         taken_at, camera_make, camera_model)
       VALUES ('acct-1','f1','trigger_test.jpg','image/jpeg',null,
         1024,1700000000000,1700000000000,0,0,null,null,null,null,null,null,null)
-    `).run();
+    `,
+    ).run();
   });
 
   afterEach(() => {
@@ -308,7 +313,9 @@ describe('FTS update trigger is name-only', () => {
   it('toggling starred does not change FTS content', () => {
     // Count FTS rows before
     const before = db
-      .prepare<[], { c: number }>(`SELECT COUNT(*) AS c FROM files_fts WHERE name = 'trigger_test.jpg'`)
+      .prepare<[], { c: number }>(
+        `SELECT COUNT(*) AS c FROM files_fts WHERE name = 'trigger_test.jpg'`,
+      )
       .get();
     expect(before?.c).toBe(1);
 
@@ -317,7 +324,9 @@ describe('FTS update trigger is name-only', () => {
 
     // FTS row still present (trigger must NOT have deleted it)
     const after = db
-      .prepare<[], { c: number }>(`SELECT COUNT(*) AS c FROM files_fts WHERE name = 'trigger_test.jpg'`)
+      .prepare<[], { c: number }>(
+        `SELECT COUNT(*) AS c FROM files_fts WHERE name = 'trigger_test.jpg'`,
+      )
       .get();
     expect(after?.c).toBe(1);
   });
@@ -326,7 +335,9 @@ describe('FTS update trigger is name-only', () => {
     db.prepare(`UPDATE files SET name = 'renamed.jpg' WHERE id = 'f1'`).run();
 
     const old = db
-      .prepare<[], { c: number }>(`SELECT COUNT(*) AS c FROM files_fts WHERE name = 'trigger_test.jpg'`)
+      .prepare<[], { c: number }>(
+        `SELECT COUNT(*) AS c FROM files_fts WHERE name = 'trigger_test.jpg'`,
+      )
       .get();
     expect(old?.c).toBe(0);
 
@@ -375,6 +386,43 @@ describe('withBackoff', () => {
     expect(result).toBe('success');
     expect(attempts).toBe(3);
     expect(fakeLog.warn).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries on status 403 when reason is userRateLimitExceeded', async () => {
+    const { withBackoff } = await import('../src/sync/drive-api');
+
+    const fakeLog = {
+      warn: vi.fn(),
+      error: vi.fn(),
+      info: vi.fn(),
+      debug: vi.fn(),
+      trace: vi.fn(),
+      fatal: vi.fn(),
+      child: vi.fn(),
+      level: 'info',
+      silent: vi.fn(),
+    } as unknown as Parameters<typeof withBackoff>[1];
+
+    let attempts = 0;
+    const result = await withBackoff(
+      async () => {
+        attempts++;
+        if (attempts < 2) {
+          const err = Object.assign(new Error('User Rate Limit Exceeded'), {
+            code: 403,
+            errors: [{ reason: 'userRateLimitExceeded', domain: 'usageLimits' }],
+          });
+          throw err;
+        }
+        return 'success-after-403';
+      },
+      fakeLog,
+      3,
+    );
+
+    expect(result).toBe('success-after-403');
+    expect(attempts).toBe(2);
+    expect(fakeLog.warn).toHaveBeenCalledTimes(1);
   });
 
   it('throws immediately on non-retryable errors', async () => {
@@ -492,4 +540,3 @@ describe('mapDriveFile', () => {
     expect(mapDriveFile('acct-1', { id: 'x', name: 'y' })).toBeNull();
   });
 });
-
