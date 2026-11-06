@@ -112,6 +112,24 @@ export function createRangeSliceStream(start: number, end: number): Transform {
   });
 }
 
+/** Helper to extract an HTTP header value whether headers is a plain object or Fetch Headers instance. */
+export function getHeaderValue(headers: unknown, name: string): string | undefined {
+  if (!headers) return undefined;
+  if (typeof (headers as { get?: (n: string) => string | null }).get === 'function') {
+    const val = (headers as { get: (n: string) => string | null }).get(name);
+    return val ?? undefined;
+  }
+  const rec = headers as Record<string, string | undefined>;
+  if (rec[name] !== undefined) return rec[name];
+  const target = name.toLowerCase();
+  for (const k of Object.keys(rec)) {
+    if (k.toLowerCase() === target) {
+      return rec[k];
+    }
+  }
+  return undefined;
+}
+
 /** Serve a locally cached media file with full RFC 7233 HTTP Range 206/416 support. */
 export function serveLocalMediaFile(
   filePath: string,
@@ -554,8 +572,8 @@ export async function registerMediaRoutes(
 
         // Forward content headers from Google Drive
         const headers = driveRes.headers;
-        if (headers['accept-ranges']) reply.header('Accept-Ranges', headers['accept-ranges']);
-        else reply.header('Accept-Ranges', 'bytes');
+        const acceptRanges = getHeaderValue(headers, 'accept-ranges') ?? 'bytes';
+        reply.header('Accept-Ranges', acceptRanges);
 
         // SEC-002: Restrict inline rendering strictly to safe raster images and audio/video.
         // Never render SVG, HTML, PDF, or active content inline.
@@ -576,10 +594,13 @@ export async function registerMediaRoutes(
         reply.header('Access-Control-Allow-Origin', '*');
         reply.header('Cache-Control', 'private, max-age=86400');
 
+        const contentRange = getHeaderValue(headers, 'content-range');
+        const contentLength = getHeaderValue(headers, 'content-length');
+
         // Upstream returned 206 Partial Content with Content-Range
-        if (headers['content-range']) {
-          reply.header('Content-Range', headers['content-range']);
-          if (headers['content-length']) reply.header('Content-Length', headers['content-length']);
+        if (contentRange) {
+          reply.header('Content-Range', contentRange);
+          if (contentLength) reply.header('Content-Length', contentLength);
           reply.code(206);
           return reply.send(driveRes.data);
         }
@@ -599,7 +620,7 @@ export async function registerMediaRoutes(
           }
         }
 
-        if (headers['content-length']) reply.header('Content-Length', headers['content-length']);
+        if (contentLength) reply.header('Content-Length', contentLength);
         reply.code(driveRes.status ?? 200);
 
         return reply.send(driveRes.data);

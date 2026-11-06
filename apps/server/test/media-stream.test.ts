@@ -17,7 +17,12 @@ import fastify from 'fastify';
 import { Readable } from 'node:stream';
 import Database from 'better-sqlite3';
 import pino from 'pino';
-import { parseByteRange, createRangeSliceStream, registerMediaRoutes } from '../src/routes/media';
+import {
+  parseByteRange,
+  createRangeSliceStream,
+  getHeaderValue,
+  registerMediaRoutes,
+} from '../src/routes/media';
 import { openDb } from '../src/db/connection';
 import { runMigrations } from '../src/db/migrations';
 import { registerSessionMiddleware, SESSION_COOKIE, SESSION_TOKEN } from '../src/auth/session';
@@ -81,6 +86,26 @@ describe('Media Stream Unit Tests', () => {
       const sliced = Buffer.concat(chunks).toString('utf-8');
       expect(sliced).toBe(inputBuffer.subarray(5, 15).toString('utf-8'));
       expect(sliced.length).toBe(10);
+    });
+  });
+
+  describe('getHeaderValue', () => {
+    it('retrieves header from plain record case-insensitively', () => {
+      const plain = { 'Content-Range': 'bytes 0-10/100', 'accept-ranges': 'bytes' };
+      expect(getHeaderValue(plain, 'content-range')).toBe('bytes 0-10/100');
+      expect(getHeaderValue(plain, 'Content-Range')).toBe('bytes 0-10/100');
+      expect(getHeaderValue(plain, 'accept-ranges')).toBe('bytes');
+      expect(getHeaderValue(plain, 'missing')).toBeUndefined();
+    });
+
+    it('retrieves header from standard Fetch Headers instance', () => {
+      const headers = new Headers({
+        'content-range': 'bytes 100-200/5000',
+        'content-length': '101',
+      });
+      expect(getHeaderValue(headers, 'content-range')).toBe('bytes 100-200/5000');
+      expect(getHeaderValue(headers, 'content-length')).toBe('101');
+      expect(getHeaderValue(headers, 'missing')).toBeUndefined();
     });
   });
 
@@ -188,6 +213,40 @@ describe('Media Stream Unit Tests', () => {
       expect(res.headers['content-range']).toBe('bytes 0-9/1000');
       expect(res.headers['content-length']).toBe('10');
       expect(res.payload).toBe('bytes-0-9');
+    });
+
+    it('returns 206 Partial Content when upstream returns 206 with Fetch Headers instance', async () => {
+      const mockStream = Readable.from([Buffer.from('bytes-10-19')]);
+      const fetchHeaders = new Headers({
+        'content-range': 'bytes 10-19/1000',
+        'content-length': '10',
+        'accept-ranges': 'bytes',
+      });
+      vi.spyOn(oauthClient, 'getAuthenticatedDrive').mockResolvedValue({
+        drive: {
+          files: {
+            get: vi.fn().mockResolvedValue({
+              status: 206,
+              headers: fetchHeaders,
+              data: mockStream,
+            }),
+          },
+        },
+      } as any);
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/media/v1/stream',
+        headers: {
+          cookie: `${SESSION_COOKIE}=${SESSION_TOKEN}`,
+          range: 'bytes=10-19',
+        },
+      });
+
+      expect(res.statusCode).toBe(206);
+      expect(res.headers['content-range']).toBe('bytes 10-19/1000');
+      expect(res.headers['content-length']).toBe('10');
+      expect(res.payload).toBe('bytes-10-19');
     });
 
     it('returns 206 and slices content when upstream returns 200 for range request', async () => {

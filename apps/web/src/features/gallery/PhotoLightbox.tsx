@@ -168,17 +168,13 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
   const handleVideoError = useCallback(
     (fileId: string) => {
       if (isTranscoding) return;
-      // If native playback fails and we haven't tried transcoding yet, automatically attempt FFmpeg transcoding!
-      if (!useTranscodeStream[fileId]) {
-        void startTranscoding(fileId);
-        return;
-      }
-      // If transcoding also failed, show the fallback unsupported video panel
+      // When native playback is not supported by the browser, display the fallback
+      // options panel (Transcode & Play, Open in Drive, Download)
       setIsTranscoding(false);
       markVideoPlaybackFailed(fileId);
       setVideoFailed(true);
     },
-    [isTranscoding, useTranscodeStream, startTranscoding],
+    [isTranscoding],
   );
 
   // Reset display states on image switch

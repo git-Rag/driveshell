@@ -13,6 +13,7 @@ import { pipeline } from 'node:stream/promises';
 import { getDataDir } from '../db/connection';
 
 let cachedFFmpegPath: string | null = null;
+let cachedFFprobePath: string | null | undefined = undefined;
 const activeJobs = new Map<string, Promise<string>>();
 
 /**
@@ -91,6 +92,35 @@ export function getFFmpegPath(): string | null {
   return null;
 }
 
+/**
+ * Locate the FFprobe executable on the system.
+ */
+export function getFFprobePath(): string | null {
+  if (cachedFFprobePath !== undefined) return cachedFFprobePath;
+  const ffmpeg = getFFmpegPath();
+  if (ffmpeg) {
+    const probeCandidate = ffmpeg.replace(/ffmpeg(\.exe)?$/i, 'ffprobe$1');
+    if (fs.existsSync(probeCandidate)) {
+      cachedFFprobePath = probeCandidate;
+      return cachedFFprobePath;
+    }
+  }
+  try {
+    const isWin = process.platform === 'win32';
+    const cmd = isWin ? 'where ffprobe' : 'which ffprobe';
+    const output = execSync(cmd, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'ignore'] }).trim();
+    const firstLine = output.split(/\r?\n/)[0]?.trim();
+    if (firstLine && fs.existsSync(firstLine)) {
+      cachedFFprobePath = firstLine;
+      return cachedFFprobePath;
+    }
+  } catch {
+    // ffprobe not available
+  }
+  cachedFFprobePath = null;
+  return null;
+}
+
 export function isFFmpegAvailable(): boolean {
   return getFFmpegPath() !== null;
 }
@@ -163,56 +193,122 @@ export async function transcodeToH264(options: TranscodeOptions): Promise<string
         throw new Error('Transcode aborted by client');
       }
 
-      // Step B: Spawn FFmpeg to convert to H.264/AAC with +faststart
-      const ffmpegArgs = [
-        '-y',
-        '-i',
-        rawTempPath,
-        '-c:v',
-        'libx264',
-        '-preset',
-        'veryfast',
-        '-crf',
-        '23',
-        '-pix_fmt',
-        'yuv420p',
-        '-c:a',
-        'aac',
-        '-b:a',
-        '128k',
-        '-movflags',
-        '+faststart',
-        transcodeTempPath,
-      ];
-
-      await new Promise<void>((resolve, reject) => {
-        const proc = spawn(ffmpeg, ffmpegArgs, {
-          stdio: ['ignore', 'pipe', 'pipe'],
-        });
-
-        const onAbort = () => {
-          proc.kill('SIGKILL');
-          reject(new Error('Transcode aborted by client'));
-        };
-
-        if (signal) {
-          signal.addEventListener('abort', onAbort, { once: true });
-        }
-
-        proc.on('error', (err) => {
-          if (signal) signal.removeEventListener('abort', onAbort);
-          reject(err);
-        });
-
-        proc.on('close', (code) => {
-          if (signal) signal.removeEventListener('abort', onAbort);
-          if (code === 0) {
-            resolve();
-          } else {
-            reject(new Error(`FFmpeg exited with non-zero code ${code}`));
+      // Step B: Probe source video codec to choose between fast remuxing vs full re-encoding
+      let isH264 = false;
+      const ffprobe = getFFprobePath();
+      if (ffprobe) {
+        try {
+          const probeOut = execSync(
+            `"${ffprobe}" -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "${rawTempPath}"`,
+            { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'ignore'], timeout: 5000 },
+          )
+            .trim()
+            .toLowerCase();
+          if (probeOut === 'h264' || probeOut === 'avc1') {
+            isH264 = true;
           }
+        } catch {
+          // Fall back to full re-encode if probe fails
+        }
+      }
+
+      // Helper to run FFmpeg process with abort signal handling
+      const runFFmpeg = (args: string[]) =>
+        new Promise<void>((resolve, reject) => {
+          const proc = spawn(ffmpeg, args, {
+            stdio: ['ignore', 'pipe', 'pipe'],
+          });
+
+          const onAbort = () => {
+            proc.kill('SIGKILL');
+            reject(new Error('Transcode aborted by client'));
+          };
+
+          if (signal) {
+            signal.addEventListener('abort', onAbort, { once: true });
+          }
+
+          proc.on('error', (err) => {
+            if (signal) signal.removeEventListener('abort', onAbort);
+            reject(err);
+          });
+
+          proc.on('close', (code) => {
+            if (signal) signal.removeEventListener('abort', onAbort);
+            if (code === 0) {
+              resolve();
+            } else {
+              reject(new Error(`FFmpeg exited with non-zero code ${code}`));
+            }
+          });
         });
-      });
+
+      // If already H.264, perform instant container remuxing with +faststart (takes <150ms and 0 CPU re-encoding)
+      // Otherwise re-encode with libx264 ultrafast preset
+      if (isH264) {
+        try {
+          await runFFmpeg([
+            '-y',
+            '-i',
+            rawTempPath,
+            '-c',
+            'copy',
+            '-movflags',
+            '+faststart',
+            transcodeTempPath,
+          ]);
+        } catch {
+          // If remuxing fails (e.g. incompatible audio track), fall back to re-encoding
+          if (fs.existsSync(transcodeTempPath)) {
+            try {
+              fs.unlinkSync(transcodeTempPath);
+            } catch {
+              // ignore
+            }
+          }
+          await runFFmpeg([
+            '-y',
+            '-i',
+            rawTempPath,
+            '-c:v',
+            'libx264',
+            '-preset',
+            'ultrafast',
+            '-crf',
+            '23',
+            '-pix_fmt',
+            'yuv420p',
+            '-c:a',
+            'aac',
+            '-b:a',
+            '128k',
+            '-movflags',
+            '+faststart',
+            transcodeTempPath,
+          ]);
+        }
+      } else {
+        await runFFmpeg([
+          '-y',
+          '-i',
+          rawTempPath,
+          '-c:v',
+          'libx264',
+          '-preset',
+          'ultrafast',
+          '-crf',
+          '23',
+          '-pix_fmt',
+          'yuv420p',
+          '-c:a',
+          'aac',
+          '-b:a',
+          '128k',
+          '-movflags',
+          '+faststart',
+          transcodeTempPath,
+        ]);
+      }
 
       // Step C: Atomically move transcode temp file to final target
       if (fs.existsSync(transcodeTempPath)) {
