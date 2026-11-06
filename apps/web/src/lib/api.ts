@@ -29,9 +29,23 @@ export function getApiBase(): string {
   return isTauriDesktop() ? 'http://127.0.0.1:3001' : '';
 }
 
-let activeSessionToken: string | null = null;
+const SESSION_STORAGE_KEY = 'sunflower_session_token';
+
+let activeSessionToken: string | null =
+  typeof window !== 'undefined' ? window.sessionStorage.getItem(SESSION_STORAGE_KEY) : null;
 let sessionPromise: Promise<void> | null = null;
 let lastSessionAttempt = 0;
+
+function getValidToken(): string | null {
+  if (activeSessionToken) return activeSessionToken;
+  try {
+    return typeof window !== 'undefined'
+      ? window.sessionStorage.getItem(SESSION_STORAGE_KEY)
+      : null;
+  } catch {
+    return null;
+  }
+}
 
 async function fetchHealthWithRetry(
   apiBase: string,
@@ -45,7 +59,16 @@ async function fetchHealthWithRetry(
       const res = await fetch(`${apiBase}/health`, { credentials: credentialsMode });
       if (res.ok) {
         try {
-          return (await res.json()) as { sessionToken?: string };
+          const data = (await res.json()) as { sessionToken?: string };
+          if (data.sessionToken) {
+            activeSessionToken = data.sessionToken;
+            try {
+              window.sessionStorage.setItem(SESSION_STORAGE_KEY, data.sessionToken);
+            } catch {
+              /* ignore */
+            }
+          }
+          return data;
         } catch {
           return {};
         }
@@ -442,7 +465,8 @@ export function searchFiles(opts: {
 export function getMediaThumbUrl(fileId: string, size = 400, accountId?: string): string {
   const params = new URLSearchParams({ size: String(size) });
   if (accountId) params.set('accountId', accountId);
-  if (activeSessionToken) params.set('token', activeSessionToken);
+  const token = getValidToken();
+  if (token) params.set('token', token);
   return `${getApiBase()}/api/media/${encodeURIComponent(fileId)}/thumb?${params.toString()}`;
 }
 
@@ -450,7 +474,8 @@ export function getMediaStreamUrl(fileId: string, accountId?: string, transcode?
   const params = new URLSearchParams();
   if (accountId) params.set('accountId', accountId);
   if (transcode) params.set('transcode', '1');
-  if (activeSessionToken) params.set('token', activeSessionToken);
+  const token = getValidToken();
+  if (token) params.set('token', token);
   const qs = params.toString();
   return `${getApiBase()}/api/media/${encodeURIComponent(fileId)}/stream${qs ? `?${qs}` : ''}`;
 }
@@ -458,9 +483,31 @@ export function getMediaStreamUrl(fileId: string, accountId?: string, transcode?
 export function getMediaDownloadUrl(fileId: string, accountId?: string): string {
   const params = new URLSearchParams();
   if (accountId) params.set('accountId', accountId);
-  if (activeSessionToken) params.set('token', activeSessionToken);
+  const token = getValidToken();
+  if (token) params.set('token', token);
   const qs = params.toString();
   return `${getApiBase()}/api/media/${encodeURIComponent(fileId)}/download${qs ? `?${qs}` : ''}`;
+}
+
+export interface TranscodeResponse {
+  ready: boolean;
+  cached?: boolean;
+}
+
+export async function transcodeVideo(
+  fileId: string,
+  accountId?: string,
+): Promise<TranscodeResponse> {
+  const params = new URLSearchParams();
+  if (accountId) params.set('accountId', accountId);
+  const qs = params.toString();
+  return request<TranscodeResponse>(
+    `/api/media/${encodeURIComponent(fileId)}/transcode${qs ? `?${qs}` : ''}`,
+    {
+      method: 'POST',
+      body: JSON.stringify({}),
+    },
+  );
 }
 
 // ---------------------------------------------------------------------------

@@ -24,7 +24,6 @@ import {
 } from 'lucide-react';
 import type { FileRecord, Album } from '../../lib/api';
 import { MediaThumbnail } from './MediaThumbnail';
-import { isThumbnailFailed, markThumbnailFailed } from '../../lib/thumbnail-cache';
 import {
   getMediaThumbUrl,
   getMediaStreamUrl,
@@ -33,6 +32,7 @@ import {
   listAlbums,
   createAlbum,
   addItemsToAlbum,
+  transcodeVideo,
 } from '../../lib/api';
 
 interface PhotoLightboxProps {
@@ -93,6 +93,7 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
   const [isZoomed, setIsZoomed] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [highResLoaded, setHighResLoaded] = useState(false);
+  const [photoFailed, setPhotoFailed] = useState(false);
 
   // Album Picker modal state
   const [showAlbumPicker, setShowAlbumPicker] = useState(false);
@@ -146,13 +147,30 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
     }
   }, []);
 
-  const handleVideoError = useCallback(
-    (fileId: string) => {
-      // If native playback fails and we haven't tried transcoding yet, automatically attempt FFmpeg transcoding!
-      if (!useTranscodeStream[fileId]) {
-        setIsTranscoding(true);
+  const startTranscoding = useCallback(async (fileId: string) => {
+    setIsTranscoding(true);
+    setVideoFailed(false);
+    try {
+      const res = await transcodeVideo(fileId);
+      if (res.ready) {
         setUseTranscodeStream((prev) => ({ ...prev, [fileId]: true }));
         setVideoFailed(false);
+      } else {
+        setVideoFailed(true);
+      }
+    } catch {
+      setVideoFailed(true);
+    } finally {
+      setIsTranscoding(false);
+    }
+  }, []);
+
+  const handleVideoError = useCallback(
+    (fileId: string) => {
+      if (isTranscoding) return;
+      // If native playback fails and we haven't tried transcoding yet, automatically attempt FFmpeg transcoding!
+      if (!useTranscodeStream[fileId]) {
+        void startTranscoding(fileId);
         return;
       }
       // If transcoding also failed, show the fallback unsupported video panel
@@ -160,12 +178,13 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
       markVideoPlaybackFailed(fileId);
       setVideoFailed(true);
     },
-    [useTranscodeStream],
+    [isTranscoding, useTranscodeStream, startTranscoding],
   );
 
   // Reset display states on image switch
   useEffect(() => {
     setHighResLoaded(false);
+    setPhotoFailed(false);
     setIsZoomed(false);
     setRotation(0);
     setAddedAlbumId(null);
@@ -396,7 +415,7 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
               className="relative max-h-[82vh] max-w-xl w-full rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-zinc-950/90 flex flex-col items-center justify-center p-8 text-center"
             >
               {/* Drive thumbnail as blurred background if available */}
-              {file.thumbnail_url && !isThumbnailFailed(file.id) && (
+              {file.thumbnail_url && (
                 <img
                   src={getMediaThumbUrl(file.id, 800)}
                   alt=""
@@ -434,9 +453,7 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
                     type="button"
                     data-testid="transcode-play-btn"
                     onClick={() => {
-                      setIsTranscoding(true);
-                      setUseTranscodeStream((prev) => ({ ...prev, [file.id]: true }));
-                      setVideoFailed(false);
+                      void startTranscoding(file.id);
                     }}
                     className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white active:scale-95 transition-all shadow-md cursor-pointer"
                   >
@@ -499,8 +516,8 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
                 Your browser does not support HTML5 video streaming.
               </video>
             </div>
-          ) : !file.thumbnail_url || isThumbnailFailed(file.id) ? (
-            /* Fallback when photo has no thumbnail or thumbnail 404'd */
+          ) : photoFailed ? (
+            /* Fallback when photo has genuinely failed to load */
             <div className="flex flex-col items-center justify-center p-12 bg-zinc-900/80 border border-white/10 rounded-2xl text-center select-none max-w-md">
               <Camera size={48} className="text-zinc-600 mb-3" />
               <span className="text-sm font-medium text-white mb-1">{file.name}</span>
@@ -534,7 +551,7 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
                 decoding="async"
                 onLoad={() => setHighResLoaded(true)}
                 onError={() => {
-                  markThumbnailFailed(file.id);
+                  setPhotoFailed(true);
                   setHighResLoaded(true);
                 }}
                 className={`max-h-[82vh] max-w-[85vw] object-contain rounded-lg shadow-2xl transition-opacity duration-300 ease-out select-none ${

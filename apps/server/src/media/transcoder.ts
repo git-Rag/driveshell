@@ -29,7 +29,22 @@ export function getFFmpegPath(): string | null {
     return cachedFFmpegPath;
   }
 
-  // 2. PATH resolution
+  // 2. Bundled binary candidates relative to Node or application
+  const appCandidates = [
+    path.join(path.dirname(process.execPath), 'ffmpeg.exe'),
+    path.join(path.dirname(process.execPath), '..', 'bin', 'ffmpeg.exe'),
+    path.join(path.dirname(process.execPath), 'resources', 'bin', 'ffmpeg.exe'),
+    path.join(process.cwd(), 'bin', 'ffmpeg.exe'),
+    path.join(process.cwd(), 'resources', 'bin', 'ffmpeg.exe'),
+  ];
+  for (const c of appCandidates) {
+    if (fs.existsSync(c)) {
+      cachedFFmpegPath = c;
+      return cachedFFmpegPath;
+    }
+  }
+
+  // 3. PATH resolution
   try {
     const isWin = process.platform === 'win32';
     const cmd = isWin ? 'where ffmpeg' : 'which ffmpeg';
@@ -43,7 +58,7 @@ export function getFFmpegPath(): string | null {
     // Not found in PATH
   }
 
-  // 3. Known WinGet path on Windows
+  // 4. Known WinGet path on Windows
   if (process.platform === 'win32') {
     const wingetBase = path.join(
       process.env.LOCALAPPDATA ?? 'C:\\Users\\HP\\AppData\\Local',

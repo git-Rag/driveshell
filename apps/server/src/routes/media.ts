@@ -126,7 +126,8 @@ export function serveLocalMediaFile(
   reply.header('Content-Type', contentType);
   reply.header('Accept-Ranges', 'bytes');
   reply.header('X-Content-Type-Options', 'nosniff');
-  reply.header('Content-Security-Policy', "sandbox; default-src 'none'");
+  reply.header('Cross-Origin-Resource-Policy', 'cross-origin');
+  reply.header('Access-Control-Allow-Origin', '*');
   reply.header('Cache-Control', 'public, max-age=86400');
 
   if (rangeHeader) {
@@ -283,7 +284,8 @@ export async function registerMediaRoutes(
 
             reply.header('Content-Type', 'image/jpeg');
             reply.header('X-Content-Type-Options', 'nosniff');
-            reply.header('Content-Security-Policy', "sandbox; default-src 'none'");
+            reply.header('Cross-Origin-Resource-Policy', 'cross-origin');
+            reply.header('Access-Control-Allow-Origin', '*');
             reply.header('Cache-Control', 'public, max-age=604800, immutable');
             return reply.send(buffer);
           }
@@ -377,6 +379,74 @@ export async function registerMediaRoutes(
   });
 
   // -------------------------------------------------------------------------
+  // POST /api/media/:fileId/transcode — Trigger or check on-demand video transcoding
+  // -------------------------------------------------------------------------
+  app.post(
+    '/api/media/:fileId/transcode',
+    async (
+      req: FastifyRequest<{
+        Params: MediaParams;
+        Querystring: { accountId?: string };
+      }>,
+      reply: FastifyReply,
+    ) => {
+      const { fileId } = req.params;
+      const accountId = resolveAccountId(req.query.accountId);
+      if (!accountId) {
+        return reply.code(404).send({ error: 'Account not found' });
+      }
+
+      const file = fileQ.findById(accountId, fileId);
+      if (!file) {
+        return reply.code(404).send({ error: 'File not found' });
+      }
+
+      if (!isFFmpegAvailable()) {
+        return reply.code(503).send({ error: 'FFmpeg transcoder not available on host' });
+      }
+
+      // 1. Check if already cached on disk
+      const cachedPath = getCachedTranscodePath(fileId);
+      if (cachedPath) {
+        return reply.send({ ready: true, cached: true });
+      }
+
+      const clientId = keychain.get(KC_SERVICE, KC_CLIENT_ID);
+      const clientSecret = keychain.get(KC_SERVICE, KC_CLIENT_SECRET);
+      if (!clientId || !clientSecret) {
+        return reply.code(500).send({ error: 'Credentials not configured' });
+      }
+
+      const { drive } = await getAuthenticatedDrive(
+        accountId,
+        keychain,
+        accountQ,
+        clientId,
+        clientSecret,
+        port,
+        req.log,
+      );
+
+      try {
+        await transcodeToH264({
+          fileId,
+          sourceStreamFetcher: async () => {
+            const driveRes = await drive.files.get(
+              { fileId, alt: 'media' },
+              { responseType: 'stream' },
+            );
+            return driveRes.data;
+          },
+        });
+        return reply.send({ ready: true, cached: false });
+      } catch (err: unknown) {
+        req.log.error({ fileId, err }, 'Failed to transcode video');
+        return reply.code(500).send({ error: 'Transcoding failed' });
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
   // GET /api/media/:fileId/stream — Video / audio / media Range streaming
   // -------------------------------------------------------------------------
   app.get(
@@ -444,17 +514,9 @@ export async function registerMediaRoutes(
 
       // Perform on-demand transcode if requested
       if (wantsTranscode) {
-        const abortController = new AbortController();
-        req.raw.on('close', () => {
-          if (!req.raw.complete) {
-            abortController.abort();
-          }
-        });
-
         try {
           const transcodedPath = await transcodeToH264({
             fileId,
-            signal: abortController.signal,
             sourceStreamFetcher: async () => {
               const driveRes = await drive.files.get(
                 { fileId, alt: 'media' },
@@ -465,9 +527,6 @@ export async function registerMediaRoutes(
           });
           return serveLocalMediaFile(transcodedPath, 'video/mp4', req, reply);
         } catch (err: unknown) {
-          if (abortController.signal.aborted) {
-            return;
-          }
           req.log.error({ fileId, err }, 'Failed to transcode video');
           return reply.code(500).send({ error: 'Transcoding failed' });
         }
@@ -513,7 +572,8 @@ export async function registerMediaRoutes(
         }
 
         reply.header('X-Content-Type-Options', 'nosniff');
-        reply.header('Content-Security-Policy', "sandbox; default-src 'none'");
+        reply.header('Cross-Origin-Resource-Policy', 'cross-origin');
+        reply.header('Access-Control-Allow-Origin', '*');
         reply.header('Cache-Control', 'private, max-age=86400');
 
         // Upstream returned 206 Partial Content with Content-Range

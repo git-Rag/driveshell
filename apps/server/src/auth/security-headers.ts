@@ -10,7 +10,7 @@ export const BASELINE_SECURITY_HEADERS: Record<string, string> = {
   'x-content-type-options': 'nosniff',
   'x-frame-options': 'DENY',
   'cross-origin-opener-policy': 'same-origin',
-  'cross-origin-resource-policy': 'same-origin',
+  'cross-origin-resource-policy': 'cross-origin',
   'referrer-policy': 'strict-origin-when-cross-origin',
   'permissions-policy': 'camera=(), microphone=(), geolocation=()',
 };
