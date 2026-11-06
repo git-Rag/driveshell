@@ -131,7 +131,7 @@ export async function registerFileRoutes(app: FastifyInstance, db: Db): Promise<
     '/api/files/months',
     async (
       req: FastifyRequest<{
-        Querystring: { accountId?: string; type?: 'all' | 'photos' | 'videos' };
+        Querystring: { accountId?: string; type?: 'all' | 'photos' | 'videos' | 'favorites' };
       }>,
       reply: FastifyReply,
     ) => {

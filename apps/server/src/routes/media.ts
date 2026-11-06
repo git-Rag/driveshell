@@ -255,7 +255,8 @@ export async function registerMediaRoutes(
             if (isValidImage(head)) {
               reply.header('Content-Type', 'image/jpeg');
               reply.header('X-Content-Type-Options', 'nosniff');
-              reply.header('Content-Security-Policy', "sandbox; default-src 'none'");
+              reply.header('Cross-Origin-Resource-Policy', 'cross-origin');
+              reply.header('Access-Control-Allow-Origin', '*');
               reply.header('Cache-Control', 'public, max-age=604800, immutable');
               return reply.send(fs.createReadStream(cacheFile));
             }
@@ -356,6 +357,9 @@ export async function registerMediaRoutes(
             if (isValidImage(buffer)) {
               fs.writeFile(cacheFile, buffer, () => {});
               reply.header('Content-Type', 'image/jpeg');
+              reply.header('X-Content-Type-Options', 'nosniff');
+              reply.header('Cross-Origin-Resource-Policy', 'cross-origin');
+              reply.header('Access-Control-Allow-Origin', '*');
               reply.header('Cache-Control', 'public, max-age=604800, immutable');
               return reply.send(buffer);
             }
@@ -378,6 +382,9 @@ export async function registerMediaRoutes(
           )) as unknown as DriveStreamResponse;
 
           reply.header('Content-Type', file.mime_type || 'image/jpeg');
+          reply.header('X-Content-Type-Options', 'nosniff');
+          reply.header('Cross-Origin-Resource-Policy', 'cross-origin');
+          reply.header('Access-Control-Allow-Origin', '*');
           reply.header('Cache-Control', 'public, max-age=86400');
           return reply.send(res.data);
         }
