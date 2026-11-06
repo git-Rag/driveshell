@@ -383,7 +383,7 @@ export function getPhotos(opts: {
 export const listPhotos = getPhotos;
 
 export function getPhotoMonths(
-  opts?: { accountId?: string; type?: 'all' | 'photos' | 'videos' } | string,
+  opts?: { accountId?: string; type?: 'all' | 'photos' | 'videos' | 'favorites' } | string,
 ): Promise<MonthsResponse> {
   const params = new URLSearchParams();
   if (typeof opts === 'string') {

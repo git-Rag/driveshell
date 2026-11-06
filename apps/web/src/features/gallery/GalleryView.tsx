@@ -74,6 +74,15 @@ export function GalleryView({
   const [activeFilter, setActiveFilter] = useState<'all' | 'photos' | 'videos' | 'favorites'>(
     'all',
   );
+
+  const handleFilterChange = useCallback(
+    (filter: 'all' | 'photos' | 'videos' | 'favorites') => {
+      if (filter === activeFilter) return;
+      containerRef.current?.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+      setActiveFilter(filter);
+    },
+    [activeFilter],
+  );
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [currentVisibleMonth, setCurrentVisibleMonth] = useState<string>('');
 
@@ -92,7 +101,7 @@ export function GalleryView({
     setLoadingInitial(true);
     try {
       const [monthsRes, photosRes] = await Promise.all([
-        getPhotoMonths(),
+        getPhotoMonths({ type: activeFilter }),
         getPhotos({ offset: 0, limit: PAGE_SIZE, type: activeFilter }),
       ]);
       setMonths(monthsRes.months);
@@ -436,7 +445,7 @@ export function GalleryView({
         {/* Center: Filter Toggle Pills */}
         <div className="flex items-center gap-1 bg-zinc-900/80 p-1 rounded-full border border-white/10 shadow-lg backdrop-blur-md">
           <button
-            onClick={() => setActiveFilter('all')}
+            onClick={() => handleFilterChange('all')}
             className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
               activeFilter === 'all'
                 ? 'bg-brand text-white shadow-sm'
@@ -446,7 +455,7 @@ export function GalleryView({
             All
           </button>
           <button
-            onClick={() => setActiveFilter('photos')}
+            onClick={() => handleFilterChange('photos')}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all ${
               activeFilter === 'photos'
                 ? 'bg-brand text-white shadow-sm'
@@ -457,7 +466,7 @@ export function GalleryView({
             <span>Photos</span>
           </button>
           <button
-            onClick={() => setActiveFilter('videos')}
+            onClick={() => handleFilterChange('videos')}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all ${
               activeFilter === 'videos'
                 ? 'bg-brand text-white shadow-sm'
@@ -468,7 +477,7 @@ export function GalleryView({
             <span>Videos</span>
           </button>
           <button
-            onClick={() => setActiveFilter('favorites')}
+            onClick={() => handleFilterChange('favorites')}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all ${
               activeFilter === 'favorites'
                 ? 'bg-brand text-white shadow-sm'

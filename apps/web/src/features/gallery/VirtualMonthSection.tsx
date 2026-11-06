@@ -69,7 +69,7 @@ export const VirtualMonthSection = React.memo(function VirtualMonthSection({
       },
       {
         root: scrollContainer ?? null,
-        rootMargin: '400px 0px 400px 0px',
+        rootMargin: '800px 0px 800px 0px',
         threshold: 0,
       },
     );

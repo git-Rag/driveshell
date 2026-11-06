@@ -346,23 +346,30 @@ export function buildFileQueries(db: Db) {
     },
 
     /** Total count of photos and videos (filter-aware). */
-    countPhotos(accountId: string, type?: 'all' | 'photos' | 'videos'): number {
+    countPhotos(accountId: string, type?: 'all' | 'photos' | 'videos' | 'favorites'): number {
       let sql = `SELECT COUNT(*) AS total FROM files WHERE account_id = ? AND ${MEDIA_STRICT_FILTER} AND trashed = 0`;
       if (type === 'photos') {
         sql += ` AND mime_type LIKE 'image/%'`;
       } else if (type === 'videos') {
         sql += ` AND mime_type LIKE 'video/%'`;
+      } else if (type === 'favorites') {
+        sql += ` AND starred = 1`;
       }
       return db.prepare<[string], { total: number }>(sql).get(accountId)?.total ?? 0;
     },
 
     /** Group photos by month for timeline scrubber, popover picker, and section headers (filter-aware). */
-    getPhotoMonths(accountId: string, type?: 'all' | 'photos' | 'videos'): PhotoMonthBucket[] {
+    getPhotoMonths(
+      accountId: string,
+      type?: 'all' | 'photos' | 'videos' | 'favorites',
+    ): PhotoMonthBucket[] {
       let filterClause = '';
       if (type === 'photos') {
         filterClause = ` AND mime_type LIKE 'image/%'`;
       } else if (type === 'videos') {
         filterClause = ` AND mime_type LIKE 'video/%'`;
+      } else if (type === 'favorites') {
+        filterClause = ` AND starred = 1`;
       }
 
       const sql = `
