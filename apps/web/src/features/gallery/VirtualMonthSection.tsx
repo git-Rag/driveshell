@@ -108,7 +108,7 @@ export const VirtualMonthSection = React.memo(function VirtualMonthSection({
         /* Empty placeholder when far offscreen: 0 tiles, 0 network requests, 0 DOM bloat */
         <div
           className="w-full rounded-lg bg-white/[0.01]"
-          style={{ height: `${recordedHeight ? recordedHeight - 44 : estimatedHeight - 44}px` }}
+          style={{ height: `${estimatedHeight - 44}px` }}
           aria-hidden="true"
         />
       )}
