@@ -108,7 +108,7 @@ export function App() {
           fontSize: '0.875rem',
         }}
       >
-        Starting Sunflower Drive…
+        Starting Project Sunflower…
       </div>
     );
   }

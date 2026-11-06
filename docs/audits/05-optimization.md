@@ -1,4 +1,4 @@
-# Sunflower Drive — Performance & Optimization Scoreboard (Stage 5)
+# Project Sunflower — Performance & Optimization Scoreboard (Stage 5)
 
 > **Optimization Audit Report**: Stage 5 Benchmarks & Measurements  
 > **Status**: COMPLETED  

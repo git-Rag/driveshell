@@ -2,8 +2,7 @@
 
 ## Supported Versions
 
-DriveShell is currently in early development (pre-1.0). Security fixes are applied to the `main`
-branch only.
+Project Sunflower security fixes are applied to the `main` branch.
 
 ## Reporting a Vulnerability
 

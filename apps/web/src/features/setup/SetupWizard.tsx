@@ -93,7 +93,7 @@ function Step1Welcome({ onNext }: { onNext: () => void }) {
       <div className="flex flex-col items-center mb-10">
         <Logo size={52} className="mb-5" />
         <h1 className="text-3xl font-bold text-ds-text-primary mb-2 tracking-tight">
-          Welcome to Sunflower Drive
+          Welcome to Project Sunflower
         </h1>
         <p className="text-ds-text-secondary text-center max-w-xs leading-relaxed">
           A fast, photo-first interface for Google Drive.
@@ -288,7 +288,7 @@ function Step3SignIn({ onBack }: { onBack: () => void }) {
         </div>
         <h2 className="text-xl font-bold text-ds-text-primary mb-1">Sign in with Google</h2>
         <p className="text-sm text-ds-text-secondary max-w-xs leading-relaxed">
-          Sunflower Drive needs read access to your Drive to sync file metadata. No files are
+          Project Sunflower needs read access to your Drive to sync file metadata. No files are
           downloaded.
         </p>
       </div>
@@ -329,7 +329,7 @@ function Step3SignIn({ onBack }: { onBack: () => void }) {
         <p className="leading-relaxed">
           Google will show an &ldquo;unverified app&rdquo; warning. This is expected for personal
           apps. Click{' '}
-          <strong className="text-ds-text-secondary">Advanced → Go to Sunflower Drive</strong> to
+          <strong className="text-ds-text-secondary">Advanced → Go to Project Sunflower</strong> to
           proceed.
         </p>
       </div>
@@ -375,7 +375,7 @@ function Step4Done({
         </div>
         <h2 className="text-2xl font-bold text-ds-text-primary mb-1">All set!</h2>
         <p className="text-sm text-ds-text-secondary">
-          Sunflower Drive is connected to your Drive.
+          Project Sunflower is connected to your Drive.
         </p>
       </div>
 
@@ -407,7 +407,7 @@ function Step4Done({
         className="btn-primary w-full max-w-sm flex items-center justify-center gap-2"
         onClick={onComplete}
       >
-        Open Sunflower Drive
+        Open Project Sunflower
         <ArrowRight size={16} />
       </button>
 

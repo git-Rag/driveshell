@@ -1,4 +1,4 @@
-# Sunflower Drive — Portability & Cross-Platform Architecture Audit
+# Project Sunflower — Portability & Cross-Platform Architecture Audit
 
 > **Scope**: Windows Desktop (`.exe` / `.msi` via Tauri v2) and Android Mobile Readiness.  
 > **Stage**: Stage 6 Deliverable  
@@ -8,7 +8,7 @@
 
 ## 1. Codebase Module Classification
 
-Every module across Sunflower Drive is classified into three operational categories:
+Every module across Project Sunflower is classified into three operational categories:
 
 | Module / Path                                 |    Category    | Status & Portability Roadblocks                                                           | Replacement for Android / Pure Seam                                                    |
 | :-------------------------------------------- | :------------: | :---------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------- |
@@ -39,8 +39,8 @@ Every module across Sunflower Drive is classified into three operational categor
 
 ## 3. Platform Abstraction Seams (Interfaces)
 
-To decouple core synchronization, caching, and cryptographic logic from the Node.js runtime,
-Sunflower Drive introduces platform seams:
+To decouple core synchronization, caching, and cryptographic logic from the Node.js runtime, Project
+Sunflower introduces platform seams:
 
 ### 3.1 `SecretKeyStore`
 

@@ -1,8 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/refs/heads/v2/crates/tauri-cli/schema.json",
-  "productName": "Sunflower Drive",
-  "version": "0.1.0",
-  "identifier": "com.sunflowerdrive.desktop",
+  "productName": "Project Sunflower",
+  "version": "1.0.0",
+  "identifier": "com.projectsunflower.desktop",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://127.0.0.1:5173",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Sunflower Drive",
+        "title": "Project Sunflower",
         "width": 1280,
         "height": 820,
         "minWidth": 960,

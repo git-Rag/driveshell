@@ -1,5 +1,5 @@
 /**
- * types.ts — Sunflower Drive Vault (SDV1) Cryptographic Types & Interfaces.
+ * types.ts — Project Sunflower Vault (SDV1) Cryptographic Types & Interfaces.
  */
 
 export interface VaultKdfParams {
@@ -62,4 +62,3 @@ export interface VaultCryptoProvider {
   /** Cryptographically secure pseudorandom number generator */
   randomBytes(length: number): Uint8Array;
 }
-

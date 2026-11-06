@@ -1,4 +1,4 @@
-# Sunflower Drive — Windows Release Engineering & Packaging Specification
+# Project Sunflower — Windows Release Engineering & Packaging Specification
 
 > **Target**: Windows 10/11 x64 Signed Desktop Release  
 > **Framework**: Tauri v2 + Fastify Loopback Sidecar  
@@ -11,8 +11,8 @@
 | Feature                | NSIS Installer (`.exe`)                                | WiX Enterprise Installer (`.msi`)                            |
 | :--------------------- | :----------------------------------------------------- | :----------------------------------------------------------- |
 | **Target Audience**    | Consumers, personal users, power users                 | IT administrators, enterprise deployment, GPO / Intune       |
-| **Installation Scope** | Per-user (no admin UAC elevation required by default)  | Per-machine (`C:\Program Files\Sunflower Drive`)             |
-| **Silent Install**     | Supported via `/S` command flag                        | Native `msiexec /i SunflowerDrive.msi /qn`                   |
+| **Installation Scope** | Per-user (no admin UAC elevation required by default)  | Per-machine (`C:\Program Files\Project Sunflower`)           |
+| **Silent Install**     | Supported via `/S` command flag                        | Native `msiexec /i ProjectSunflower.msi /qn`                 |
 | **WebView2 Handling**  | Downloads & installs Evergreen bootstrapper if missing | Packages Evergreen standalone installer in enterprise bundle |
 | **Tauri v2 Config**    | `tauri.conf.json` $\rightarrow$ `bundle.windows.nsis`  | `tauri.conf.json` $\rightarrow$ `bundle.windows.wix`         |
 
@@ -59,7 +59,7 @@ Node.js server. In production:
 Both the Tauri wrapper and the Node sidecar must be signed:
 
 ```powershell
-signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /a "src-tauri/target/release/sunflower-drive.exe"
+signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /a "src-tauri/target/release/Project Sunflower.exe"
 signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /a "src-tauri/target/release/resources/sunflower-server.exe"
 ```
 
@@ -75,7 +75,7 @@ signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /a "src-ta
        "updater": {
          "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk...",
          "endpoints": [
-           "https://releases.sunflowerdrive.com/update/windows/latest.json"
+           "https://releases.projectsunflower.com/update/windows/latest.json"
          ]
        }
      }
@@ -90,8 +90,8 @@ signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /a "src-ta
 
 ### 5.1 Directory Structure
 
-- **Application Binaries**: `%LOCALAPPDATA%\Programs\Sunflower Drive\`
-- **Database & Thumbnails**: `%LOCALAPPDATA%\com.sunflowerdrive.app\`
+- **Application Binaries**: `%LOCALAPPDATA%\Programs\Project Sunflower\`
+- **Database & Thumbnails**: `%LOCALAPPDATA%\ProjectSunflower\data\`
   - `driveshell.db` (SQLite database)
   - `driveshell.db-wal` (Write-ahead log)
   - `thumbs/` (Cache files)
@@ -100,7 +100,7 @@ signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /a "src-ta
 ### 5.2 Clean Uninstall Behavior
 
 - Standard uninstall removes application binaries and desktop shortcuts.
-- Database and encrypted vault files are preserved in `%LOCALAPPDATA%\com.sunflowerdrive.app` to
+- Database and encrypted vault files are preserved in `%LOCALAPPDATA%\ProjectSunflower\data` to
   prevent accidental loss of user photos during version upgrades.
 - A "Purge Data" option is accessible from within the app settings for users who wish to permanently
   delete their local database and OS keychain credentials.

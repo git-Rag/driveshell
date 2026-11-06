@@ -1,4 +1,4 @@
-# Sunflower Drive — Security Model & Trust Architecture
+# Project Sunflower — Security Model & Trust Architecture
 
 > **Security Invariants**: Formal adherence to INV-01 through INV-10. **Scope**: Loopback network
 > isolation, origin boundaries, session bootstrapping, anti-SSRF guard, stream isolation, and vault
@@ -8,8 +8,8 @@
 
 ## 1. Threat Model & Trust Boundaries
 
-Sunflower Drive runs locally on the user's workstation as a desktop-native application and loopback
-API server.
+Project Sunflower runs locally on the user's workstation as a desktop-native application and
+loopback API server.
 
 | Threat / Attack Vector                  |  In Scope?  | Enforcement Mechanism & Controls                                                                                                                                                                                                                                                                                                                                         |
 | :-------------------------------------- | :---------: | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

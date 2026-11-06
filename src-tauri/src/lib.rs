@@ -86,7 +86,18 @@ fn spawn_server(app: &tauri::App) -> Result<Child, Box<dyn std::error::Error>> {
     ));
 
     let data_dir = std::env::var("LOCALAPPDATA")
-        .map(|p| PathBuf::from(p).join("SunflowerDrive").join("data"))
+        .map(|p| {
+            let base = PathBuf::from(&p);
+            let modern = base.join("ProjectSunflower").join("data");
+            let legacy = base.join("SunflowerDrive").join("data");
+            if modern.exists() {
+                modern
+            } else if legacy.exists() {
+                legacy
+            } else {
+                modern
+            }
+        })
         .unwrap_or_else(|_| {
             app.path()
                 .app_data_dir()
@@ -185,13 +196,13 @@ pub fn run() {
             {
                 let window = tauri::Manager::get_webview_window(app, "main");
                 if let Some(w) = window {
-                    let _ = w.set_title("Sunflower Drive (Dev)");
+                    let _ = w.set_title("Project Sunflower (Dev)");
                 }
             }
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("error while building Sunflower Drive desktop application")
+        .expect("error while building Project Sunflower desktop application")
         .run(|app_handle, event| {
             if let RunEvent::ExitRequested { .. } | RunEvent::Exit = event {
                 if let Some(state) = app_handle.try_state::<ServerProcess>() {

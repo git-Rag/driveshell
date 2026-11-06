@@ -4,7 +4,7 @@
 **Repository:** `https://github.com/git-Rag/driveshell.git`
 (`d:\Workspace\GithubRepos\DriveShell`)  
 **Commit:** `9b9f539` (Branch: `main`)  
-**Author:** `git-Rag <actualrag@gmail.com>`
+**Author:** `git-Rag`
 
 ---
 

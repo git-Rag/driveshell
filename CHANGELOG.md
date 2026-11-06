@@ -5,17 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0] - 2026-11-06
+
+### Added
+
+- **Official v1.0.0 Release**: Rebranded project to **Project Sunflower** with polished UI, sleek
+  branding, and standalone Windows desktop installer (`Project-Sunflower-Setup-1.0.0.exe`).
+- **Resilient SSE Sync Stream**: Hardened Server-Sent Events stream with socket keepalive, automatic
+  exponential backoff reconnection ($1\,\text{s} \to 15\,\text{s}$), and real-time live indexing
+  tracking.
+- **Google Drive Rate-Limit Hardening**: Added exponential backoff and jitter support for HTTP 403
+  `userRateLimitExceeded` / `rateLimitExceeded` alongside HTTP 429/500/502/503/504, plus
+  $100\,\text{ms}$ inter-page request pacing.
+- **Continuous Gallery Auto-Reload**: Added smooth 15-second throttled auto-reload to the photo
+  gallery during active Drive sync, keeping the photo grid continually up-to-date without rate
+  limiting or server thrashing.
+- **Viewport Responsiveness**: Eliminated mouse freezing by removing `pointer-events-none` container
+  locks and CSS grid layout reflow thrashing during fast scrolls and tab switching.
+
+## [0.1.0] - 2026-11-05
 
 ### Added
 
 - Phase 0: Monorepo scaffold (pnpm workspaces, TypeScript strict, ESLint flat config, Prettier,
   Vitest, Playwright, CI, community files, ADRs, documentation skeleton).
 - **Self-Contained Windows Desktop Installer (Stage 6)**: Release installer packaged with Tauri v2
-  and NSIS yielding `Sunflower Drive_0.1.0_x64-setup.exe` (26.40 MiB) bundling the complete Node.js
-  runtime, Fastify server bundle with embedded migrations, native SQLite/Keyring addons, automatic
-  background process lifecycle management (`CREATE_NO_WINDOW`), and desktop API routing with
-  cross-origin session token authentication.
+  and NSIS yielding `Project-Sunflower-Setup-1.0.0.exe` (bundling the complete Node.js runtime,
+  Fastify server bundle with embedded migrations, native SQLite/Keyring addons, automatic background
+  process lifecycle management (`CREATE_NO_WINDOW`), and desktop API routing with cross-origin
+  session token authentication.
 - **Timeline Jump Navigation**: Month Chip popover with a 4x3 month grid, dynamic year selector,
   filter-aware SQLite month query, and keyboard navigation (`G`, `Home`, `End`, `Esc`, Arrow keys).
 - **Tier 2 Video Transcoding (FFmpeg)**: On-demand transcoding of unsupported video formats (HEVC,

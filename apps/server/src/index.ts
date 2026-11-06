@@ -133,7 +133,7 @@ async function main(): Promise<void> {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Account Connected — Sunflower Drive</title>
+  <title>Account Connected — Project Sunflower</title>
   <style>
     body {
       margin: 0;
@@ -192,7 +192,7 @@ async function main(): Promise<void> {
   <div class="card">
     <div class="icon">🌻</div>
     <h1>Account Connected!</h1>
-    <p>Your Google account was successfully linked. You can close this tab and return to <strong>Sunflower Drive</strong>.</p>
+    <p>Your Google account was successfully linked. You can close this tab and return to <strong>Project Sunflower</strong>.</p>
     <button class="btn" onclick="window.close()">Close tab</button>
   </div>
 </body>
@@ -206,7 +206,7 @@ async function main(): Promise<void> {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Authentication Error — Sunflower Drive</title>
+  <title>Authentication Error — Project Sunflower</title>
   <style>
     body {
       margin: 0;
@@ -249,13 +249,13 @@ async function main(): Promise<void> {
   <div class="card">
     <div class="icon">⚠️</div>
     <h1>Authentication Failed</h1>
-    <p>Google authentication could not be completed: <code>${encodeURIComponent(qs['auth_error'])}</code>.<br>Please return to Sunflower Drive and try again.</p>
+    <p>Google authentication could not be completed: <code>${encodeURIComponent(qs['auth_error'])}</code>.<br>Please return to Project Sunflower and try again.</p>
   </div>
 </body>
 </html>`;
     }
 
-    return { status: 'ok', message: 'Sunflower Drive API server' };
+    return { status: 'ok', message: 'Project Sunflower API server' };
   });
 
   // Auth + setup routes (Phase 1)
@@ -302,7 +302,7 @@ async function main(): Promise<void> {
   await app.listen({ port, host: '127.0.0.1' });
 
   // Print a clean startup line regardless of log level
-  process.stdout.write(`\n  ✓ Sunflower Drive server  http://127.0.0.1:${port}\n\n`);
+  process.stdout.write(`\n  ✓ Project Sunflower server  http://127.0.0.1:${port}\n\n`);
 }
 
 main().catch((err: unknown) => {

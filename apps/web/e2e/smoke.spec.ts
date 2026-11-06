@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('Sunflower Drive Web Smoke Test', () => {
+test.describe('Project Sunflower Web Smoke Test', () => {
   test('loads without white screen, page errors, or 404 media requests', async ({ page }) => {
     const pageErrors: Error[] = [];
     const media404s: string[] = [];

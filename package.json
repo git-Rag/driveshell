@@ -1,6 +1,6 @@
 {
-  "name": "sunflower-drive",
-  "version": "0.1.0",
+  "name": "project-sunflower",
+  "version": "1.0.0",
   "private": true,
   "engines": {
     "node": ">=22.0.0",

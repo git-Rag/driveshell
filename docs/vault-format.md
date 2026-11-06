@@ -1,4 +1,4 @@
-# Sunflower Drive Vault — Language-Agnostic Cryptographic Specification (SDV1)
+# Project Sunflower Vault — Language-Agnostic Cryptographic Specification (SDV1)
 
 > **Specification Version**: 1.0.0 (Frozen)  
 > **Format Identifier**: `SDV1` (`0x53 0x44 0x56 0x31`)  

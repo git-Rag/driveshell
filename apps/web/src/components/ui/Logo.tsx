@@ -1,4 +1,4 @@
-// Sunflower Drive brand mark — warm sunflower icon + wordmark
+// Project Sunflower brand mark — warm sunflower icon + wordmark
 // All original artwork. No third-party logos or brand assets.
 
 interface LogoProps {
@@ -13,7 +13,7 @@ export function Logo({ iconOnly = false, size = 28, className }: LogoProps) {
     <span
       style={{ display: 'inline-flex', alignItems: 'center', gap: 10, flexShrink: 0 }}
       className={className}
-      aria-label="Sunflower Drive"
+      aria-label="Project Sunflower"
     >
       {/* Brand mark — an elegant golden sunflower motif */}
       <svg
@@ -84,9 +84,9 @@ export function Logo({ iconOnly = false, size = 28, className }: LogoProps) {
               backgroundClip: 'text',
             }}
           >
-            Sunflower
+            Project
           </span>{' '}
-          <span style={{ color: 'var(--ds-text-primary)' }}>Drive</span>
+          <span style={{ color: 'var(--ds-text-primary)' }}>Sunflower</span>
         </span>
       )}
     </span>

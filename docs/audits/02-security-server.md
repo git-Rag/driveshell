@@ -1,4 +1,4 @@
-# Sunflower Drive — Security Audit Stage 2: Server, Auth & Network
+# Project Sunflower — Security Audit Stage 2: Server, Auth & Network
 
 > **Audit Report**: Stage 2 Implementation & Verification  
 > **Status**: COMPLETED — Ready for Gate 2 Review  

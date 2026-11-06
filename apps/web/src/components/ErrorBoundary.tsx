@@ -48,7 +48,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
             <h2 className="text-xl font-semibold text-slate-100 mb-2">Something went wrong</h2>
             <p className="text-sm text-slate-400 mb-4 leading-relaxed">
-              Sunflower Drive encountered an unexpected error. You can reload the page or try to
+              Project Sunflower encountered an unexpected error. You can reload the page or try to
               recover the view.
             </p>
 

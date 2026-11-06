@@ -7,17 +7,13 @@ interface SettingsViewProps {
   onThemeToggle?: () => void;
 }
 
-export function SettingsView({
-  account,
-  isDark = true,
-  onThemeToggle,
-}: SettingsViewProps) {
+export function SettingsView({ account, isDark = true, onThemeToggle }: SettingsViewProps) {
   return (
     <div className="flex-1 overflow-y-auto p-8 max-w-4xl mx-auto w-full bg-ds-bg text-ds-text-primary">
       <div className="mb-8">
         <h1 className="text-2xl font-bold tracking-tight text-ds-text-primary">Settings</h1>
         <p className="text-xs text-ds-text-muted mt-1">
-          Sunflower Drive configuration, local database, and security preferences
+          Project Sunflower configuration, local database, and security preferences
         </p>
       </div>
 

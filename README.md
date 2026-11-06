@@ -1,6 +1,6 @@
 <div align="center">
 
-# SUNFLOWER DRIVE
+# PROJECT SUNFLOWER
 
 ### Local-First · Zero-Telemetry · High-Performance Google Drive Client & Photo Suite
 
@@ -12,7 +12,7 @@
 [![SQLite](<https://img.shields.io/badge/SQLite-WAL%20%2B%20FTS5%20(7%20Migrations)-003B57?logo=sqlite&logoColor=white>)](https://sqlite.org)
 [![Tauri](https://img.shields.io/badge/Tauri-v2%20Desktop-FFC131?logo=tauri&logoColor=black)](https://tauri.app)
 [![Windows](https://img.shields.io/badge/Windows-x64%20Installer%20Ready-0078D6?logo=windows&logoColor=white)](#windows-desktop-release)
-[![Tests](https://img.shields.io/badge/Tests-159%20pass%2C%200%20fail-brightgreen)](#testing--verification)
+[![Tests](https://img.shields.io/badge/Tests-172%20pass%2C%200%20fail-brightgreen)](#testing--verification)
 [![Telemetry](https://img.shields.io/badge/Telemetry-Zero%20Egress-red)](#security-invariants)
 [![License](https://img.shields.io/badge/License-MIT-blue)](#license)
 
@@ -22,7 +22,7 @@
 
 ## Overview
 
-**Sunflower Drive** is an autonomous, local-first desktop application and private photo suite for
+**Project Sunflower** is an autonomous, local-first desktop application and private photo suite for
 Google Drive. It decouples metadata management, indexing, browsing, and media presentation from
 cloud round-trips, delivering instant, native-speed interaction over personal cloud libraries
 containing hundreds of thousands of items.
@@ -67,13 +67,14 @@ containing hundreds of thousands of items.
 
 ## Windows Desktop Release
 
-Sunflower Drive is packaged as a standalone, self-contained Windows desktop application. It requires
-**no separate Node.js installation, no database setup, and no terminal commands** for end users.
+Project Sunflower is packaged as a standalone, self-contained Windows desktop application. It
+requires **no separate Node.js installation, no database setup, and no terminal commands** for end
+users.
 
 ### Release Package
 
-- **Executable:** [`Sunflower-Drive-Setup-0.1.0.exe`](Sunflower-Drive-Setup-0.1.0.exe) _(and in
-  `src-tauri/target/release/bundle/nsis/`)_
+- **Executable:** [`Project-Sunflower-Setup-1.0.0.exe`](Project-Sunflower-Setup-1.0.0.exe) _(and in
+  `src-tauri/target/release/bundle/nsis/Project Sunflower_1.0.0_x64-setup.exe`)_
 - **Architecture:** `x64`
 - **Installer Type:** NSIS Solid LZMA Compressed Installer (~26.4 MB)
 - **Target OS:** Windows 10 / Windows 11 (64-bit)
@@ -91,9 +92,9 @@ Sunflower Drive is packaged as a standalone, self-contained Windows desktop appl
 3. **Inlined Database Migrations:**  
    All 7 relational migrations are compiled directly into the application
    (`embedded-migrations.ts`), executing automatically on first boot in
-   `%LOCALAPPDATA%\SunflowerDrive\data\driveshell.db`.
+   `%LOCALAPPDATA%\ProjectSunflower\data\driveshell.db`.
 4. **Seamless Browser OAuth with PKCE:**  
-   When connecting a Google account, Sunflower Drive opens your system's default browser (Edge,
+   When connecting a Google account, Project Sunflower opens your system's default browser (Edge,
    Chrome, Firefox, or Brave) using PKCE. Upon user consent, the callback page presents a verified
    success panel, and the desktop app automatically detects the authorization via daemon polling and
    opens your gallery.
@@ -126,7 +127,7 @@ Sunflower Drive is packaged as a standalone, self-contained Windows desktop appl
 │                                        │ Local Disk Path                        │
 │                                        ▼                                        │
 │  ┌───────────────────────────────────────────────────────────────────────────┐  │
-│  │                  Isolated Storage (%LOCALAPPDATA%\SunflowerDrive)         │  │
+│  │                  Isolated Storage (%LOCALAPPDATA%\ProjectSunflower)       │  │
 │  │  ├── driveshell.db         ──► Relational Metadata Index & Accounts      │  │
 │  │  ├── thumbs/               ──► WebP Disk Thumbnail Cache (LRU Bounded)   │  │
 │  │  └── transcode_cache/      ──► FastStart Transcoded Universal MP4 Video   │  │
@@ -214,7 +215,7 @@ Sunflower Drive is packaged as a standalone, self-contained Windows desktop appl
 
 ## Security Invariants
 
-Sunflower Drive maintains 10 constitutional security invariants:
+Project Sunflower maintains 10 constitutional security invariants:
 
 - **INV-01 (Zero Telemetry):** No telemetry, analytics, or pingbacks. Network traffic is strictly
   limited to official Google Drive API endpoints and localhost.
@@ -308,7 +309,7 @@ driveshell/
 │   ├── build-desktop-bundle.js   # Sidecar runtime and native addon packager
 │   └── seed.ts                   # Synthetic 100k test dataset generator
 │
-└── Sunflower-Drive-Setup-0.1.0.exe # Standalone Windows NSIS Release Installer
+└── Project-Sunflower-Setup-1.0.0.exe # Standalone Windows NSIS Release Installer
 ```
 
 ---
@@ -326,8 +327,8 @@ driveshell/
 ### 1. Installation
 
 ```bash
-git clone https://github.com/actualrag/driveshell.git
-cd driveshell
+git clone https://github.com/git-Rag/thesunflowerproject.git
+cd thesunflowerproject
 pnpm install
 ```
 
@@ -365,7 +366,7 @@ pnpm desktop:build
 ```
 
 The output installer will be generated at
-`src-tauri/target/release/bundle/nsis/Sunflower Drive_0.1.0_x64-setup.exe`.
+`src-tauri/target/release/bundle/nsis/Project Sunflower_1.0.0_x64-setup.exe`.
 
 ---
 
@@ -373,10 +374,10 @@ The output installer will be generated at
 
 The repository maintains an automated test suite across all workspace layers:
 
-- **159 Vitest Automated Tests:**
-  - 144 backend tests covering OAuth PKCE, session security, CORS boundaries, SQLite migrations, RFC
+- **172 Vitest Automated Tests:**
+  - 151 backend tests covering OAuth PKCE, session security, CORS boundaries, SQLite migrations, RFC
     7233 range streams, backfill workers, and FFmpeg transcoding.
-  - 9 frontend and WebCrypto test suites covering vault encryption roundtrips and error handling.
+  - 14 frontend and WebCrypto test suites covering vault encryption roundtrips and error handling.
   - 7 shared package tests verifying zero Node dependencies and timeline calculations.
 - **Zero-Warning ESLint & Prettier Rules:** Verified across all workspace files with Husky
   pre-commit hooks.
@@ -387,5 +388,5 @@ The repository maintains an automated test suite across all workspace layers:
 
 Distributed under the **MIT License**. See `LICENSE` for details.
 
-_Sunflower Drive is an independent open-source project. Not affiliated with or endorsed by Google
+_Project Sunflower is an independent open-source project. Not affiliated with or endorsed by Google
 LLC or Alphabet Inc._
