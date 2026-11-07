@@ -190,7 +190,26 @@ public class MainActivity extends BridgeActivity {
                 String code = queryParams.get("code");
                 String state = queryParams.get("state");
 
-                String responseHtml = "<!doctype html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Project Sunflower</title><style>body{background:#09090b;color:#f4f4f5;font-family:system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center;padding:24px;box-sizing:border-box;}h2{color:#f59e0b;margin-bottom:8px;font-size:24px;}p{color:#a1a1aa;font-size:15px;line-height:1.5;max-width:320px;}</style></head><body><h2>Project Sunflower</h2><p>Authentication successful! Returning to your gallery...</p><script>setTimeout(function(){window.close();}, 1200);</script></body></html>";
+                String encodedCode = code != null ? Uri.encode(code) : "";
+                String encodedState = state != null ? Uri.encode(state) : "";
+                String redirectTarget = "com.projectsunflower.app://oauth2redirect?code=" + encodedCode + "&state=" + encodedState;
+
+                String responseHtml = "<!doctype html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Project Sunflower</title>" +
+                    "<style>body{background:#09090b;color:#f4f4f5;font-family:system-ui,-apple-system,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center;padding:24px;box-sizing:border-box;}" +
+                    ".card{background:#18181b;border:1px solid rgba(255,255,255,0.12);border-radius:24px;padding:36px 24px;max-width:340px;box-shadow:0 20px 50px rgba(0,0,0,0.7);}" +
+                    ".sunflower-icon{width:56px;height:56px;border-radius:18px;background:linear-gradient(135deg,#0c4a6e,#1e3a8a);border:1px solid rgba(56,189,248,0.4);display:flex;align-items:center;justify-content:center;margin:0 auto 20px auto;box-shadow:0 0 25px rgba(56,189,248,0.3);}" +
+                    "h2{color:#f59e0b;margin:0 0 10px 0;font-size:22px;font-weight:700;}" +
+                    "p{color:#a1a1aa;font-size:14px;line-height:1.5;margin:0 0 24px 0;}" +
+                    ".btn{display:inline-block;background:linear-gradient(135deg,#f59e0b,#d97706);color:#09090b;font-weight:700;font-size:14px;text-decoration:none;padding:14px 28px;border-radius:9999px;box-shadow:0 4px 14px rgba(245,158,11,0.4);letter-spacing:0.3px;}</style></head>" +
+                    "<body><div class=\"card\"><div class=\"sunflower-icon\"><svg width=\"28\" height=\"28\" viewBox=\"0 0 28 28\" fill=\"none\"><rect width=\"28\" height=\"28\" rx=\"7\" fill=\"#f59e0b\"/><circle cx=\"14\" cy=\"14\" r=\"5\" fill=\"#78350f\"/></svg></div>" +
+                    "<h2>Project Sunflower</h2><p>Authentication successful! Returning to your gallery…</p>" +
+                    "<a id=\"retBtn\" href=\"" + redirectTarget + "\" class=\"btn\">Tap to return to Project Sunflower</a></div>" +
+                    "<script>" +
+                    "var retUrl = '" + redirectTarget + "';" +
+                    "try { window.location.replace(retUrl); } catch(e) {}" +
+                    "setTimeout(function(){ window.location.href = retUrl; }, 300);" +
+                    "</script></body></html>";
+
                 byte[] bodyBytes = responseHtml.getBytes(StandardCharsets.UTF_8);
                 String header = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\nAccess-Control-Allow-Origin: *\r\nContent-Length: " + bodyBytes.length + "\r\nConnection: close\r\n\r\n";
                 out.write(header.getBytes(StandardCharsets.UTF_8));
@@ -345,26 +364,47 @@ public class MainActivity extends BridgeActivity {
     }
 
     private byte[] downloadBytes(String urlString, String token) {
-        try {
-            HttpURLConnection conn = (HttpURLConnection) new URL(urlString).openConnection();
-            conn.setConnectTimeout(10000);
-            conn.setReadTimeout(15000);
-            if (token != null && !token.isEmpty()) {
-                conn.setRequestProperty("Authorization", "Bearer " + token);
-            }
-            int code = conn.getResponseCode();
-            if (code == 200) {
-                try (InputStream in = conn.getInputStream();
-                     ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-                    byte[] buf = new byte[16384];
-                    int n;
-                    while ((n = in.read(buf)) != -1) {
-                        baos.write(buf, 0, n);
-                    }
-                    return baos.toByteArray();
+        byte[] res = downloadBytesInternal(urlString, token);
+        if (res == null && token != null && !token.isEmpty() && urlString.contains("googleusercontent.com")) {
+            res = downloadBytesInternal(urlString, null);
+        }
+        return res;
+    }
+
+    private byte[] downloadBytesInternal(String urlString, String token) {
+        String currentUrl = urlString;
+        for (int redirect = 0; redirect < 5; redirect++) {
+            try {
+                HttpURLConnection conn = (HttpURLConnection) new URL(currentUrl).openConnection();
+                conn.setConnectTimeout(12000);
+                conn.setReadTimeout(18000);
+                conn.setInstanceFollowRedirects(true);
+                if (token != null && !token.isEmpty()) {
+                    conn.setRequestProperty("Authorization", "Bearer " + token);
                 }
+                int code = conn.getResponseCode();
+                if (code >= 300 && code < 400) {
+                    String loc = conn.getHeaderField("Location");
+                    if (loc != null && !loc.isEmpty()) {
+                        currentUrl = loc;
+                        continue;
+                    }
+                }
+                if (code == 200) {
+                    try (InputStream in = conn.getInputStream();
+                         ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+                        byte[] buf = new byte[16384];
+                        int n;
+                        while ((n = in.read(buf)) != -1) {
+                            baos.write(buf, 0, n);
+                        }
+                        return baos.toByteArray();
+                    }
+                }
+            } catch (Exception ignored) {
+                return null;
             }
-        } catch (Exception ignored) {}
+        }
         return null;
     }
 

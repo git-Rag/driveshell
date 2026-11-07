@@ -91,7 +91,9 @@ function Step1Welcome({ onNext }: { onNext: () => void }) {
     <div className="wizard-step animate-fade-in">
       {/* Logo + hero */}
       <div className="flex flex-col items-center mb-8">
-        <Logo size={36} className="mb-4" />
+        <div className="w-14 h-14 rounded-2xl bg-gradient-to-b from-sky-950/80 via-blue-900/40 to-slate-900/90 border border-sky-400/40 ring-1 ring-sky-400/25 shadow-[0_0_20px_rgba(56,189,248,0.25)] flex items-center justify-center mb-4 transition-transform hover:scale-105">
+          <Logo iconOnly size={24} />
+        </div>
         <h1 className="text-2xl font-bold text-ds-text-primary mb-2 tracking-tight">
           Welcome to Project Sunflower
         </h1>

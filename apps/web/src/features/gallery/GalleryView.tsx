@@ -22,6 +22,7 @@ import { useSyncStatus } from '../../hooks/useSyncStatus';
 import { PhotoLightbox } from './PhotoLightbox';
 import { VirtualMonthSection } from './VirtualMonthSection';
 import { TimelineJumpPopover } from './TimelineJumpPopover';
+import { PinterestLoadingGrid } from './PinterestLoadingGrid';
 import { isRealMedia } from '@driveshell/shared';
 
 interface GalleryViewProps {
@@ -398,9 +399,9 @@ export function GalleryView({
     <div className="flex-1 flex flex-col min-h-0 bg-[var(--ds-bg)] text-white relative select-none overflow-hidden">
       {/* Sleek Floating OneDrive Header */}
       <div
-        className="z-30 border-b border-[var(--ds-border-subtle)] bg-[var(--ds-bg)]/90 backdrop-blur-xl transition-all"
+        className="z-30 border-b border-[var(--ds-border-subtle)] bg-[var(--ds-bg)]/90 backdrop-blur-xl transition-all pt-12 sm:pt-4"
         style={{
-          paddingTop: 'max(env(safe-area-inset-top, 0px), 28px)',
+          paddingTop: 'max(env(safe-area-inset-top, 0px), 52px)',
           paddingLeft: 'max(env(safe-area-inset-left, 0px), 16px)',
           paddingRight: 'max(env(safe-area-inset-right, 0px), 16px)',
         }}
@@ -465,9 +466,7 @@ export function GalleryView({
             {/* Right: Manual Sync Button + Circular Zoom Buttons */}
             <div className="flex items-center gap-1.5 shrink-0">
               <button
-                onClick={() => {
-                  if (account) void triggerSync(account.id);
-                }}
+                onClick={() => void triggerSync(account?.id ?? '')}
                 disabled={isSyncing}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all shadow-md active:scale-95 ${
                   isSyncing
@@ -576,19 +575,23 @@ export function GalleryView({
           paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 96px)',
         }}
       >
-        {/* Sync Prompt if zero files */}
-        {photos.length === 0 && !loadingInitial && (
+        {/* Pinterest-style Masonry Loading Grid (shown when syncing or initially loading with 0 photos) */}
+        {(loadingInitial || isSyncing) && photos.length === 0 && (
+          <PinterestLoadingGrid isSyncing={isSyncing} />
+        )}
+
+        {/* Sync Prompt if zero files and not syncing/loading */}
+        {photos.length === 0 && !loadingInitial && !isSyncing && (
           <div className="card p-6 my-12 max-w-xl mx-auto text-center border-brand/30 bg-gradient-to-b from-brand/10 to-transparent shadow-2xl rounded-2xl">
             <Sparkles size={32} className="text-brand mx-auto mb-3" />
             <h3 className="text-base font-bold text-white mb-1.5">Your Photo Library</h3>
             <p className="text-xs text-zinc-400 mb-5 max-w-md mx-auto leading-relaxed">
-              {isSyncing
-                ? 'Syncing your media from Google Drive into high-speed local storage…'
-                : 'No photos or videos loaded yet. Tap the button below to sync and index your Google Drive.'}
+              No photos or videos loaded yet. Tap the button below to sync and index your Google
+              Drive.
             </p>
             <button
-              onClick={() => account && triggerSync(account.id)}
-              disabled={isSyncing || !account}
+              onClick={() => void triggerSync(account?.id ?? '')}
+              disabled={isSyncing}
               className="btn-primary text-xs py-2.5 px-6 mx-auto flex items-center gap-2 rounded-full shadow-lg"
             >
               <RefreshCw size={13} className={isSyncing ? 'animate-spin' : ''} />
@@ -598,26 +601,14 @@ export function GalleryView({
               <div className="mt-4 p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-center gap-2 max-w-md mx-auto animate-in fade-in">
                 <AlertCircle size={14} className="shrink-0 text-rose-400" />
                 <span className="truncate">{error}</span>
-                {account && (
-                  <button
-                    onClick={() => triggerSync(account.id)}
-                    className="font-semibold underline ml-1.5 hover:text-white shrink-0"
-                  >
-                    Retry
-                  </button>
-                )}
+                <button
+                  onClick={() => void triggerSync(account?.id ?? '')}
+                  className="font-semibold underline ml-1.5 hover:text-white shrink-0"
+                >
+                  Retry
+                </button>
               </div>
             )}
-          </div>
-        )}
-
-        {/* Initial Loading Skeleton */}
-        {loadingInitial && photos.length === 0 && (
-          <div className="py-24 flex flex-col items-center justify-center gap-3">
-            <Loader2 size={28} className="text-brand animate-spin" />
-            <span className="text-xs text-zinc-500 font-mono tracking-wider">
-              Loading your library…
-            </span>
           </div>
         )}
 

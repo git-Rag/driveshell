@@ -246,6 +246,15 @@ function setupOAuthListeners(): void {
     }
   }) as EventListener);
 
+  // Direct bridge function called from Java evaluateJavascript
+  (
+    window as unknown as { onSunflowerOAuthCode?: (code: string, state: string) => void }
+  ).onSunflowerOAuthCode = (code: string, state: string) => {
+    if (code) {
+      void handleOAuthCodeReceived(code, state ?? '', 'http://127.0.0.1:3001');
+    }
+  };
+
   // 2. Deep link handler (com.projectsunflower.app://oauth2redirect)
   void CapApp.addListener('appUrlOpen', (data) => {
     try {
@@ -253,16 +262,17 @@ function setupOAuthListeners(): void {
       const code = url.searchParams.get('code');
       const state = url.searchParams.get('state');
       if (code) {
-        void handleOAuthCodeReceived(
-          code,
-          state ?? '',
-          'com.projectsunflower.app://oauth2redirect',
-        );
+        void handleOAuthCodeReceived(code, state ?? '', 'http://127.0.0.1:3001');
       }
     } catch (e) {
       console.warn('Failed to parse deep link URL:', e);
     }
   });
+}
+
+// Ensure OAuth listeners are active immediately upon app launch
+if (typeof window !== 'undefined') {
+  setupOAuthListeners();
 }
 
 interface AboutResponse {
@@ -295,6 +305,12 @@ async function handleOAuthCodeReceived(
   }
 
   try {
+    try {
+      await Browser.close();
+    } catch {
+      /* ignore */
+    }
+
     // Exchange authorization code for tokens
     const tokenRes = await CapacitorHttp.post({
       url: 'https://oauth2.googleapis.com/token',
@@ -517,7 +533,13 @@ export async function syncMobileDrive(
 
         const modifiedAt = f.modifiedTime ? new Date(f.modifiedTime).getTime() : Date.now();
         const createdAt = f.createdTime ? new Date(f.createdTime).getTime() : modifiedAt;
-        const takenAt = parseExifTime(imageMediaMetadata?.time) ?? modifiedAt;
+        const parsedTime = parseExifTime(imageMediaMetadata?.time);
+        const takenAt =
+          typeof parsedTime === 'number' && !isNaN(parsedTime) && parsedTime > 0
+            ? parsedTime
+            : typeof modifiedAt === 'number' && !isNaN(modifiedAt) && modifiedAt > 0
+              ? modifiedAt
+              : Date.now();
 
         const record: FileRecord = {
           rowid: Date.now() + Math.floor(Math.random() * 1000),
@@ -637,14 +659,13 @@ export async function getMobilePhotos(opts: {
   const db = await openDB();
   const tx = db.transaction('files', 'readonly');
   const store = tx.objectStore('files');
-  const index = store.index('taken_at');
 
   const files: FileRecord[] = [];
   const offset = opts.offset ?? 0;
   const limit = opts.limit ?? 100;
 
   await new Promise<void>((resolve, reject) => {
-    const request = index.openCursor(null, 'prev');
+    const request = store.openCursor();
     request.onsuccess = (e) => {
       const cursor = (e.target as IDBRequest<IDBCursorWithValue>).result;
       if (cursor) {
@@ -678,6 +699,9 @@ export async function getMobilePhotos(opts: {
     request.onerror = () =>
       reject(new Error(request.error ? request.error.message : 'Cursor request failed'));
   });
+
+  // Sort newest first
+  files.sort((a, b) => (b.taken_at ?? b.modified_at) - (a.taken_at ?? a.modified_at));
 
   const sliced = files.slice(offset, offset + limit);
   return {
