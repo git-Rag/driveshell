@@ -20,7 +20,7 @@ export const GalleryTile = memo(
       <div
         data-testid="gallery-tile"
         onClick={() => onClick(globalIndex)}
-        className={`group relative rounded-lg overflow-hidden bg-zinc-900 border border-white/5 cursor-pointer transition-transform duration-150 hover:border-brand/70 hover:scale-[1.015] hover:z-10 hover:shadow-xl ${aspectClass}`}
+        className={`group relative rounded-lg overflow-hidden bg-zinc-900 border border-white/5 cursor-pointer transition-all duration-300 ease-out hover:border-brand/70 hover:scale-[1.02] hover:z-10 hover:shadow-xl will-change-transform ${aspectClass}`}
       >
         {/* Thumbnail Image / Placeholder — Always mounted so loaded bitmaps persist during scroll */}
         <MediaThumbnail file={file} size={size} />

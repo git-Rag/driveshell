@@ -354,13 +354,38 @@ export function GalleryView({
     [months, loadPhotosAtOffset],
   );
 
-  const handleZoomIn = useCallback(() => {
-    setZoom((z) => Math.min(4, z + 1) as ZoomLevel);
+  const [zoomBadge, setZoomBadge] = useState<string | null>(null);
+  const zoomBadgeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showZoomFeedback = useCallback((level: ZoomLevel) => {
+    const descriptions: Record<ZoomLevel, string> = {
+      1: '5 Columns · Compact Grid',
+      2: '3 Columns · Balanced View',
+      3: '2 Columns · Large Detail',
+      4: '1 Column · Full Width',
+    };
+    setZoomBadge(descriptions[level]);
+    if (zoomBadgeTimerRef.current) clearTimeout(zoomBadgeTimerRef.current);
+    zoomBadgeTimerRef.current = setTimeout(() => {
+      setZoomBadge(null);
+    }, 900);
   }, []);
 
+  const handleZoomIn = useCallback(() => {
+    setZoom((z) => {
+      const next = Math.min(4, z + 1) as ZoomLevel;
+      if (next !== z) showZoomFeedback(next);
+      return next;
+    });
+  }, [showZoomFeedback]);
+
   const handleZoomOut = useCallback(() => {
-    setZoom((z) => Math.max(1, z - 1) as ZoomLevel);
-  }, []);
+    setZoom((z) => {
+      const next = Math.max(1, z - 1) as ZoomLevel;
+      if (next !== z) showZoomFeedback(next);
+      return next;
+    });
+  }, [showZoomFeedback]);
 
   // Global hotkeys: 'G' opens Jump Popover, 'Home' jumps to newest, 'End' jumps to oldest, '+/-' zooms grid
   useEffect(() => {
@@ -504,15 +529,15 @@ export function GalleryView({
               <button
                 onClick={() => setIsJumpPopoverOpen(true)}
                 data-testid="timeline-month-chip"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-900 border border-white/10 hover:border-brand/70 text-xs font-semibold tracking-wide text-zinc-200 hover:text-white transition-all shadow-md active:scale-95 group cursor-pointer shrink-0"
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full bg-zinc-900 border border-white/10 hover:border-brand/70 text-xs font-semibold tracking-wide text-zinc-200 hover:text-white transition-all shadow-md active:scale-95 group cursor-pointer min-w-0 shrink max-w-[130px] sm:max-w-xs"
                 title="Jump to timeline month (G)"
                 aria-label="Open timeline month jump popover"
               >
                 <Calendar
                   size={13}
-                  className="text-brand group-hover:scale-110 transition-transform"
+                  className="text-brand group-hover:scale-110 transition-transform shrink-0"
                 />
-                <span className="truncate max-w-[120px]">{currentVisibleMonth || 'Gallery'}</span>
+                <span className="truncate min-w-0">{currentVisibleMonth || 'Gallery'}</span>
                 <ChevronDown
                   size={12}
                   className="text-zinc-400 group-hover:text-white transition-colors shrink-0"
@@ -529,21 +554,23 @@ export function GalleryView({
               <button
                 onClick={() => void triggerSync(account?.id ?? '')}
                 disabled={isSyncing}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all shadow-md active:scale-95 ${
+                className={`flex items-center gap-1.5 p-2 sm:px-3 sm:py-1.5 rounded-full border text-xs font-semibold transition-all shadow-md active:scale-95 shrink-0 ${
                   isSyncing
                     ? 'bg-brand/20 border-brand/40 text-brand cursor-wait'
                     : 'bg-zinc-900 border-white/10 text-zinc-300 hover:text-white hover:border-white/30'
                 }`}
                 title={isSyncing ? 'Syncing with Google Drive…' : 'Sync Google Drive now'}
+                aria-label={isSyncing ? 'Syncing Google Drive' : 'Sync Google Drive'}
               >
                 <RefreshCw
-                  size={12}
+                  size={13}
                   className={isSyncing ? 'animate-spin text-brand' : 'text-zinc-400'}
                 />
-                <span>{isSyncing ? 'Syncing…' : 'Sync'}</span>
+                <span className="hidden sm:inline">{isSyncing ? 'Syncing…' : 'Sync'}</span>
               </button>
 
-              <div className="flex items-center gap-1">
+              {/* Zoom buttons visible on md+ screens; mobile has the bottom-right floating dock */}
+              <div className="hidden md:flex items-center gap-1">
                 <button
                   onClick={handleZoomOut}
                   disabled={zoom === 1}
@@ -739,6 +766,16 @@ export function GalleryView({
         </div>
       )}
 
+      {/* Dynamic Zoom HUD with tactile motion pop */}
+      {zoomBadge && (
+        <div className="fixed top-28 left-1/2 -translate-x-1/2 z-40 pointer-events-none animate-in fade-in zoom-in-90 duration-200">
+          <div className="flex items-center gap-2.5 px-4 py-2 rounded-full bg-zinc-950/90 border border-brand/50 shadow-2xl backdrop-blur-xl text-white text-xs font-semibold tracking-wide">
+            <span className="w-2 h-2 rounded-full bg-brand animate-ping" />
+            <span>{zoomBadge}</span>
+          </div>
+        </div>
+      )}
+
       {/* Bottom-Right Floating Controls (Tile Panel Zoom +/- and Quick Jump) */}
       <div
         className="absolute right-12 sm:right-14 bottom-6 z-20 flex items-center gap-1 select-none pointer-events-auto bg-zinc-900/95 backdrop-blur-md px-2 py-1 rounded-full border border-white/15 shadow-2xl transition-all"
@@ -750,10 +787,10 @@ export function GalleryView({
         <button
           onClick={handleZoomOut}
           disabled={zoom === 1}
-          className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all ${
+          className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all duration-150 ${
             zoom === 1
               ? 'opacity-30 cursor-not-allowed text-zinc-500'
-              : 'text-zinc-300 hover:text-white hover:bg-white/10 active:scale-90'
+              : 'text-zinc-300 hover:text-white hover:bg-white/10 active:scale-75 active:rotate-[-8deg]'
           }`}
           title="Zoom out (more tiles / denser grid)"
           aria-label="Zoom out (show more tiles)"
@@ -761,9 +798,10 @@ export function GalleryView({
           <Minus size={14} />
         </button>
 
-        {/* Zoom Level Indicator */}
+        {/* Zoom Level Indicator with kinetic counter transition */}
         <span
-          className="px-1 text-[10px] sm:text-[11px] font-mono font-semibold text-amber-400 min-w-[32px] text-center"
+          key={zoom}
+          className="px-1 text-[10px] sm:text-[11px] font-mono font-semibold text-amber-400 min-w-[34px] text-center inline-block animate-in fade-in zoom-in-75 duration-150"
           title={`Zoom level ${zoom} of 4: ${zoom === 1 ? '5 cols' : zoom === 2 ? '3 cols' : zoom === 3 ? '2 cols' : '1 col'}`}
         >
           {zoom === 1 ? '5 cols' : zoom === 2 ? '3 cols' : zoom === 3 ? '2 cols' : '1 col'}
@@ -773,10 +811,10 @@ export function GalleryView({
         <button
           onClick={handleZoomIn}
           disabled={zoom === 4}
-          className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all ${
+          className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all duration-150 ${
             zoom === 4
               ? 'opacity-30 cursor-not-allowed text-zinc-500'
-              : 'text-zinc-300 hover:text-white hover:bg-white/10 active:scale-90'
+              : 'text-zinc-300 hover:text-white hover:bg-white/10 active:scale-75 active:rotate-[8deg]'
           }`}
           title="Zoom in (larger tiles / fewer columns)"
           aria-label="Zoom in (show larger tiles)"

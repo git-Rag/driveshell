@@ -82,4 +82,38 @@ describe('SyncToast Component', () => {
     );
     expect(html).toContain('left-[248px]');
   });
+
+  it('renders expanded mode with minimize button when defaultExpanded is true', () => {
+    const html = renderToString(
+      <SyncToast
+        sidebarOpen={false}
+        syncPhase="syncing"
+        isSyncing={true}
+        syncEvent={{ type: 'progress', indexed: 99 }}
+        error={null}
+        toastDismissed={false}
+        onDismiss={() => {}}
+        defaultExpanded={true}
+      />,
+    );
+    expect(html).toContain('Minimize to circle');
+    expect(html).toContain('99 items indexed');
+  });
+
+  it('renders compact circular button when defaultExpanded is false', () => {
+    const html = renderToString(
+      <SyncToast
+        sidebarOpen={false}
+        syncPhase="syncing"
+        isSyncing={true}
+        syncEvent={{ type: 'progress', indexed: 99 }}
+        error={null}
+        toastDismissed={false}
+        onDismiss={() => {}}
+        defaultExpanded={false}
+      />,
+    );
+    expect(html).toContain('w-10 h-10 rounded-full');
+    expect(html).toContain('Tap to view details');
+  });
 });

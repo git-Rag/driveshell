@@ -91,7 +91,7 @@ export const VirtualMonthSection = React.memo(function VirtualMonthSection({
 
       {/* Grid of tiles (only rendered when intersecting viewport ±1200px) */}
       {isVisible ? (
-        <div className={`grid gap-1.5 ${zoomConfig.cols}`}>
+        <div className={`grid gap-1.5 ${zoomConfig.cols} transition-all duration-300 ease-out`}>
           {items.map((file, idx) => (
             <GalleryTile
               key={file.id}
