@@ -90,12 +90,12 @@ function Step1Welcome({ onNext }: { onNext: () => void }) {
   return (
     <div className="wizard-step animate-fade-in">
       {/* Logo + hero */}
-      <div className="flex flex-col items-center mb-10">
-        <Logo size={52} className="mb-5" />
-        <h1 className="text-3xl font-bold text-ds-text-primary mb-2 tracking-tight">
+      <div className="flex flex-col items-center mb-8">
+        <Logo size={36} className="mb-4" />
+        <h1 className="text-2xl font-bold text-ds-text-primary mb-2 tracking-tight">
           Welcome to Project Sunflower
         </h1>
-        <p className="text-ds-text-secondary text-center max-w-xs leading-relaxed">
+        <p className="text-ds-text-secondary text-center max-w-xs leading-relaxed text-sm">
           A fast, photo-first interface for Google Drive.
         </p>
       </div>
@@ -153,14 +153,17 @@ function Step2Credentials({ onNext, onBack }: { onNext: () => void; onBack: () =
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = useCallback(async () => {
-    if (!clientId.trim() || !clientSecret.trim()) {
+    const cleanClientId = clientId.trim().replace(/^https?:\/\//i, '');
+    const cleanClientSecret = clientSecret.trim();
+
+    if (!cleanClientId || !cleanClientSecret) {
       setError('Both fields are required.');
       return;
     }
     setLoading(true);
     setError(null);
     try {
-      await saveCredentials(clientId.trim(), clientSecret.trim());
+      await saveCredentials(cleanClientId, cleanClientSecret);
       onNext();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save credentials.');

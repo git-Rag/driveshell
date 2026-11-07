@@ -6,6 +6,22 @@
  * headers needed (SameSite=Strict, HttpOnly).
  */
 
+import {
+  isCapacitor,
+  getMobileSetupStatus,
+  saveMobileCredentials,
+  getMobileAccounts,
+  startMobileAuth,
+  getMobilePhotos,
+  getMobileMonths,
+  syncMobileDrive,
+  getMobileSyncStatus,
+  getMobileMediaThumbUrl,
+  getMobileMediaStreamUrl,
+} from './mobile-client';
+
+export { isCapacitor };
+
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -178,18 +194,35 @@ export interface AccountSummary {
 }
 
 export function getSetupStatus(): Promise<SetupStatus> {
+  if (isCapacitor()) {
+    return Promise.resolve(getMobileSetupStatus());
+  }
   return request<SetupStatus>('/api/setup/status');
 }
 
 export function saveCredentials(clientId: string, clientSecret: string): Promise<{ ok: boolean }> {
+  if (isCapacitor()) {
+    return Promise.resolve(saveMobileCredentials(clientId, clientSecret));
+  }
   return request<{ ok: boolean }>('/api/setup/credentials', {
     method: 'POST',
     body: JSON.stringify({ clientId, clientSecret }),
   });
 }
 
+export function getAccounts(): Promise<AccountSummary[]> {
+  if (isCapacitor()) {
+    return Promise.resolve(getMobileAccounts());
+  }
+  return request<AccountSummary[]>('/api/accounts');
+}
+
 /** Navigate the browser to the Google consent screen (opens system browser in desktop mode). */
 export function startAuth(scope: 'readonly' | 'full' = 'readonly'): void {
+  if (isCapacitor()) {
+    void startMobileAuth(scope);
+    return;
+  }
   const apiBase = getApiBase();
   const targetUrl = `${apiBase}/api/auth/start?scope=${scope}`;
   if (isTauriDesktop()) {
@@ -234,10 +267,16 @@ export interface SyncStatus {
 }
 
 export function getSyncStatus(): Promise<SyncStatus> {
+  if (isCapacitor()) {
+    return Promise.resolve(getMobileSyncStatus());
+  }
   return request<SyncStatus>('/api/sync/status');
 }
 
 export function triggerSync(accountId: string): Promise<{ ok: boolean; message: string }> {
+  if (isCapacitor()) {
+    return syncMobileDrive(accountId);
+  }
   return request<{ ok: boolean; message: string }>(`/api/sync/start/${accountId}`, {
     method: 'POST',
     body: JSON.stringify({}),
@@ -254,6 +293,10 @@ export interface SyncProgressEvent {
 
 /** Subscribe to sync progress SSE events with automatic backoff reconnection. Returns an unsubscribe function. */
 export function subscribeSyncProgress(onEvent: (e: SyncProgressEvent) => void): () => void {
+  if (isCapacitor()) {
+    onEvent({ type: 'connected' });
+    return () => {};
+  }
   const apiBase = getApiBase();
   const tokenParam = activeSessionToken ? `?token=${encodeURIComponent(activeSessionToken)}` : '';
   const url = `${apiBase}/api/sync/progress${tokenParam}`;
@@ -416,6 +459,9 @@ export function getPhotos(opts: {
   year?: number | undefined;
   month?: string | undefined;
 }): Promise<PhotosListResponse> {
+  if (isCapacitor()) {
+    return getMobilePhotos(opts);
+  }
   const params = new URLSearchParams();
   if (opts.accountId) params.set('accountId', opts.accountId);
   if (opts.offset != null) params.set('offset', String(opts.offset));
@@ -431,6 +477,10 @@ export const listPhotos = getPhotos;
 export function getPhotoMonths(
   opts?: { accountId?: string; type?: 'all' | 'photos' | 'videos' | 'favorites' } | string,
 ): Promise<MonthsResponse> {
+  if (isCapacitor()) {
+    const parsed = typeof opts === 'string' ? { accountId: opts } : opts;
+    return getMobileMonths(parsed);
+  }
   const params = new URLSearchParams();
   if (typeof opts === 'string') {
     params.set('accountId', opts);
@@ -509,6 +559,9 @@ export function searchFiles(opts: {
 // ---------------------------------------------------------------------------
 
 export function getMediaThumbUrl(fileId: string, size = 400, accountId?: string): string {
+  if (isCapacitor()) {
+    return getMobileMediaThumbUrl(fileId, size);
+  }
   const params = new URLSearchParams({ size: String(size) });
   if (accountId) params.set('accountId', accountId);
   const token = getValidToken();
@@ -517,6 +570,9 @@ export function getMediaThumbUrl(fileId: string, size = 400, accountId?: string)
 }
 
 export function getMediaStreamUrl(fileId: string, accountId?: string, transcode?: boolean): string {
+  if (isCapacitor()) {
+    return getMobileMediaStreamUrl(fileId);
+  }
   const params = new URLSearchParams();
   if (accountId) params.set('accountId', accountId);
   if (transcode) params.set('transcode', '1');

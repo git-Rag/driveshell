@@ -98,8 +98,8 @@ Seven forward SQL migrations have been implemented and applied:
 - **Production Web Bundle:** 108.61 KB gzip JS (`dist/assets/index-*.js`), 9.10 KB gzip CSS.
 - **Windows Desktop Installer:** `Project-Sunflower-Setup-1.0.0.exe` (**26.41 MiB**, SHA-256:
   `063E8E31D7AA81CFB220797FF16A905DC64A042E655BB17B21D22AB1D5F4ADFA`).
-- **Android Mobile Package:** `Project-Sunflower-1.0.0-debug.apk` (**4.60 MiB / 4,823,870 bytes**,
-  SHA-256: `C0FA653B8DECB426FC2758BA4264361523AC13F872B71FED166C05FBDE7BE1C6`).
+- **Android Mobile Package:** `Project-Sunflower-1.0.0-debug.apk` (**5.03 MiB / 5,276,269 bytes**,
+  SHA-256: `AE33676E867CF0F46D208A888C6B2299378797F0DA7523A1613E913914BD01DD`).
 - **Production Dependency Audit:** `pnpm audit --prod` exits with **0 vulnerabilities**.
 
 ### Completed Feature Sets
@@ -127,11 +127,14 @@ Seven forward SQL migrations have been implemented and applied:
 6. **Desktop Release Packaging:**
    - Tauri v2 + Fastify loopback sidecar architecture.
    - Per-user NSIS standalone installer with automatic background server lifecycle management.
-7. **Mobile Android Packaging (Capacitor 8):**
+7. **Mobile Android Packaging & Native Engine (Capacitor 8):**
    - Native Gradle project (`android/`) targeting Android 14+ (Platform 36, Min SDK 24).
+   - Embedded standalone mobile client with IndexedDB metadata store and direct Google Drive v3 API
+     sync.
+   - Built-in Android loopback authentication server (`127.0.0.1:3001`) and custom scheme deep link
+     (`com.projectsunflower.app://oauth2redirect`).
    - Zero-transcoder native hardware decoding via Android MediaCodec in WebView (native HEVC/H.265,
      AVC, VP9, AV1 playback).
    - Edge-to-edge layout with safe-area notch insets and obsidian dark theme status bar (`#09090b`).
-   - Google OAuth PKCE deep linking (`com.projectsunflower.app://oauth2redirect`).
-   - Debug APK generated: `Project-Sunflower-1.0.0-debug.apk` (**4.60 MiB / 4,823,870 bytes**,
-     SHA-256: `C0FA653B8DECB426FC2758BA4264361523AC13F872B71FED166C05FBDE7BE1C6`).
+   - Debug APK generated: `Project-Sunflower-1.0.0-debug.apk` (**5.03 MiB / 5,276,269 bytes**,
+     SHA-256: `AE33676E867CF0F46D208A888C6B2299378797F0DA7523A1613E913914BD01DD`).

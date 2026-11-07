@@ -9,6 +9,9 @@ const config: CapacitorConfig = {
     cleartext: true,
   },
   plugins: {
+    CapacitorHttp: {
+      enabled: true,
+    },
     StatusBar: {
       style: 'DARK',
       backgroundColor: '#09090b',
