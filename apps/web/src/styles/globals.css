@@ -161,7 +161,7 @@
   --ds-brand: var(--blue-500);
   --ds-brand-hover: var(--blue-600);
   --ds-brand-muted: rgba(59, 130, 246, 0.12);
-  --ds-brand-border: rgba(59, 130, 246, 0.30);
+  --ds-brand-border: rgba(59, 130, 246, 0.3);
   --ds-brand-shadow: 0 4px 20px rgba(59, 130, 246, 0.25), 0 2px 8px rgba(59, 130, 246, 0.15);
 }
 
@@ -468,11 +468,27 @@ body {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    transition: border-color 150ms ease, box-shadow 150ms ease;
+    transition:
+      border-color 150ms ease,
+      box-shadow 150ms ease;
     cursor: default;
   }
   .feature-card:hover {
     border-color: var(--ds-border-strong);
     box-shadow: var(--ds-shadow-sm);
+  }
+
+  /* Mobile Safe Area Padding */
+  .safe-top {
+    padding-top: max(env(safe-area-inset-top), 0px);
+  }
+  .safe-bottom {
+    padding-bottom: max(env(safe-area-inset-bottom), 0px);
+  }
+  .safe-left {
+    padding-left: max(env(safe-area-inset-left), 0px);
+  }
+  .safe-right {
+    padding-right: max(env(safe-area-inset-right), 0px);
   }
 }

@@ -23,6 +23,7 @@ export default tseslint.config(
       'apps/server/data/**',
       'src-tauri/target/**',
       'src-tauri/**',
+      'android/**',
       '**/.system_generated/**',
       '**/.user_uploaded/**',
       '**/.kilo/**',
@@ -38,7 +39,9 @@ export default tseslint.config(
     extends: [...tseslint.configs.recommendedTypeChecked],
     languageOptions: {
       parserOptions: {
-        projectService: true,
+        projectService: {
+          allowDefaultProject: ['capacitor.config.ts'],
+        },
         tsconfigRootDir: import.meta.dirname,
       },
       globals: {
@@ -94,6 +97,7 @@ export default tseslint.config(
   // Run base TS rules only (no type-aware rules — they need parserOptions.project).
   {
     files: [
+      'capacitor.config.ts',
       'scripts/**/*.ts',
       'apps/*/vitest.config.ts',
       'apps/*/vite.config.ts',

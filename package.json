@@ -19,10 +19,16 @@
     "bench": "pnpm --filter @driveshell/server exec tsx ../../scripts/bench/run-all.ts",
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build",
+    "mobile:sync": "pnpm build && npx cap sync android",
+    "mobile:open": "npx cap open android",
+    "mobile:build": "pnpm mobile:sync && cd android && .\\gradlew.bat assembleDebug",
     "tauri": "tauri",
     "prepare": "husky"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/cli": "^8.6.0",
+    "@capacitor/core": "^8.6.0",
     "@eslint/js": "^10.0.1",
     "@tauri-apps/cli": "^2.12.4",
     "cross-env": "^7.0.3",

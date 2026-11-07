@@ -54,4 +54,17 @@ pnpm-debug.log*
 # Misc
 *.pem
 *.exe
+*.apk
+*.aab
+
+# Android build & local properties
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/*.iml
+android/app/*.iml
+android/.cxx/
+
 
