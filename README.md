@@ -368,6 +368,21 @@ pnpm desktop:build
 The output installer will be generated at
 `src-tauri/target/release/bundle/nsis/Project Sunflower_1.0.0_x64-setup.exe`.
 
+### 5. Building the Android APK
+
+```bash
+# Sync production web assets into the native Android Gradle project
+pnpm mobile:sync
+
+# Build the debug APK using the Gradle wrapper
+pnpm mobile:build
+
+# Open the native project in Android Studio (optional)
+pnpm mobile:open
+```
+
+The output APK will be compiled at `android/app/build/outputs/apk/debug/app-debug.apk`.
+
 ---
 
 ## Testing & Verification
