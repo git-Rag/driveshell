@@ -11,7 +11,9 @@
 [![Fastify](https://img.shields.io/badge/Fastify-5-000000?logo=fastify&logoColor=white)](https://fastify.dev)
 [![SQLite](<https://img.shields.io/badge/SQLite-WAL%20%2B%20FTS5%20(7%20Migrations)-003B57?logo=sqlite&logoColor=white>)](https://sqlite.org)
 [![Tauri](https://img.shields.io/badge/Tauri-v2%20Desktop-FFC131?logo=tauri&logoColor=black)](https://tauri.app)
+[![Android](<https://img.shields.io/badge/Android-APK%20Ready%20(API%2026%2B)-3DDC84?logo=android&logoColor=white>)](#android-mobile-release)
 [![Windows](https://img.shields.io/badge/Windows-x64%20Installer%20Ready-0078D6?logo=windows&logoColor=white)](#windows-desktop-release)
+[![Capacitor](https://img.shields.io/badge/Capacitor-v7-119EFF?logo=capacitor&logoColor=white)](https://capacitorjs.com)
 [![Tests](https://img.shields.io/badge/Tests-172%20pass%2C%200%20fail-brightgreen)](#testing--verification)
 [![Telemetry](https://img.shields.io/badge/Telemetry-Zero%20Egress-red)](#security-invariants)
 [![License](https://img.shields.io/badge/License-MIT-blue)](#license)
@@ -36,10 +38,12 @@ containing hundreds of thousands of items.
 ## Table of Contents
 
 - [Overview](#overview)
-- [Windows Desktop Release](#windows-desktop-release)
-  - [Release Package](#release-package)
-  - [Autonomous Architecture Highlights](#autonomous-architecture-highlights)
+- [Releases](#releases)
+  - [Windows Desktop Release](#windows-desktop-release)
+  - [Android Mobile Release](#android-mobile-release)
 - [Architecture & Data Flow](#architecture--data-flow)
+  - [Desktop Architecture (Tauri + Fastify + SQLite)](#desktop-architecture-tauri--fastify--sqlite)
+  - [Android Mobile Architecture (Capacitor + IndexedDB + Direct REST)](#android-mobile-architecture-capacitor--indexeddb--direct-rest)
 - [Core Capabilities](#core-capabilities)
   - [1. Ultra-Smooth Virtualized Photo Gallery](#1-ultra-smooth-virtualized-photo-gallery)
   - [2. Timeline Jump & Month Picker](#2-timeline-jump--month-picker)
@@ -48,6 +52,7 @@ containing hundreds of thousands of items.
   - [5. Client-Side Zero-Knowledge Encrypted Vault (SDV1 AEAD)](#5-client-side-zero-knowledge-encrypted-vault-sdv1-aead)
   - [6. Sub-5ms FTS5 Trigram Full-Text Search](#6-sub-5ms-fts5-trigram-full-text-search)
   - [7. Virtual Albums & Starred Media](#7-virtual-albums--starred-media)
+  - [8. Native Mobile Gestures & Offline Sync](#8-native-mobile-gestures--offline-sync)
 - [Design Decisions & Invariants](#design-decisions--invariants)
 - [Security Invariants](#security-invariants)
 - [Performance Scoreboard](#performance-scoreboard)
@@ -60,18 +65,21 @@ containing hundreds of thousands of items.
   - [2. Running in Development Mode](#2-running-in-development-mode)
   - [3. Running Test Suites](#3-running-test-suites)
   - [4. Building the Windows Installer](#4-building-the-windows-installer)
+  - [5. Building the Android APK](#5-building-the-android-apk)
 - [Testing & Verification](#testing--verification)
 - [License](#license)
 
 ---
 
-## Windows Desktop Release
+## Releases
+
+### Windows Desktop Release
 
 Project Sunflower is packaged as a standalone, self-contained Windows desktop application. It
 requires **no separate Node.js installation, no database setup, and no terminal commands** for end
 users.
 
-### Release Package
+#### Release Package
 
 - **Executable:** [`Project-Sunflower-Setup-1.0.0.exe`](Project-Sunflower-Setup-1.0.0.exe) _(and in
   `src-tauri/target/release/bundle/nsis/Project Sunflower_1.0.0_x64-setup.exe`)_
@@ -79,7 +87,7 @@ users.
 - **Installer Type:** NSIS Solid LZMA Compressed Installer (~26.4 MB)
 - **Target OS:** Windows 10 / Windows 11 (64-bit)
 
-### Autonomous Architecture Highlights
+#### Autonomous Architecture Highlights
 
 1. **Embedded Node.js Runtime & Server Sidecar:**  
    The application bundles its own stripped Node.js runtime (`resources/bin/node.exe`) and
@@ -104,7 +112,58 @@ users.
 
 ---
 
+### Android Mobile Release
+
+Project Sunflower is also available as a standalone, zero-server Android mobile application
+(`.apk`). It connects directly to your Google Drive via TLS 1.3 using OAuth 2.0 PKCE, caching media
+metadata, albums, and encrypted vaults locally on your phone. It requires **no separate computer, no
+running server, and no cloud middlemen**.
+
+#### Release Package
+
+- **Package:** [`Project-Sunflower-1.0.0-debug.apk`](Project-Sunflower-1.0.0-debug.apk) _(or
+  production release `Project-Sunflower-1.1.0.apk`)_
+- **Target OS:** Android 8.0 (Oreo, API 26) through Android 15+ (API 35+)
+- **Architecture:** Universal ARM64 / ARMv7 / x86_64 APK (~5.3 MB)
+- **Engine:** Capacitor 7 + Chromium WebKit Bridge + Native HTTP
+
+#### Standalone Mobile Architecture Highlights
+
+1. **Direct Google Drive v3 REST Integration:**  
+   Unlike the desktop app which uses a Fastify sidecar, the Android app makes direct, authenticated
+   HTTPS requests to Google Drive v3 via `CapacitorHttp` native networking. This completely
+   eliminates CORS issues and WebView network throttling while delivering full native speed.
+2. **Offline-First Local Storage (`SunflowerMobileDB`):**  
+   Metadata for your photos, videos, and albums is saved directly into local IndexedDB (`files`,
+   `thumbnails`, `albums`, `vault_files`). Browsing, sorting, and viewing cached content works
+   seamlessly even with airplane mode enabled.
+3. **Hardware & Gesture Back Navigation:**  
+   Integrated with Android's system back button and predictive back gestures via `@capacitor/app`.
+   Pressing back fluidly closes the lightbox, dismisses album pickers, or navigates from child views
+   (Albums, Favorites, Private Vault) back to the main Gallery without accidentally exiting the
+   application.
+4. **Mobile Touch & Drag Gestures:**  
+   Full gesture support in the Lightbox: swipe left for next photo, swipe right for previous photo,
+   with real-time finger translation and velocity-sensitive snaps. Pinch-to-zoom and double-tap zoom
+   for high-res photo inspection.
+5. **Zero-Knowledge Mobile Vault:**  
+   The Private Vault runs 100% offline using the browser's native `SubtleCrypto` API (PBKDF2 key
+   derivation with 100,000 iterations + AES-256-GCM authenticated encryption). Master passphrases
+   and decryption keys never touch disk or network.
+6. **Adaptive Safe-Area Inset Handling:**  
+   Fully respects Android display cutouts, punch-hole cameras, and system navigation bars
+   (`paddingTop: max(env(safe-area-inset-top), 48px)`), eliminating header overlapping across all
+   phone brands (Samsung, Pixel, OnePlus, Xiaomi).
+7. **Pixel-Perfect Adaptive Icons:**  
+   Ships with custom adaptive app launcher icons across all standard density buckets (`mdpi`,
+   `hdpi`, `xhdpi`, `xxhdpi`, `xxxhdpi`) featuring the centered golden sunflower on a deep-blue
+   canvas with glowing cyan border.
+
+---
+
 ## Architecture & Data Flow
+
+### Desktop Architecture (Tauri + Fastify + SQLite)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
@@ -131,6 +190,38 @@ users.
 │  │  ├── sunflower.db          ──► Relational Metadata Index & Accounts      │  │
 │  │  ├── thumbs/               ──► WebP Disk Thumbnail Cache (LRU Bounded)   │  │
 │  │  └── transcode_cache/      ──► FastStart Transcoded Universal MP4 Video   │  │
+│  └───────────────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Android Mobile Architecture (Capacitor + IndexedDB + Direct REST)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                       Android Mobile Shell (Capacitor 7)                        │
+│  ┌───────────────────────────────────────────────────────────────────────────┐  │
+│  │                     React 19 Frontend SPA (Vite Mobile)                   │  │
+│  │   Pinterest Grid · Photo Lightbox · Swipe Gestures · Back Button Manager  │  │
+│  │   Vault UI · Local Albums · Favorites Filter · Safe-Area Inset Engine     │  │
+│  └─────────────────────────────────────┬─────────────────────────────────────┘  │
+│                                        │ WebKit / Chromium Bridge Engine        │
+│                                        ▼                                        │
+│  ┌───────────────────────────────────────────────────────────────────────────┐  │
+│  │                 Mobile Client Abstraction Layer (mobile-client.ts)        │  │
+│  │  ├── Direct Drive v3 Client  ──► CapacitorHttp Native Networking          │  │
+│  │  ├── OAuth 2.0 PKCE Auth     ──► @capacitor/browser + Deep Link Callback  │  │
+│  │  ├── Offline Cache Store     ──► IndexedDB (SunflowerMobileDB: files/meta)│  │
+│  │  ├── Zero-Knowledge Vault    ──► WebCrypto SubtleCrypto (AES-256-GCM)     │  │
+│  │  ├── Hardware Back Router    ──► @capacitor/app BackButton LIFO Stack     │  │
+│  │  └── Virtual Albums Engine   ──► IndexedDB (albums & item collections)    │  │
+│  └─────────────────────────────────────┬─────────────────────────────────────┘  │
+│                                        │ Native Android OS APIs                 │
+│                                        ▼                                        │
+│  ┌───────────────────────────────────────────────────────────────────────────┐  │
+│  │                  Android Subsystem & Local Sandbox Storage                │  │
+│  │  ├── Chromium IndexedDB Engine ──► Encrypted Offline Files & Metadata     │  │
+│  │  ├── SharedPreferences / Storage ──► OAuth Client ID & Refresh Token      │  │
+│  │  └── Google Drive Cloud API    ──► Direct TLS 1.3 Sync (Zero Middleman)   │  │
 │  └───────────────────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -197,6 +288,17 @@ users.
   Google Drive folders or duplicating storage.
 - **Bi-directional Starred Status:** Star and unstar media locally with immediate synchronization
   back to Google Drive.
+
+### 8. Native Mobile Gestures & Offline Sync
+
+- **Touch Swipe Photo Navigation:** Smooth drag physics with velocity-aware transitions (swipe left
+  for next, right for previous).
+- **Safe-Area Inset Geometry:** Automatic top/bottom padding dynamic resolution clearing camera
+  notches, status bars, and navigation handles.
+- **Hardware Back-Button Navigation:** LIFO stack routing hardware back gestures to close lightbox
+  and overlays back to gallery without quitting.
+- **Pinterest-Style Dynamic Skeletons:** Animated responsive masonry placeholders during initial
+  incremental Google Drive synchronization.
 
 ---
 
