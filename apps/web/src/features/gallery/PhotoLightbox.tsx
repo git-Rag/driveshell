@@ -91,7 +91,11 @@ export function detectProbableCodec(fileName: string, mimeType: string): string 
 export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: PhotoLightboxProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [showInfo, setShowInfo] = useState(false);
-  const [isZoomed, setIsZoomed] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [isPinching, setIsPinching] = useState(false);
+  const isZoomed = zoom > 1.05;
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
@@ -199,7 +203,8 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
   useEffect(() => {
     setHighResLoaded(false);
     setPhotoFailed(false);
-    setIsZoomed(false);
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
     setRotation(0);
     setAddedAlbumId(null);
     setVideoFailed(false);
@@ -225,12 +230,13 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
     return () => clearTimeout(timer);
   }, [currentIndex, files, highResLoaded]);
 
-  // Fullscreen and 1-click Download Handlers
+  // Fullscreen, Zoom Toggle, and 1-click Download Handlers
   const handleToggleFullscreen = useCallback(async () => {
     const next = !isFullscreen;
     setIsFullscreen(next);
     if (!next) {
-      setIsZoomed(false);
+      setZoom(1);
+      setPan({ x: 0, y: 0 });
     }
     try {
       if (next) {
@@ -256,6 +262,16 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
       // In webviews where requestFullscreen is not permitted, CSS expansion & scale provides fallback
     }
   }, [isFullscreen]);
+
+  const toggleZoom = useCallback(() => {
+    if (zoom > 1.05) {
+      setZoom(1);
+      setPan({ x: 0, y: 0 });
+    } else {
+      setZoom(2.5);
+      setPan({ x: 0, y: 0 });
+    }
+  }, [zoom]);
 
   const handleDownload = useCallback(async () => {
     if (!file || isDownloading) return;
@@ -287,14 +303,15 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
         void handleToggleFullscreen();
         return true;
       }
-      if (isZoomed) {
-        setIsZoomed(false);
+      if (zoom > 1.05) {
+        setZoom(1);
+        setPan({ x: 0, y: 0 });
         return true;
       }
       onClose();
       return true;
     });
-  }, [showAlbumPicker, showInfo, isFullscreen, isZoomed, handleToggleFullscreen, onClose]);
+  }, [showAlbumPicker, showInfo, isFullscreen, zoom, handleToggleFullscreen, onClose]);
 
   const goToNext = useCallback(() => {
     if (currentIndex < files.length - 1) {
@@ -308,61 +325,201 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
     }
   }, [currentIndex]);
 
-  // Touch Swipe Gesture State & Handlers (smooth slide left/right)
+  // Touch & Mouse Gesture State & Handlers (Pan in all directions, Pinch-to-zoom, and Swipe navigation)
   const [touchDeltaX, setTouchDeltaX] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const lastTouchRef = useRef<{ x: number; y: number } | null>(null);
+  const initialPinchDistRef = useRef<number | null>(null);
+  const initialZoomRef = useRef(1);
+  const lastTapTimeRef = useRef(0);
   const hasSwipedRef = useRef(false);
+  const isMouseDownRef = useRef(false);
+  const lastMousePosRef = useRef<{ x: number; y: number } | null>(null);
 
   const handleTouchStart = useCallback(
     (e: React.TouchEvent) => {
-      if (isZoomed || e.touches.length !== 1) return;
-      const touch = e.touches[0];
-      if (touch) {
-        touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
-        setIsSwiping(true);
-        hasSwipedRef.current = false;
+      if (isVideo) return;
+
+      // Two fingers: Pinch-to-zoom
+      if (e.touches.length === 2) {
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+        if (t1 && t2) {
+          const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+          initialPinchDistRef.current = dist;
+          initialZoomRef.current = zoom;
+          setIsPinching(true);
+          setIsSwiping(false);
+          setTouchDeltaX(0);
+        }
+        return;
+      }
+
+      // Single finger
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        if (!touch) return;
+
+        // Double-tap detection: toggles between 1x and 2.5x
+        const now = Date.now();
+        const timeSinceLast = now - lastTapTimeRef.current;
+        if (timeSinceLast < 320) {
+          lastTapTimeRef.current = 0;
+          if (zoom > 1.05) {
+            setZoom(1);
+            setPan({ x: 0, y: 0 });
+          } else {
+            setZoom(2.5);
+            setPan({ x: 0, y: 0 });
+          }
+          return;
+        }
+        lastTapTimeRef.current = now;
+
+        if (zoom > 1.05) {
+          // In zoomed mode: start free drag/pan in all directions
+          lastTouchRef.current = { x: touch.clientX, y: touch.clientY };
+          setIsDragging(true);
+        } else {
+          // In 1x mode: start horizontal photo navigation swipe
+          touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: now };
+          setIsSwiping(true);
+          hasSwipedRef.current = false;
+        }
       }
     },
-    [isZoomed],
+    [isVideo, zoom],
   );
 
   const handleTouchMove = useCallback(
     (e: React.TouchEvent) => {
-      if (!touchStartRef.current || isZoomed || e.touches.length !== 1) return;
-      const touch = e.touches[0];
-      if (!touch) return;
-      const dx = touch.clientX - touchStartRef.current.x;
-      const dy = touch.clientY - touchStartRef.current.y;
-      if (Math.abs(dx) > Math.abs(dy)) {
-        if (Math.abs(dx) > 10) {
-          hasSwipedRef.current = true;
+      if (isVideo) return;
+
+      // Two fingers: smooth pinch-to-zoom calculation
+      if (
+        e.touches.length === 2 &&
+        initialPinchDistRef.current &&
+        initialPinchDistRef.current > 0
+      ) {
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+        if (t1 && t2) {
+          const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+          const factor = dist / initialPinchDistRef.current;
+          const nextZoom = Math.min(5, Math.max(1, initialZoomRef.current * factor));
+          setZoom(nextZoom);
+          if (nextZoom <= 1.05) {
+            setPan({ x: 0, y: 0 });
+          }
         }
-        setTouchDeltaX(dx);
+        return;
+      }
+
+      // Single finger drag or swipe
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        if (!touch) return;
+
+        if (zoom > 1.05 && lastTouchRef.current) {
+          const dx = touch.clientX - lastTouchRef.current.x;
+          const dy = touch.clientY - lastTouchRef.current.y;
+          lastTouchRef.current = { x: touch.clientX, y: touch.clientY };
+
+          setPan((prev) => {
+            const maxPanX = (window.innerWidth * (zoom - 0.9)) / 1.5;
+            const maxPanY = (window.innerHeight * (zoom - 0.9)) / 1.5;
+            return {
+              x: Math.min(maxPanX, Math.max(-maxPanX, prev.x + dx)),
+              y: Math.min(maxPanY, Math.max(-maxPanY, prev.y + dy)),
+            };
+          });
+        } else if (touchStartRef.current && zoom <= 1.05) {
+          const dx = touch.clientX - touchStartRef.current.x;
+          const dy = touch.clientY - touchStartRef.current.y;
+          if (Math.abs(dx) > Math.abs(dy)) {
+            if (Math.abs(dx) > 10) {
+              hasSwipedRef.current = true;
+            }
+            setTouchDeltaX(dx);
+          }
+        }
       }
     },
-    [isZoomed],
+    [isVideo, zoom],
   );
 
-  const handleTouchEnd = useCallback(() => {
-    if (!touchStartRef.current) return;
-    const dx = touchDeltaX;
-    const elapsed = Date.now() - touchStartRef.current.time;
-    const velocity = Math.abs(dx) / (elapsed || 1);
+  const handleTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      if (isVideo) return;
 
-    touchStartRef.current = null;
-    setIsSwiping(false);
-    setTouchDeltaX(0);
+      if (e.touches.length < 2) {
+        initialPinchDistRef.current = null;
+        setIsPinching(false);
+      }
 
-    const SWIPE_THRESHOLD = 50;
-    const FAST_SWIPE_THRESHOLD = 25;
+      if (zoom > 1.05) {
+        setIsDragging(false);
+        lastTouchRef.current = null;
+      } else if (touchStartRef.current) {
+        const dx = touchDeltaX;
+        const elapsed = Date.now() - touchStartRef.current.time;
+        const velocity = Math.abs(dx) / (elapsed || 1);
 
-    if (dx < -SWIPE_THRESHOLD || (dx < -FAST_SWIPE_THRESHOLD && velocity > 0.3)) {
-      goToNext();
-    } else if (dx > SWIPE_THRESHOLD || (dx > FAST_SWIPE_THRESHOLD && velocity > 0.3)) {
-      goToPrev();
-    }
-  }, [touchDeltaX, goToNext, goToPrev]);
+        touchStartRef.current = null;
+        setIsSwiping(false);
+        setTouchDeltaX(0);
+
+        const SWIPE_THRESHOLD = 50;
+        const FAST_SWIPE_THRESHOLD = 25;
+
+        if (dx < -SWIPE_THRESHOLD || (dx < -FAST_SWIPE_THRESHOLD && velocity > 0.3)) {
+          goToNext();
+        } else if (dx > SWIPE_THRESHOLD || (dx > FAST_SWIPE_THRESHOLD && velocity > 0.3)) {
+          goToPrev();
+        }
+      }
+    },
+    [isVideo, zoom, touchDeltaX, goToNext, goToPrev],
+  );
+
+  // Desktop Mouse Drag Support for Pan
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (zoom > 1.05 && !isVideo) {
+        isMouseDownRef.current = true;
+        lastMousePosRef.current = { x: e.clientX, y: e.clientY };
+        setIsDragging(true);
+      }
+    },
+    [zoom, isVideo],
+  );
+
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (isMouseDownRef.current && zoom > 1.05 && lastMousePosRef.current) {
+        const dx = e.clientX - lastMousePosRef.current.x;
+        const dy = e.clientY - lastMousePosRef.current.y;
+        lastMousePosRef.current = { x: e.clientX, y: e.clientY };
+
+        setPan((prev) => {
+          const maxPanX = (window.innerWidth * (zoom - 0.9)) / 1.5;
+          const maxPanY = (window.innerHeight * (zoom - 0.9)) / 1.5;
+          return {
+            x: Math.min(maxPanX, Math.max(-maxPanX, prev.x + dx)),
+            y: Math.min(maxPanY, Math.max(-maxPanY, prev.y + dy)),
+          };
+        });
+      }
+    },
+    [zoom],
+  );
+
+  const handleMouseUp = useCallback(() => {
+    isMouseDownRef.current = false;
+    lastMousePosRef.current = null;
+    setIsDragging(false);
+  }, []);
 
   // Keyboard navigation
   useEffect(() => {
@@ -470,24 +627,24 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
           </div>
 
           {/* Action icons — on mobile sits directly below file info, on desktop sits on right */}
-          <div className="flex items-center gap-1.5 bg-white/10 backdrop-blur-md px-2.5 py-1.5 rounded-full border border-white/10 shadow-lg w-fit max-w-full overflow-x-auto no-scrollbar shrink-0 ml-12 sm:ml-0">
+          <div className="flex items-center gap-1 sm:gap-1.5 bg-white/10 backdrop-blur-md px-2 sm:px-2.5 py-1.5 rounded-full border border-white/10 shadow-lg w-fit max-w-full overflow-x-auto no-scrollbar shrink-0 ml-0 sm:ml-0">
             {/* Star / Favorite */}
             <button
               onClick={handleToggleFavorite}
-              className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+              className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all ${
                 file.starred === 1
                   ? 'text-rose-500 bg-rose-500/20'
                   : 'text-white/80 hover:text-white hover:bg-white/10'
               }`}
               title={file.starred === 1 ? 'Remove from favorites' : 'Add to favorites'}
             >
-              <Heart size={16} fill={file.starred === 1 ? 'currentColor' : 'none'} />
+              <Heart size={15} fill={file.starred === 1 ? 'currentColor' : 'none'} />
             </button>
 
             {/* Add to Album */}
             <button
               onClick={handleOpenAlbumPicker}
-              className="w-8 h-8 rounded-full text-white/80 hover:text-white hover:bg-white/10 flex items-center justify-center transition-all"
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full text-white/80 hover:text-white hover:bg-white/10 flex items-center justify-center transition-all"
               title="Add to Album"
             >
               <FolderPlus size={15} />
@@ -497,26 +654,26 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
             {!isVideo && (
               <button
                 onClick={() => setRotation((r) => (r + 90) % 360)}
-                className="w-8 h-8 rounded-full text-white/80 hover:text-white hover:bg-white/10 flex items-center justify-center transition-all"
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded-full text-white/80 hover:text-white hover:bg-white/10 flex items-center justify-center transition-all"
                 title="Rotate (90°)"
               >
                 <RotateCw size={15} />
               </button>
             )}
 
-            {/* Fullscreen / Expand toggle */}
+            {/* Zoom / Fullscreen toggle */}
             {!isVideo && (
               <button
-                onClick={() => void handleToggleFullscreen()}
-                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
-                  isExpanded
-                    ? 'bg-brand text-white shadow-md'
-                    : 'text-white/80 hover:text-white hover:bg-white/10'
+                onClick={toggleZoom}
+                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all ${
+                  zoom > 1.05
+                    ? 'bg-amber-500 text-zinc-950 font-bold shadow-md shadow-amber-500/30'
+                    : 'text-white/80 hover:text-white hover:bg-white/10 active:scale-95'
                 }`}
-                title={isExpanded ? 'Exit Fullscreen' : 'Fullscreen / Expand'}
-                aria-label={isExpanded ? 'Exit Fullscreen' : 'Fullscreen / Expand'}
+                title={zoom > 1.05 ? 'Reset Zoom (1x)' : 'Zoom (2.5x)'}
+                aria-label={zoom > 1.05 ? 'Reset Zoom (1x)' : 'Zoom (2.5x)'}
               >
-                {isExpanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+                {zoom > 1.05 ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
               </button>
             )}
 
@@ -524,7 +681,7 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
             <button
               onClick={() => void handleDownload()}
               disabled={isDownloading}
-              className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+              className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all ${
                 downloadSuccess
                   ? 'text-emerald-400 bg-emerald-500/20'
                   : 'text-white/80 hover:text-white hover:bg-white/10 active:scale-95'
@@ -547,7 +704,7 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
                 href={file.web_view_link}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-8 h-8 rounded-full text-white/80 hover:text-white hover:bg-white/10 flex items-center justify-center transition-all"
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded-full text-white/80 hover:text-white hover:bg-white/10 flex items-center justify-center transition-all"
                 title="Open original in Google Drive"
               >
                 <ExternalLink size={15} />
@@ -557,7 +714,7 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
             {/* Info toggle */}
             <button
               onClick={() => setShowInfo((s) => !s)}
-              className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+              className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all ${
                 showInfo
                   ? 'bg-brand text-white'
                   : 'text-white/80 hover:text-white hover:bg-white/10'
@@ -704,17 +861,21 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
             /* High resolution photo presentation with Instant Blur-Up + Crossfade */
             <div
               className={`relative flex items-center justify-center select-none ${
-                isZoomed ? 'cursor-zoom-out' : 'cursor-zoom-in'
+                zoom > 1.05 ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-zoom-in'
               }`}
-              onClick={() => {
-                if (!hasSwipedRef.current) {
-                  setIsZoomed((z) => !z);
-                }
-              }}
+              onDoubleClick={toggleZoom}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
               style={{
-                transform: `rotate(${rotation}deg) translateX(${touchDeltaX}px) scale(${isZoomed ? 2.0 : isFullscreen ? 1.25 : 1.0})`,
-                transition: isSwiping ? 'none' : 'transform 250ms cubic-bezier(0.16, 1, 0.3, 1)',
-                touchAction: isZoomed ? 'manipulation' : 'pan-y',
+                transform: `translate3d(${zoom > 1.05 ? pan.x : touchDeltaX}px, ${zoom > 1.05 ? pan.y : 0}px, 0) scale(${zoom}) rotate(${rotation}deg)`,
+                transition:
+                  isSwiping || isDragging || isPinching
+                    ? 'none'
+                    : 'transform 200ms cubic-bezier(0.16, 1, 0.3, 1)',
+                willChange: 'transform',
+                touchAction: 'none',
               }}
             >
               {/* Layer 1: Instant Blur-Up Placeholder from cached 400px thumbnail */}

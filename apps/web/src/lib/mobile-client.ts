@@ -10,7 +10,7 @@
 
 import { Browser } from '@capacitor/browser';
 import { App as CapApp } from '@capacitor/app';
-import { CapacitorHttp } from '@capacitor/core';
+import { CapacitorHttp, registerPlugin } from '@capacitor/core';
 import { isRealMedia } from '@driveshell/shared';
 import { formatMonthKey, formatMonthLabel } from '@driveshell/shared';
 import type {
@@ -789,33 +789,100 @@ export function getMobileMediaDownloadUrl(fileId: string, fileName?: string): st
   return `http://127.0.0.1:3001/api/media/${encodeURIComponent(fileId)}/download${qs ? `?${qs}` : ''}`;
 }
 
-export async function downloadMobileFile(fileId: string, fileName: string): Promise<void> {
+interface SunflowerDownloaderPlugin {
+  saveMediaToGallery(options: {
+    url: string;
+    filename: string;
+    mimeType?: string | undefined;
+    token?: string | undefined;
+  }): Promise<{ success: boolean; uri?: string; bytesSaved?: number }>;
+
+  saveBase64ToGallery(options: {
+    base64: string;
+    filename: string;
+    mimeType?: string | undefined;
+  }): Promise<{ success: boolean; uri?: string; bytesSaved?: number }>;
+}
+
+const SunflowerDownloader = registerPlugin<SunflowerDownloaderPlugin>('SunflowerDownloader');
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+      } else {
+        reject(new Error('Failed converting blob to base64'));
+      }
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+export async function downloadMobileFile(
+  fileId: string,
+  fileName: string,
+  mimeType = 'image/jpeg',
+): Promise<void> {
   const accounts = getMobileAccounts();
   const token = accounts[0] ? getStoredTokens(accounts[0].id)?.accessToken : null;
 
-  // 1. First attempt: In-app fetch & Blob object URL trigger
+  const streamUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`;
+
+  // 1. Primary: Save directly to Android MediaStore Gallery via native plugin
   try {
-    const streamUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`;
+    const res = await SunflowerDownloader.saveMediaToGallery({
+      url: streamUrl,
+      filename: fileName,
+      mimeType,
+      token: token ?? undefined,
+    });
+    if (res?.success) {
+      return;
+    }
+  } catch (err) {
+    console.warn('SunflowerDownloader.saveMediaToGallery failed, trying fallback:', err);
+  }
+
+  // 2. Secondary: Fetch blob in webview then save directly to MediaStore via base64
+  try {
     const res = await fetch(streamUrl, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     if (res.ok) {
       const blob = await res.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
+      const base64 = await blobToBase64(blob);
+      const bRes = await SunflowerDownloader.saveBase64ToGallery({
+        base64,
+        filename: fileName,
+        mimeType,
+      });
+      if (bRes?.success) {
+        return;
+      }
+    }
+  } catch (err) {
+    console.warn('In-app fetch to MediaStore fallback error:', err);
+  }
+
+  // 3. Tertiary: Local embedded proxy download to MediaStore
+  try {
+    const localProxyUrl = `http://127.0.0.1:3001/api/media/${encodeURIComponent(fileId)}/download?filename=${encodeURIComponent(fileName)}${token ? `&token=${encodeURIComponent(token)}` : ''}`;
+    const pRes = await SunflowerDownloader.saveMediaToGallery({
+      url: localProxyUrl,
+      filename: fileName,
+      mimeType,
+    });
+    if (pRes?.success) {
       return;
     }
   } catch (err) {
-    console.warn('In-app blob download fallback:', err);
+    console.warn('Local proxy to MediaStore fallback error:', err);
   }
 
-  // 2. Second attempt: Android system Download Manager via direct authenticated Drive URL
+  // 4. Final Fallback: External Browser download manager
   const directUrl = token
     ? `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&access_token=${encodeURIComponent(token)}`
     : `http://127.0.0.1:3001/api/media/${encodeURIComponent(fileId)}/download?filename=${encodeURIComponent(fileName)}`;

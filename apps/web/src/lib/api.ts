@@ -627,10 +627,11 @@ export function getMediaDownloadUrl(fileId: string, accountId?: string, fileName
 export async function triggerFileDownload(file: {
   id: string;
   name: string;
+  mime_type?: string;
   account_id?: string;
 }): Promise<void> {
   if (isCapacitor()) {
-    await downloadMobileFile(file.id, file.name);
+    await downloadMobileFile(file.id, file.name, file.mime_type);
     return;
   }
   const a = document.createElement('a');
