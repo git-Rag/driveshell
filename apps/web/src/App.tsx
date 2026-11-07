@@ -12,6 +12,7 @@ import { useSetupStatus } from './hooks/useSetupStatus';
 import { useSyncStatus } from './hooks/useSyncStatus';
 import { SyncToast } from './components/SyncToast';
 import { initBackButtonListener, registerBackButtonHandler } from './lib/back-button';
+import { isCapacitor } from './lib/api';
 
 // Phase 1: Setup wizard + auth flow wired up.
 // TODO(phase-1): Replace activeId state with React Router location
@@ -173,20 +174,27 @@ export function App() {
         position: 'relative',
       }}
     >
-      {/* Left rail with toggle support */}
+      {/* Left rail with toggle support (hardware-accelerated overlay on mobile/gallery) */}
       <Sidebar
         activeId={activeId}
         onNavigate={handleNavigate}
         accounts={status.state === 'ready' ? status.data.accounts : []}
         isOpen={sidebarOpen}
         onToggle={() => setSidebarOpen((s) => !s)}
+        isOverlay={
+          isGallery || isCapacitor() || (typeof window !== 'undefined' && window.innerWidth < 768)
+        }
       />
 
-      {/* Backdrop overlay when sidebar is opened over Gallery */}
-      {sidebarOpen && isGallery && (
+      {/* Backdrop overlay when sidebar is opened in overlay mode */}
+      {(isGallery ||
+        isCapacitor() ||
+        (typeof window !== 'undefined' && window.innerWidth < 768)) && (
         <div
           onClick={() => setSidebarOpen(false)}
-          className="fixed inset-y-0 right-0 left-[232px] bg-black/60 backdrop-blur-sm z-40 transition-opacity"
+          className={`fixed inset-0 bg-black/60 z-40 transition-opacity duration-200 ${
+            sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+          }`}
         />
       )}
 

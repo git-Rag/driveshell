@@ -354,7 +354,15 @@ export function GalleryView({
     [months, loadPhotosAtOffset],
   );
 
-  // Global hotkeys: 'G' opens Jump Popover, 'Home' jumps to newest, 'End' jumps to oldest
+  const handleZoomIn = useCallback(() => {
+    setZoom((z) => Math.min(4, z + 1) as ZoomLevel);
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    setZoom((z) => Math.max(1, z - 1) as ZoomLevel);
+  }, []);
+
+  // Global hotkeys: 'G' opens Jump Popover, 'Home' jumps to newest, 'End' jumps to oldest, '+/-' zooms grid
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -380,20 +388,73 @@ export function GalleryView({
           e.preventDefault();
           scrollToBottom();
         }
+      } else if (e.key === '+' || e.key === '=') {
+        if (lightboxIndex === null) {
+          e.preventDefault();
+          handleZoomIn();
+        }
+      } else if (e.key === '-' || e.key === '_') {
+        if (lightboxIndex === null) {
+          e.preventDefault();
+          handleZoomOut();
+        }
       }
     };
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [lightboxIndex, isJumpPopoverOpen, scrollToTop, scrollToBottom]);
+  }, [lightboxIndex, isJumpPopoverOpen, scrollToTop, scrollToBottom, handleZoomIn, handleZoomOut]);
 
-  function handleZoomIn() {
-    setZoom((z) => Math.min(4, z + 1) as ZoomLevel);
-  }
+  // Two-Finger Pinch & Stretch Gestures on the Grid (smooth zoom in / zoom out)
+  const pinchStartDistRef = useRef<number | null>(null);
+  const pinchCooldownRef = useRef(false);
 
-  function handleZoomOut() {
-    setZoom((z) => Math.max(1, z - 1) as ZoomLevel);
-  }
+  const handleGridTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      if (t1 && t2) {
+        pinchStartDistRef.current = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+      }
+    }
+  }, []);
+
+  const handleGridTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      if (e.touches.length === 2 && pinchStartDistRef.current && !pinchCooldownRef.current) {
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+        if (t1 && t2) {
+          const currentDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+          const diff = currentDist - pinchStartDistRef.current;
+
+          // Stretch fingers outwards (> 45px): Zoom in (fewer, larger tiles)
+          if (diff > 45) {
+            pinchCooldownRef.current = true;
+            handleZoomIn();
+            pinchStartDistRef.current = currentDist;
+            setTimeout(() => {
+              pinchCooldownRef.current = false;
+            }, 350);
+          }
+          // Pinch fingers inwards (< -45px): Zoom out (more, smaller tiles)
+          else if (diff < -45) {
+            pinchCooldownRef.current = true;
+            handleZoomOut();
+            pinchStartDistRef.current = currentDist;
+            setTimeout(() => {
+              pinchCooldownRef.current = false;
+            }, 350);
+          }
+        }
+      }
+    },
+    [handleZoomIn, handleZoomOut],
+  );
+
+  const handleGridTouchEnd = useCallback(() => {
+    pinchStartDistRef.current = null;
+  }, []);
 
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-[var(--ds-bg)] text-white relative select-none overflow-hidden">
@@ -482,7 +543,7 @@ export function GalleryView({
                 <span>{isSyncing ? 'Syncing…' : 'Sync'}</span>
               </button>
 
-              <div className="hidden sm:flex items-center gap-1">
+              <div className="flex items-center gap-1">
                 <button
                   onClick={handleZoomOut}
                   disabled={zoom === 1}
@@ -569,6 +630,9 @@ export function GalleryView({
           containerRef.current = el;
           if (el && el !== scrollContainer) setScrollContainer(el);
         }}
+        onTouchStart={handleGridTouchStart}
+        onTouchMove={handleGridTouchMove}
+        onTouchEnd={handleGridTouchEnd}
         data-testid="gallery-scroll-container"
         className="flex-1 overflow-y-auto px-4 sm:px-10 py-5 pb-32"
         style={{
@@ -675,25 +739,79 @@ export function GalleryView({
         </div>
       )}
 
-      {/* Floating Quick Jump Pills (Newest / Oldest) */}
-      <div className="absolute right-14 bottom-6 z-20 flex items-center gap-1.5 select-none pointer-events-auto">
+      {/* Bottom-Right Floating Controls (Tile Panel Zoom +/- and Quick Jump) */}
+      <div
+        className="absolute right-12 sm:right-14 bottom-6 z-20 flex items-center gap-1 select-none pointer-events-auto bg-zinc-900/95 backdrop-blur-md px-2 py-1 rounded-full border border-white/15 shadow-2xl transition-all"
+        style={{
+          bottom: 'max(env(safe-area-inset-bottom, 0px), 24px)',
+        }}
+      >
+        {/* Zoom Out / More Tiles */}
+        <button
+          onClick={handleZoomOut}
+          disabled={zoom === 1}
+          className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all ${
+            zoom === 1
+              ? 'opacity-30 cursor-not-allowed text-zinc-500'
+              : 'text-zinc-300 hover:text-white hover:bg-white/10 active:scale-90'
+          }`}
+          title="Zoom out (more tiles / denser grid)"
+          aria-label="Zoom out (show more tiles)"
+        >
+          <Minus size={14} />
+        </button>
+
+        {/* Zoom Level Indicator */}
+        <span
+          className="px-1 text-[10px] sm:text-[11px] font-mono font-semibold text-amber-400 min-w-[32px] text-center"
+          title={`Zoom level ${zoom} of 4: ${zoom === 1 ? '5 cols' : zoom === 2 ? '3 cols' : zoom === 3 ? '2 cols' : '1 col'}`}
+        >
+          {zoom === 1 ? '5 cols' : zoom === 2 ? '3 cols' : zoom === 3 ? '2 cols' : '1 col'}
+        </span>
+
+        {/* Zoom In / Larger Tiles */}
+        <button
+          onClick={handleZoomIn}
+          disabled={zoom === 4}
+          className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all ${
+            zoom === 4
+              ? 'opacity-30 cursor-not-allowed text-zinc-500'
+              : 'text-zinc-300 hover:text-white hover:bg-white/10 active:scale-90'
+          }`}
+          title="Zoom in (larger tiles / fewer columns)"
+          aria-label="Zoom in (show larger tiles)"
+        >
+          <Plus size={14} />
+        </button>
+
+        <div className="w-px h-3.5 bg-white/20 mx-0.5" />
+
+        {/* Quick Jump: Newest */}
         <button
           onClick={scrollToTop}
           data-testid="jump-to-newest-btn"
-          className="p-2 rounded-full bg-zinc-900/90 hover:bg-zinc-800 border border-white/10 hover:border-brand/60 text-zinc-300 hover:text-white shadow-xl backdrop-blur-md transition-all active:scale-95 group"
+          className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-zinc-300 hover:text-white hover:bg-white/10 active:scale-90 transition-all group"
           title="Jump to newest (Home)"
           aria-label="Jump to newest photos"
         >
-          <ArrowUp size={14} className="text-brand group-hover:scale-110 transition-transform" />
+          <ArrowUp
+            size={13}
+            className="text-zinc-300 group-hover:text-amber-400 transition-colors"
+          />
         </button>
+
+        {/* Quick Jump: Oldest */}
         <button
           onClick={scrollToBottom}
           data-testid="jump-to-oldest-btn"
-          className="p-2 rounded-full bg-zinc-900/90 hover:bg-zinc-800 border border-white/10 hover:border-brand/60 text-zinc-300 hover:text-white shadow-xl backdrop-blur-md transition-all active:scale-95 group"
+          className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-zinc-300 hover:text-white hover:bg-white/10 active:scale-90 transition-all group"
           title="Jump to oldest (End)"
           aria-label="Jump to oldest photos"
         >
-          <ArrowDown size={14} className="text-brand group-hover:scale-110 transition-transform" />
+          <ArrowDown
+            size={13}
+            className="text-zinc-300 group-hover:text-amber-400 transition-colors"
+          />
         </button>
       </div>
 

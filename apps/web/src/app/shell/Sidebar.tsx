@@ -70,6 +70,7 @@ interface SidebarProps {
   accounts?: AccountInfo[];
   isOpen?: boolean;
   onToggle?: () => void;
+  isOverlay?: boolean;
 }
 
 export function Sidebar({
@@ -78,20 +79,33 @@ export function Sidebar({
   accounts = [],
   isOpen = true,
   onToggle,
+  isOverlay = false,
 }: SidebarProps) {
   const account = accounts[0] ?? null;
   const [expanded, setExpanded] = useState<Record<string, boolean>>({ photos: true });
 
   const toggle = (id: string) => setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
 
+  const handleSelectNav = (id: string) => {
+    onNavigate?.(id);
+    if (isOverlay) onToggle?.();
+  };
+
   return (
     <aside
-      className={`h-full flex flex-col shrink-0 select-none transition-all duration-200 relative z-50 ${
-        isOpen ? 'w-[232px] opacity-100 visible' : 'w-0 opacity-0 invisible overflow-hidden'
+      className={`h-full flex flex-col select-none transition-all duration-200 ease-out z-50 ${
+        isOverlay
+          ? `fixed inset-y-0 left-0 w-[240px] shadow-2xl ${
+              isOpen ? 'translate-x-0' : '-translate-x-full pointer-events-none'
+            }`
+          : `shrink-0 relative ${
+              isOpen ? 'w-[232px] opacity-100' : 'w-0 opacity-0 invisible overflow-hidden'
+            }`
       }`}
       style={{
         background: 'var(--ds-sidebar-bg)',
         borderRight: isOpen ? '1px solid var(--ds-sidebar-border)' : 'none',
+        willChange: 'transform',
       }}
       aria-label="Main navigation"
     >
@@ -134,7 +148,7 @@ export function Sidebar({
                 if (item.children) {
                   toggle(item.id);
                 } else {
-                  onNavigate?.(item.id);
+                  handleSelectNav(item.id);
                 }
               }}
             />
@@ -148,7 +162,7 @@ export function Sidebar({
                     isActive={activeId === child.id}
                     isExpanded={false}
                     isChild
-                    onPress={() => onNavigate?.(child.id)}
+                    onPress={() => handleSelectNav(child.id)}
                   />
                 ))}
               </div>
@@ -170,7 +184,7 @@ export function Sidebar({
           item={{ id: 'settings', label: 'Settings', icon: <Settings size={16} /> }}
           isActive={activeId === 'settings'}
           isExpanded={false}
-          onPress={() => onNavigate?.('settings')}
+          onPress={() => handleSelectNav('settings')}
         />
       </div>
     </aside>
