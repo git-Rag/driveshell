@@ -24,6 +24,7 @@ import {
 } from '../../lib/api';
 import { PhotoLightbox } from '../gallery/PhotoLightbox';
 import { MediaThumbnail } from '../gallery/MediaThumbnail';
+import { registerBackButtonHandler } from '../../lib/back-button';
 
 export function AlbumsView() {
   const [albums, setAlbums] = useState<Album[]>([]);
@@ -67,6 +68,33 @@ export function AlbumsView() {
   useEffect(() => {
     void loadAlbums();
   }, [loadAlbums]);
+
+  // Handle hardware / system back button
+  useEffect(() => {
+    return registerBackButtonHandler(() => {
+      if (activeLightboxIndex !== null) {
+        setActiveLightboxIndex(null);
+        return true;
+      }
+      if (showAddPhotosModal) {
+        setShowAddPhotosModal(false);
+        return true;
+      }
+      if (editingAlbum) {
+        setEditingAlbum(null);
+        return true;
+      }
+      if (showCreateModal) {
+        setShowCreateModal(false);
+        return true;
+      }
+      if (selectedAlbum) {
+        setSelectedAlbum(null);
+        return true;
+      }
+      return false; // propagate to App.tsx to navigate to gallery
+    });
+  }, [activeLightboxIndex, showAddPhotosModal, editingAlbum, showCreateModal, selectedAlbum]);
 
   // Load files when an album is selected
   const openAlbum = useCallback(async (album: Album) => {
@@ -195,7 +223,14 @@ export function AlbumsView() {
     return (
       <div className="flex-1 flex flex-col h-full bg-[var(--ds-bg)] text-white overflow-hidden select-none">
         {/* Album Header Bar */}
-        <div className="px-8 py-5 border-b border-[var(--ds-border-subtle)] bg-[var(--ds-bg-raised)]/80 backdrop-blur-md flex items-center justify-between">
+        <div
+          className="px-4 sm:px-8 py-4 sm:py-5 border-b border-[var(--ds-border-subtle)] bg-[var(--ds-bg-raised)]/80 backdrop-blur-md flex items-center justify-between"
+          style={{
+            paddingTop: 'max(env(safe-area-inset-top, 0px), 48px)',
+            paddingLeft: 'max(env(safe-area-inset-left, 0px), 16px)',
+            paddingRight: 'max(env(safe-area-inset-right, 0px), 16px)',
+          }}
+        >
           <div className="flex items-center gap-4">
             <button
               onClick={() => setSelectedAlbum(null)}
@@ -397,7 +432,14 @@ export function AlbumsView() {
   return (
     <div className="flex-1 flex flex-col h-full bg-[var(--ds-bg)] text-white overflow-hidden select-none">
       {/* Top Bar */}
-      <div className="px-8 py-6 border-b border-[var(--ds-border-subtle)] bg-[var(--ds-bg-raised)]/80 backdrop-blur-md flex items-center justify-between">
+      <div
+        className="px-4 sm:px-8 py-4 sm:py-6 border-b border-[var(--ds-border-subtle)] bg-[var(--ds-bg-raised)]/80 backdrop-blur-md flex items-center justify-between"
+        style={{
+          paddingTop: 'max(env(safe-area-inset-top, 0px), 48px)',
+          paddingLeft: 'max(env(safe-area-inset-left, 0px), 16px)',
+          paddingRight: 'max(env(safe-area-inset-right, 0px), 16px)',
+        }}
+      >
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-bold tracking-tight text-white">Albums</h1>

@@ -33,6 +33,7 @@ import {
   verifyVaultKey,
   VAULT_CANARY_MESSAGE,
 } from '../../lib/vault-crypto';
+import { registerBackButtonHandler } from '../../lib/back-button';
 
 const AUTO_LOCK_SECONDS = 300; // 5 minutes inactivity
 
@@ -136,6 +137,17 @@ export function VaultView() {
       window.removeEventListener('keydown', handleActivity);
     };
   }, [resetActivityTimer]);
+
+  // Handle hardware / system back button
+  useEffect(() => {
+    return registerBackButtonHandler(() => {
+      if (vaultKey) {
+        handleLock();
+        return true;
+      }
+      return false; // propagate to App.tsx to navigate back to gallery
+    });
+  }, [vaultKey, handleLock]);
 
   // Load files once unlocked
   const loadVaultFiles = useCallback(async () => {
@@ -340,10 +352,18 @@ export function VaultView() {
   // -------------------------------------------------------------------------
   if (!status?.initialized) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-6 bg-[var(--ds-bg)] text-white select-none">
+      <div
+        className="flex-1 flex flex-col items-center justify-center p-6 bg-[var(--ds-bg)] text-white select-none overflow-y-auto"
+        style={{
+          paddingTop: 'max(env(safe-area-inset-top, 0px), 48px)',
+          paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 24px)',
+          paddingLeft: 'max(env(safe-area-inset-left, 0px), 16px)',
+          paddingRight: 'max(env(safe-area-inset-right, 0px), 16px)',
+        }}
+      >
         <form
           onSubmit={handleSetup}
-          className="w-full max-w-md bg-zinc-900 border border-white/10 rounded-3xl p-8 flex flex-col gap-6 shadow-2xl relative overflow-hidden"
+          className="w-full max-w-md bg-zinc-900 border border-white/10 rounded-3xl p-8 flex flex-col gap-6 shadow-2xl relative overflow-hidden my-auto"
         >
           <div className="flex flex-col items-center text-center gap-3">
             <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
@@ -427,10 +447,18 @@ export function VaultView() {
   // -------------------------------------------------------------------------
   if (!vaultKey) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-6 bg-[var(--ds-bg)] text-white select-none">
+      <div
+        className="flex-1 flex flex-col items-center justify-center p-6 bg-[var(--ds-bg)] text-white select-none overflow-y-auto"
+        style={{
+          paddingTop: 'max(env(safe-area-inset-top, 0px), 48px)',
+          paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 24px)',
+          paddingLeft: 'max(env(safe-area-inset-left, 0px), 16px)',
+          paddingRight: 'max(env(safe-area-inset-right, 0px), 16px)',
+        }}
+      >
         <form
           onSubmit={handleUnlock}
-          className="w-full max-w-sm bg-zinc-900 border border-white/10 rounded-3xl p-8 flex flex-col gap-6 shadow-2xl relative overflow-hidden"
+          className="w-full max-w-sm bg-zinc-900 border border-white/10 rounded-3xl p-8 flex flex-col gap-6 shadow-2xl relative overflow-hidden my-auto"
         >
           <div className="flex flex-col items-center text-center gap-3">
             <div className="w-16 h-16 rounded-2xl bg-brand/10 border border-brand/20 flex items-center justify-center text-brand">
@@ -503,7 +531,14 @@ export function VaultView() {
   return (
     <div className="flex-1 flex flex-col h-full bg-[var(--ds-bg)] text-white overflow-hidden select-none">
       {/* Top Bar */}
-      <div className="px-8 py-5 border-b border-[var(--ds-border-subtle)] bg-[var(--ds-bg-raised)]/80 backdrop-blur-md flex items-center justify-between">
+      <div
+        className="px-4 sm:px-8 py-4 sm:py-5 border-b border-[var(--ds-border-subtle)] bg-[var(--ds-bg-raised)]/80 backdrop-blur-md flex items-center justify-between"
+        style={{
+          paddingTop: 'max(env(safe-area-inset-top, 0px), 48px)',
+          paddingLeft: 'max(env(safe-area-inset-left, 0px), 16px)',
+          paddingRight: 'max(env(safe-area-inset-right, 0px), 16px)',
+        }}
+      >
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
             <Unlock size={20} />

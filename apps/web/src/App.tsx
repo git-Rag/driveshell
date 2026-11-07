@@ -11,6 +11,7 @@ import { SettingsView } from './features/settings/SettingsView';
 import { useSetupStatus } from './hooks/useSetupStatus';
 import { useSyncStatus } from './hooks/useSyncStatus';
 import { SyncToast } from './components/SyncToast';
+import { initBackButtonListener, registerBackButtonHandler } from './lib/back-button';
 
 // Phase 1: Setup wizard + auth flow wired up.
 // TODO(phase-1): Replace activeId state with React Router location
@@ -55,6 +56,31 @@ export function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
   }, [isDark]);
+
+  // Handle Android system back button (hardware key or edge gesture navigation)
+  useEffect(() => {
+    initBackButtonListener();
+
+    return registerBackButtonHandler(() => {
+      // 1. If sidebar is open, close it
+      if (sidebarOpen) {
+        setSidebarOpen(false);
+        return true;
+      }
+      // 2. If top bar is open in gallery, close it
+      if (isGallery && topBarOpen) {
+        setTopBarOpen(false);
+        return true;
+      }
+      // 3. If navigated to any non-gallery view (Vault, Albums, Favorites, etc.), return to Gallery
+      if (activeId !== 'gallery') {
+        handleNavigate('gallery');
+        return true;
+      }
+      // 4. At root gallery: delegate to exit app
+      return false;
+    });
+  }, [sidebarOpen, topBarOpen, isGallery, activeId, handleNavigate]);
 
   // Poll setup status
   const { status, refresh } = useSetupStatus();

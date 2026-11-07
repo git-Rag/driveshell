@@ -18,6 +18,19 @@ import {
   getMobileSyncStatus,
   getMobileMediaThumbUrl,
   getMobileMediaStreamUrl,
+  updateMobileFile,
+  getMobileVaultStatus,
+  setupMobileVault,
+  listMobileVaultFiles,
+  uploadMobileVaultFile,
+  getMobileVaultFileData,
+  deleteMobileVaultFile,
+  resetMobileVault,
+  listMobileAlbums,
+  createMobileAlbum,
+  addItemsToMobileAlbum,
+  getMobileAlbum,
+  deleteMobileAlbum,
 } from './mobile-client';
 
 export { isCapacitor };
@@ -528,6 +541,9 @@ export function updateFile(
   },
   accountId?: string,
 ): Promise<{ ok: boolean; file: FileRecord }> {
+  if (isCapacitor()) {
+    return updateMobileFile(fileId, updates, accountId);
+  }
   const params = new URLSearchParams();
   if (accountId) params.set('accountId', accountId);
   return request<{ ok: boolean; file: FileRecord }>(
@@ -641,6 +657,9 @@ export interface Album {
 }
 
 export function listAlbums(accountId?: string): Promise<{ albums: Album[] }> {
+  if (isCapacitor()) {
+    return listMobileAlbums();
+  }
   const params = new URLSearchParams();
   if (accountId) params.set('accountId', accountId);
   return request<{ albums: Album[] }>(`/api/albums?${params.toString()}`);
@@ -652,6 +671,9 @@ export function createAlbum(
   fileIds?: string[],
   accountId?: string,
 ): Promise<{ album: Album }> {
+  if (isCapacitor()) {
+    return createMobileAlbum(title, description, fileIds, accountId);
+  }
   const params = new URLSearchParams();
   if (accountId) params.set('accountId', accountId);
   return request<{ album: Album }>(`/api/albums?${params.toString()}`, {
@@ -664,6 +686,9 @@ export function getAlbum(
   albumId: string,
   accountId?: string,
 ): Promise<{ album: Album; files: FileRecord[] }> {
+  if (isCapacitor()) {
+    return getMobileAlbum(albumId);
+  }
   const params = new URLSearchParams();
   if (accountId) params.set('accountId', accountId);
   return request<{ album: Album; files: FileRecord[] }>(
@@ -688,6 +713,9 @@ export function updateAlbum(
 }
 
 export function deleteAlbum(albumId: string, accountId?: string): Promise<{ ok: boolean }> {
+  if (isCapacitor()) {
+    return deleteMobileAlbum(albumId);
+  }
   const params = new URLSearchParams();
   if (accountId) params.set('accountId', accountId);
   return request<{ ok: boolean }>(
@@ -703,6 +731,9 @@ export function addItemsToAlbum(
   fileIds: string[],
   accountId?: string,
 ): Promise<{ ok: boolean; added: number }> {
+  if (isCapacitor()) {
+    return addItemsToMobileAlbum(albumId, fileIds);
+  }
   const params = new URLSearchParams();
   if (accountId) params.set('accountId', accountId);
   return request<{ ok: boolean; added: number }>(
@@ -753,6 +784,9 @@ export interface VaultStatus {
 }
 
 export function getVaultStatus(accountId?: string): Promise<VaultStatus> {
+  if (isCapacitor()) {
+    return Promise.resolve(getMobileVaultStatus());
+  }
   const params = new URLSearchParams();
   if (accountId) params.set('accountId', accountId);
   return request<VaultStatus>(`/api/vault/status?${params.toString()}`);
@@ -764,6 +798,9 @@ export function setupVault(
   canaryIv: string,
   accountId?: string,
 ): Promise<{ ok: boolean }> {
+  if (isCapacitor()) {
+    return Promise.resolve(setupMobileVault(salt, canaryCiphertext, canaryIv));
+  }
   const params = new URLSearchParams();
   if (accountId) params.set('accountId', accountId);
   return request<{ ok: boolean }>(`/api/vault/setup?${params.toString()}`, {
@@ -773,6 +810,9 @@ export function setupVault(
 }
 
 export function listVaultFiles(accountId?: string): Promise<{ files: VaultFile[] }> {
+  if (isCapacitor()) {
+    return listMobileVaultFiles();
+  }
   const params = new URLSearchParams();
   if (accountId) params.set('accountId', accountId);
   return request<{ files: VaultFile[] }>(`/api/vault/files?${params.toString()}`);
@@ -789,6 +829,9 @@ export function uploadVaultFile(
   },
   accountId?: string,
 ): Promise<{ ok: boolean; id: string }> {
+  if (isCapacitor()) {
+    return uploadMobileVaultFile(data);
+  }
   const params = new URLSearchParams();
   if (accountId) params.set('accountId', accountId);
   return request<{ ok: boolean; id: string }>(`/api/vault/files?${params.toString()}`, {
@@ -798,6 +841,9 @@ export function uploadVaultFile(
 }
 
 export function getVaultFileData(fileId: string, accountId?: string): Promise<VaultFile> {
+  if (isCapacitor()) {
+    return getMobileVaultFileData(fileId);
+  }
   const params = new URLSearchParams();
   if (accountId) params.set('accountId', accountId);
   return request<VaultFile>(
@@ -806,6 +852,9 @@ export function getVaultFileData(fileId: string, accountId?: string): Promise<Va
 }
 
 export function deleteVaultFile(fileId: string, accountId?: string): Promise<{ ok: boolean }> {
+  if (isCapacitor()) {
+    return deleteMobileVaultFile(fileId);
+  }
   const params = new URLSearchParams();
   if (accountId) params.set('accountId', accountId);
   return request<{ ok: boolean }>(
@@ -817,6 +866,9 @@ export function deleteVaultFile(fileId: string, accountId?: string): Promise<{ o
 }
 
 export function resetVault(accountId?: string): Promise<{ ok: boolean }> {
+  if (isCapacitor()) {
+    return resetMobileVault();
+  }
   const params = new URLSearchParams();
   if (accountId) params.set('accountId', accountId);
   return request<{ ok: boolean }>(`/api/vault/reset?${params.toString()}`, {

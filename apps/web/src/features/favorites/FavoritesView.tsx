@@ -5,6 +5,7 @@ import { listPhotos, updateFile } from '../../lib/api';
 import { PhotoLightbox } from '../gallery/PhotoLightbox';
 import { MediaThumbnail } from '../gallery/MediaThumbnail';
 import { isRealMedia } from '@driveshell/shared';
+import { registerBackButtonHandler } from '../../lib/back-button';
 
 export function FavoritesView() {
   const [favorites, setFavorites] = useState<FileRecord[]>([]);
@@ -27,6 +28,17 @@ export function FavoritesView() {
   useEffect(() => {
     void loadFavorites();
   }, [loadFavorites]);
+
+  // Handle hardware / system back button
+  useEffect(() => {
+    return registerBackButtonHandler(() => {
+      if (activeLightboxIndex !== null) {
+        setActiveLightboxIndex(null);
+        return true;
+      }
+      return false; // let App.tsx navigate back to gallery
+    });
+  }, [activeLightboxIndex]);
 
   async function handleToggleFavorite(e: React.MouseEvent, file: FileRecord) {
     e.stopPropagation();
@@ -58,7 +70,14 @@ export function FavoritesView() {
   return (
     <div className="flex-1 flex flex-col h-full bg-[var(--ds-bg)] text-white overflow-hidden select-none">
       {/* Top Bar */}
-      <div className="px-8 py-5 border-b border-[var(--ds-border-subtle)] bg-[var(--ds-bg-raised)]/80 backdrop-blur-md flex items-center justify-between">
+      <div
+        className="px-4 sm:px-8 py-5 border-b border-[var(--ds-border-subtle)] bg-[var(--ds-bg-raised)]/80 backdrop-blur-md flex items-center justify-between pt-12 sm:pt-5"
+        style={{
+          paddingTop: 'max(env(safe-area-inset-top, 0px), 48px)',
+          paddingLeft: 'max(env(safe-area-inset-left, 0px), 16px)',
+          paddingRight: 'max(env(safe-area-inset-right, 0px), 16px)',
+        }}
+      >
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500">
             <Heart size={20} fill="currentColor" />

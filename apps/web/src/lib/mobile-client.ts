@@ -21,6 +21,9 @@ import type {
   MonthsResponse,
   PhotoMonthBucket,
   SyncStatus,
+  VaultStatus,
+  VaultFile,
+  Album,
 } from './api';
 
 const STORAGE_KEYS = {
@@ -385,7 +388,7 @@ async function handleOAuthCodeReceived(
 // ---------------------------------------------------------------------------
 
 const DB_NAME = 'SunflowerMobileDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -397,6 +400,12 @@ function openDB(): Promise<IDBDatabase> {
         store.createIndex('taken_at', 'taken_at', { unique: false });
         store.createIndex('account_id', 'account_id', { unique: false });
         store.createIndex('starred', 'starred', { unique: false });
+      }
+      if (!db.objectStoreNames.contains('vault_files')) {
+        db.createObjectStore('vault_files', { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains('albums')) {
+        db.createObjectStore('albums', { keyPath: 'id' });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -768,4 +777,365 @@ export function getMobileMediaStreamUrl(fileId: string): string {
   if (token) params.set('token', token);
   const qs = params.toString();
   return `http://127.0.0.1:3001/api/media/${encodeURIComponent(fileId)}/stream${qs ? `?${qs}` : ''}`;
+}
+
+// ---------------------------------------------------------------------------
+// File Updates (Starred / Favorites, Rename, Trashed)
+// ---------------------------------------------------------------------------
+
+export async function updateMobileFile(
+  fileId: string,
+  updates: {
+    name?: string | undefined;
+    starred?: number | undefined;
+    trashed?: number | undefined;
+    parentId?: string | null | undefined;
+  },
+  accountId?: string,
+): Promise<{ ok: boolean; file: FileRecord }> {
+  const db = await openDB();
+  const tx = db.transaction('files', 'readwrite');
+  const store = tx.objectStore('files');
+
+  const file = await new Promise<FileRecord | null>((resolve) => {
+    const req = store.get(fileId);
+    req.onsuccess = () => resolve((req.result as FileRecord) ?? null);
+    req.onerror = () => resolve(null);
+  });
+
+  if (!file) {
+    throw new Error('File not found in local library');
+  }
+
+  if (updates.name !== undefined) file.name = updates.name;
+  if (updates.starred !== undefined) file.starred = updates.starred;
+  if (updates.trashed !== undefined) file.trashed = updates.trashed;
+
+  store.put(file);
+
+  await new Promise<void>((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(new Error('Transaction failed'));
+  });
+
+  // Sync update to Google Drive API in background
+  const accounts = getMobileAccounts();
+  const targetAccount = accountId ? accounts.find((a) => a.id === accountId) : accounts[0];
+  if (targetAccount) {
+    void (async () => {
+      const accessToken = await getFreshAccessToken(targetAccount.id);
+      if (accessToken) {
+        const driveBody: Record<string, unknown> = {};
+        if (updates.name !== undefined) driveBody.name = updates.name;
+        if (updates.starred !== undefined) driveBody.starred = updates.starred === 1;
+        if (updates.trashed !== undefined) driveBody.trashed = updates.trashed === 1;
+
+        if (Object.keys(driveBody).length > 0) {
+          try {
+            await CapacitorHttp.patch({
+              url: `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}`,
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+              },
+              data: driveBody,
+            });
+          } catch (e) {
+            console.warn('Failed to sync file update to Drive:', e);
+          }
+        }
+      }
+    })();
+  }
+
+  return { ok: true, file };
+}
+
+// ---------------------------------------------------------------------------
+// Private Vault (Local Encrypted Storage on Android)
+// ---------------------------------------------------------------------------
+
+const VAULT_STATUS_KEY = 'sunflower_mobile_vault_status';
+
+export function getMobileVaultStatus(): VaultStatus {
+  try {
+    const raw = localStorage.getItem(VAULT_STATUS_KEY);
+    if (!raw) return { initialized: false };
+    return JSON.parse(raw) as VaultStatus;
+  } catch {
+    return { initialized: false };
+  }
+}
+
+export function setupMobileVault(
+  salt: string,
+  canaryCiphertext: string,
+  canaryIv: string,
+): { ok: boolean } {
+  const status: VaultStatus = {
+    initialized: true,
+    salt,
+    canaryCiphertext,
+    canaryIv,
+    createdAt: Date.now(),
+  };
+  localStorage.setItem(VAULT_STATUS_KEY, JSON.stringify(status));
+  return { ok: true };
+}
+
+export async function listMobileVaultFiles(): Promise<{ files: VaultFile[] }> {
+  const db = await openDB();
+  const tx = db.transaction('vault_files', 'readonly');
+  const store = tx.objectStore('vault_files');
+  const files: VaultFile[] = [];
+
+  await new Promise<void>((resolve, reject) => {
+    const req = store.openCursor();
+    req.onsuccess = (e) => {
+      const cursor = (e.target as IDBRequest<IDBCursorWithValue>).result;
+      if (cursor) {
+        const item = cursor.value as VaultFile;
+        const { encryptedPayloadBase64: _, ...rest } = item;
+        files.push(rest);
+        cursor.continue();
+      } else {
+        resolve();
+      }
+    };
+    req.onerror = () => reject(new Error(req.error ? req.error.message : 'Cursor failed'));
+  });
+
+  return { files };
+}
+
+export async function uploadMobileVaultFile(data: {
+  id?: string;
+  name: string;
+  mimeType: string;
+  sizeBytes: number;
+  encryptedPayloadBase64: string;
+  iv: string;
+}): Promise<{ ok: boolean; id: string }> {
+  const id = data.id || `vault_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  const record: VaultFile = {
+    id,
+    account_id: 'mobile',
+    name: data.name,
+    mime_type: data.mimeType,
+    size_bytes: data.sizeBytes,
+    iv: data.iv,
+    created_at: Date.now(),
+    encryptedPayloadBase64: data.encryptedPayloadBase64,
+  };
+
+  const db = await openDB();
+  const tx = db.transaction('vault_files', 'readwrite');
+  const store = tx.objectStore('vault_files');
+  store.put(record);
+
+  await new Promise<void>((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(new Error(tx.error ? tx.error.message : 'Put failed'));
+  });
+
+  return { ok: true, id };
+}
+
+export async function getMobileVaultFileData(fileId: string): Promise<VaultFile> {
+  const db = await openDB();
+  const tx = db.transaction('vault_files', 'readonly');
+  const store = tx.objectStore('vault_files');
+
+  return new Promise((resolve, reject) => {
+    const req = store.get(fileId);
+    req.onsuccess = () => {
+      if (req.result) resolve(req.result as VaultFile);
+      else reject(new Error('Vault file not found'));
+    };
+    req.onerror = () => reject(new Error(req.error ? req.error.message : 'Get failed'));
+  });
+}
+
+export async function deleteMobileVaultFile(fileId: string): Promise<{ ok: boolean }> {
+  const db = await openDB();
+  const tx = db.transaction('vault_files', 'readwrite');
+  const store = tx.objectStore('vault_files');
+  store.delete(fileId);
+
+  await new Promise<void>((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(new Error(tx.error ? tx.error.message : 'Delete failed'));
+  });
+
+  return { ok: true };
+}
+
+export async function resetMobileVault(): Promise<{ ok: boolean }> {
+  localStorage.removeItem(VAULT_STATUS_KEY);
+  const db = await openDB();
+  const tx = db.transaction('vault_files', 'readwrite');
+  const store = tx.objectStore('vault_files');
+  store.clear();
+
+  await new Promise<void>((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(new Error(tx.error ? tx.error.message : 'Clear failed'));
+  });
+
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Albums (Local Collections on Android)
+// ---------------------------------------------------------------------------
+
+interface StoredAlbum extends Album {
+  item_ids: string[];
+}
+
+export async function listMobileAlbums(): Promise<{ albums: Album[] }> {
+  const db = await openDB();
+  const tx = db.transaction('albums', 'readonly');
+  const store = tx.objectStore('albums');
+  const albums: Album[] = [];
+
+  await new Promise<void>((resolve, reject) => {
+    const req = store.openCursor();
+    req.onsuccess = (e) => {
+      const cursor = (e.target as IDBRequest<IDBCursorWithValue>).result;
+      if (cursor) {
+        const item = cursor.value as StoredAlbum;
+        const { item_ids: _, ...rest } = item;
+        albums.push(rest);
+        cursor.continue();
+      } else {
+        resolve();
+      }
+    };
+    req.onerror = () => reject(new Error(req.error ? req.error.message : 'Cursor failed'));
+  });
+
+  return { albums };
+}
+
+export async function createMobileAlbum(
+  title: string,
+  description?: string,
+  fileIds?: string[],
+  accountId?: string,
+): Promise<{ album: Album }> {
+  const id = `album_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const now = Date.now();
+  const stored: StoredAlbum = {
+    id,
+    account_id: accountId || 'mobile',
+    title,
+    description: description || null,
+    cover_file_id: fileIds?.[0] || null,
+    item_count: fileIds?.length || 0,
+    created_at: now,
+    modified_at: now,
+    item_ids: fileIds || [],
+  };
+
+  const db = await openDB();
+  const tx = db.transaction('albums', 'readwrite');
+  const store = tx.objectStore('albums');
+  store.put(stored);
+
+  await new Promise<void>((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(new Error(tx.error ? tx.error.message : 'Put failed'));
+  });
+
+  const { item_ids: _, ...album } = stored;
+  return { album };
+}
+
+export async function addItemsToMobileAlbum(
+  albumId: string,
+  fileIds: string[],
+): Promise<{ ok: boolean; added: number }> {
+  const db = await openDB();
+  const tx = db.transaction('albums', 'readwrite');
+  const store = tx.objectStore('albums');
+
+  const stored = await new Promise<StoredAlbum | null>((resolve) => {
+    const req = store.get(albumId);
+    req.onsuccess = () => resolve((req.result as StoredAlbum) ?? null);
+    req.onerror = () => resolve(null);
+  });
+
+  if (!stored) throw new Error('Album not found');
+
+  const set = new Set(stored.item_ids);
+  let added = 0;
+  for (const id of fileIds) {
+    if (!set.has(id)) {
+      set.add(id);
+      stored.item_ids.push(id);
+      added++;
+    }
+  }
+
+  stored.item_count = stored.item_ids.length;
+  stored.modified_at = Date.now();
+  if (!stored.cover_file_id && stored.item_ids[0]) {
+    stored.cover_file_id = stored.item_ids[0];
+  }
+
+  store.put(stored);
+
+  await new Promise<void>((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(new Error('Update failed'));
+  });
+
+  return { ok: true, added };
+}
+
+export async function getMobileAlbum(
+  albumId: string,
+): Promise<{ album: Album; files: FileRecord[] }> {
+  const db = await openDB();
+  const albumTx = db.transaction('albums', 'readonly');
+  const albumStore = albumTx.objectStore('albums');
+
+  const stored = await new Promise<StoredAlbum | null>((resolve) => {
+    const req = albumStore.get(albumId);
+    req.onsuccess = () => resolve((req.result as StoredAlbum) ?? null);
+    req.onerror = () => resolve(null);
+  });
+
+  if (!stored) throw new Error('Album not found');
+
+  const filesTx = db.transaction('files', 'readonly');
+  const filesStore = filesTx.objectStore('files');
+  const items: FileRecord[] = [];
+
+  for (const id of stored.item_ids) {
+    const f = await new Promise<FileRecord | null>((resolve) => {
+      const req = filesStore.get(id);
+      req.onsuccess = () => resolve((req.result as FileRecord) ?? null);
+      req.onerror = () => resolve(null);
+    });
+    if (f) items.push(f);
+  }
+
+  const { item_ids: _, ...album } = stored;
+  return { album, files: items };
+}
+
+export async function deleteMobileAlbum(albumId: string): Promise<{ ok: boolean }> {
+  const db = await openDB();
+  const tx = db.transaction('albums', 'readwrite');
+  const store = tx.objectStore('albums');
+  store.delete(albumId);
+
+  await new Promise<void>((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(new Error('Delete failed'));
+  });
+
+  return { ok: true };
 }

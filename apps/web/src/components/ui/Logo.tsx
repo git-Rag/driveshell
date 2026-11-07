@@ -15,7 +15,7 @@ export function Logo({ iconOnly = false, size = 28, className }: LogoProps) {
       className={className}
       aria-label="Project Sunflower"
     >
-      {/* Brand mark — an elegant golden sunflower motif */}
+      {/* Brand mark — small elegant golden sunflower motif centered on a bluish canvas */}
       <svg
         width={size}
         height={size}
@@ -25,6 +25,7 @@ export function Logo({ iconOnly = false, size = 28, className }: LogoProps) {
         aria-hidden="true"
       >
         <defs>
+          {/* Deep modern blue canvas */}
           <linearGradient
             id="sunflower-bg"
             x1="0"
@@ -33,37 +34,91 @@ export function Logo({ iconOnly = false, size = 28, className }: LogoProps) {
             y2="28"
             gradientUnits="userSpaceOnUse"
           >
-            <stop offset="0%" stopColor="#f59e0b" />
-            <stop offset="100%" stopColor="#d97706" />
+            <stop offset="0%" stopColor="#0b1329" />
+            <stop offset="50%" stopColor="#0f1f42" />
+            <stop offset="100%" stopColor="#080e1e" />
           </linearGradient>
+
+          {/* Blueish boundary glow border */}
           <linearGradient
-            id="sunflower-petal"
+            id="sunflower-border"
             x1="0"
             y1="0"
             x2="28"
             y2="28"
             gradientUnits="userSpaceOnUse"
           >
-            <stop offset="0%" stopColor="#fef08a" />
-            <stop offset="100%" stopColor="#fde047" />
+            <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.85" />
+            <stop offset="50%" stopColor="#6366f1" stopOpacity="0.55" />
+            <stop offset="100%" stopColor="#0284c7" stopOpacity="0.8" />
           </linearGradient>
+
+          {/* Golden sunflower petals */}
+          <linearGradient
+            id="sunflower-petal"
+            x1="0"
+            y1="-8"
+            x2="0"
+            y2="0"
+            gradientUnits="userSpaceOnUse"
+          >
+            <stop offset="0%" stopColor="#fef08a" />
+            <stop offset="50%" stopColor="#facc15" />
+            <stop offset="100%" stopColor="#eab308" />
+          </linearGradient>
+
+          <radialGradient
+            id="sunflower-ambient"
+            cx="14"
+            cy="14"
+            r="8"
+            gradientUnits="userSpaceOnUse"
+          >
+            <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.25" />
+            <stop offset="100%" stopColor="#38bdf8" stopOpacity="0" />
+          </radialGradient>
         </defs>
-        {/* Outer rounded container */}
-        <rect width="28" height="28" rx="7" fill="url(#sunflower-bg)" />
-        {/* Stylized geometric sunflower petals */}
-        <g transform="translate(14, 14)">
-          {/* Petals radiating in 8 directions */}
+
+        {/* Outer rounded bluish canvas container */}
+        <rect
+          x="1"
+          y="1"
+          width="26"
+          height="26"
+          rx="7"
+          fill="url(#sunflower-bg)"
+          stroke="url(#sunflower-border)"
+          strokeWidth="1.2"
+        />
+
+        {/* Ambient bluish highlight */}
+        <circle cx="14" cy="14" r="8" fill="url(#sunflower-ambient)" />
+
+        {/* Small sunflower centered in the middle */}
+        <g transform="translate(14, 14) scale(0.65)">
+          {/* Main 8 petals */}
           {[0, 45, 90, 135, 180, 225, 270, 315].map((angle) => (
             <path
               key={angle}
-              d="M0 -8.5 C1.5 -6, 1.5 -3, 0 -2 C-1.5 -3, -1.5 -6, 0 -8.5 Z"
+              d="M0 -8.2 C1.4 -5.5, 1.4 -2.8, 0 -1.8 C-1.4 -2.8, -1.4 -5.5, 0 -8.2 Z"
               fill="url(#sunflower-petal)"
               transform={`rotate(${angle})`}
             />
           ))}
+          {/* Interspersed secondary petals for richness */}
+          {[22.5, 67.5, 112.5, 157.5, 202.5, 247.5, 292.5, 337.5].map((angle) => (
+            <path
+              key={`sub-${angle}`}
+              d="M0 -7 C1.1 -4.8, 1.1 -2.5, 0 -1.6 C-1.1 -2.5, -1.1 -4.8, 0 -7 Z"
+              fill="#f59e0b"
+              opacity="0.9"
+              transform={`rotate(${angle})`}
+            />
+          ))}
           {/* Center seed disk */}
-          <circle r="3.4" fill="#78350f" />
-          <circle r="2" fill="#92400e" opacity="0.8" />
+          <circle r="3.2" fill="#78350f" />
+          <circle r="2" fill="#92400e" opacity="0.85" />
+          <circle r="1" fill="#b45309" opacity="0.75" />
         </g>
       </svg>
 

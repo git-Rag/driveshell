@@ -61,9 +61,9 @@ export function TopBar({
       style={{
         background: 'var(--ds-topbar-bg)',
         borderBottom: visible ? '1px solid var(--ds-topbar-border)' : 'none',
-        paddingTop: visible ? 'max(env(safe-area-inset-top, 0px), 24px)' : '0px',
+        paddingTop: visible ? 'max(env(safe-area-inset-top, 0px), 48px)' : '0px',
         minHeight: visible
-          ? 'calc(var(--ds-topbar-height) + max(env(safe-area-inset-top, 0px), 24px))'
+          ? 'calc(var(--ds-topbar-height) + max(env(safe-area-inset-top, 0px), 48px))'
           : '0px',
       }}
       role="banner"

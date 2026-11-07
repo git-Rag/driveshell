@@ -100,8 +100,8 @@ export function Sidebar({
         className="px-4 flex items-center justify-between shrink-0"
         style={{
           borderBottom: '1px solid var(--ds-sidebar-border)',
-          paddingTop: 'max(env(safe-area-inset-top, 0px), 24px)',
-          minHeight: 'calc(var(--ds-topbar-height) + max(env(safe-area-inset-top, 0px), 24px))',
+          paddingTop: 'max(env(safe-area-inset-top, 0px), 48px)',
+          minHeight: 'calc(var(--ds-topbar-height) + max(env(safe-area-inset-top, 0px), 48px))',
         }}
       >
         <Logo />

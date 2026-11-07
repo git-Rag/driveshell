@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import type { FileRecord, Album } from '../../lib/api';
 import { MediaThumbnail } from './MediaThumbnail';
+import { registerBackButtonHandler } from '../../lib/back-button';
 import {
   getMediaThumbUrl,
   getMediaStreamUrl,
@@ -207,6 +208,22 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
     return () => clearTimeout(timer);
   }, [currentIndex, files, highResLoaded]);
 
+  // Android system back button listener — intercept so back closes viewer instead of quitting app
+  useEffect(() => {
+    return registerBackButtonHandler(() => {
+      if (showAlbumPicker) {
+        setShowAlbumPicker(false);
+        return true;
+      }
+      if (showInfo) {
+        setShowInfo(false);
+        return true;
+      }
+      onClose();
+      return true;
+    });
+  }, [showAlbumPicker, showInfo, onClose]);
+
   const goToNext = useCallback(() => {
     if (currentIndex < files.length - 1) {
       setCurrentIndex((i) => i + 1);
@@ -218,6 +235,62 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
       setCurrentIndex((i) => i - 1);
     }
   }, [currentIndex]);
+
+  // Touch Swipe Gesture State & Handlers (smooth slide left/right)
+  const [touchDeltaX, setTouchDeltaX] = useState(0);
+  const [isSwiping, setIsSwiping] = useState(false);
+  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const hasSwipedRef = useRef(false);
+
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent) => {
+      if (isZoomed || e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      if (touch) {
+        touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
+        setIsSwiping(true);
+        hasSwipedRef.current = false;
+      }
+    },
+    [isZoomed],
+  );
+
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      if (!touchStartRef.current || isZoomed || e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      if (!touch) return;
+      const dx = touch.clientX - touchStartRef.current.x;
+      const dy = touch.clientY - touchStartRef.current.y;
+      if (Math.abs(dx) > Math.abs(dy)) {
+        if (Math.abs(dx) > 10) {
+          hasSwipedRef.current = true;
+        }
+        setTouchDeltaX(dx);
+      }
+    },
+    [isZoomed],
+  );
+
+  const handleTouchEnd = useCallback(() => {
+    if (!touchStartRef.current) return;
+    const dx = touchDeltaX;
+    const elapsed = Date.now() - touchStartRef.current.time;
+    const velocity = Math.abs(dx) / (elapsed || 1);
+
+    touchStartRef.current = null;
+    setIsSwiping(false);
+    setTouchDeltaX(0);
+
+    const SWIPE_THRESHOLD = 50;
+    const FAST_SWIPE_THRESHOLD = 25;
+
+    if (dx < -SWIPE_THRESHOLD || (dx < -FAST_SWIPE_THRESHOLD && velocity > 0.3)) {
+      goToNext();
+    } else if (dx > SWIPE_THRESHOLD || (dx > FAST_SWIPE_THRESHOLD && velocity > 0.3)) {
+      goToPrev();
+    }
+  }, [touchDeltaX, goToNext, goToPrev]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -295,29 +368,37 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
       {/* Main View Area */}
       <div className="flex-1 flex flex-col min-w-0 relative overflow-hidden">
         {/* Top Floating Control Bar */}
-        <div className="absolute top-0 inset-x-0 z-20 px-4 sm:px-6 pt-[max(env(safe-area-inset-top),28px)] pb-4 flex items-center justify-between bg-gradient-to-b from-black/85 via-black/50 to-transparent">
+        <div
+          className="absolute top-0 inset-x-0 z-20 px-4 sm:px-6 pt-12 sm:pt-6 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-gradient-to-b from-black/90 via-black/60 to-transparent"
+          style={{
+            paddingTop: 'max(env(safe-area-inset-top, 0px), 48px)',
+            paddingLeft: 'max(env(safe-area-inset-left, 0px), 16px)',
+            paddingRight: 'max(env(safe-area-inset-right, 0px), 16px)',
+          }}
+        >
           {/* File info pill */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={onClose}
-              className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center transition-all text-white/90"
-              title="Close (Esc)"
+              className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center transition-all text-white/90 shrink-0"
+              title="Close (Esc or Back)"
+              aria-label="Close photo viewer"
             >
               <X size={18} />
             </button>
-            <div className="flex flex-col">
-              <span className="text-sm font-semibold truncate max-w-sm tracking-wide text-white">
+            <div className="flex flex-col min-w-0">
+              <span className="text-sm font-semibold truncate tracking-wide text-white">
                 {file.name}
               </span>
-              <span className="text-[11px] text-white/60 font-mono">
+              <span className="text-[11px] text-white/60 font-mono truncate">
                 {currentIndex + 1} of {files.length} •{' '}
                 {formatFullDate(file.taken_at ?? file.modified_at)}
               </span>
             </div>
           </div>
 
-          {/* Action icons */}
-          <div className="flex items-center gap-1.5 bg-white/10 backdrop-blur-md px-2 py-1 rounded-full border border-white/10 shadow-lg">
+          {/* Action icons — on mobile sits directly below file info, on desktop sits on right */}
+          <div className="flex items-center gap-1.5 bg-white/10 backdrop-blur-md px-2.5 py-1.5 rounded-full border border-white/10 shadow-lg w-fit max-w-full overflow-x-auto no-scrollbar shrink-0 ml-12 sm:ml-0">
             {/* Star / Favorite */}
             <button
               onClick={handleToggleFavorite}
@@ -400,8 +481,13 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
           </div>
         </div>
 
-        {/* Media Canvas Area */}
-        <div className="flex-1 flex items-center justify-center p-4 relative overflow-hidden">
+        {/* Media Canvas Area with Touch Swipe Support */}
+        <div
+          className="flex-1 flex items-center justify-center p-4 relative overflow-hidden"
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
           {isVideo &&
           (videoFailed || isVideoPlaybackFailed(file.id)) &&
           !useTranscodeStream[file.id] ? (
@@ -522,11 +608,19 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
           ) : (
             /* High resolution photo presentation with Instant Blur-Up + Crossfade */
             <div
-              className={`relative flex items-center justify-center transition-transform duration-200 ${
+              className={`relative flex items-center justify-center transition-transform duration-200 select-none ${
                 isZoomed ? 'scale-150 cursor-zoom-out' : 'cursor-zoom-in'
               }`}
-              onClick={() => setIsZoomed((z) => !z)}
-              style={{ transform: `rotate(${rotation}deg)` }}
+              onClick={() => {
+                if (!hasSwipedRef.current) {
+                  setIsZoomed((z) => !z);
+                }
+              }}
+              style={{
+                transform: `rotate(${rotation}deg) translateX(${touchDeltaX}px)`,
+                transition: isSwiping ? 'none' : 'transform 200ms ease-out',
+                touchAction: 'pan-y',
+              }}
             >
               {/* Layer 1: Instant Blur-Up Placeholder from cached 400px thumbnail */}
               <img
@@ -594,7 +688,12 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
         </div>
 
         {/* Bottom Thumbnail Strip — Uses cached 400px thumbs with low priority to never block main photo */}
-        <div className="h-16 px-6 py-2 bg-gradient-to-t from-black/90 to-transparent flex items-center justify-center gap-2 overflow-x-auto z-10">
+        <div
+          className="h-20 sm:h-16 px-6 py-2 bg-gradient-to-t from-black/90 to-transparent flex items-center justify-center gap-2 overflow-x-auto z-10"
+          style={{
+            paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 12px)',
+          }}
+        >
           {files.slice(Math.max(0, currentIndex - 5), currentIndex + 6).map((f) => {
             const idx = files.indexOf(f);
             const active = idx === currentIndex;
