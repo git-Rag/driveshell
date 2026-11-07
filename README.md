@@ -14,7 +14,7 @@
 [![Android](<https://img.shields.io/badge/Android-APK%20Ready%20(API%2026%2B)-3DDC84?logo=android&logoColor=white>)](#android-mobile-release)
 [![Windows](https://img.shields.io/badge/Windows-x64%20Installer%20Ready-0078D6?logo=windows&logoColor=white)](#windows-desktop-release)
 [![Capacitor](https://img.shields.io/badge/Capacitor-v7-119EFF?logo=capacitor&logoColor=white)](https://capacitorjs.com)
-[![Tests](https://img.shields.io/badge/Tests-172%20pass%2C%200%20fail-brightgreen)](#testing--verification)
+[![Tests](https://img.shields.io/badge/Tests-174%20pass%2C%200%20fail-brightgreen)](#testing--verification)
 [![Telemetry](https://img.shields.io/badge/Telemetry-Zero%20Egress-red)](#security-invariants)
 [![License](https://img.shields.io/badge/License-MIT-blue)](#license)
 
@@ -39,6 +39,7 @@ containing hundreds of thousands of items.
 
 - [Overview](#overview)
 - [Releases](#releases)
+  - [Bring-Your-Own-Credentials (BYOC) Privacy Model](#bring-your-own-credentials-byoc-privacy-model)
   - [Windows Desktop Release](#windows-desktop-release)
   - [Android Mobile Release](#android-mobile-release)
 - [Architecture & Data Flow](#architecture--data-flow)
@@ -72,6 +73,32 @@ containing hundreds of thousands of items.
 ---
 
 ## Releases
+
+### Bring-Your-Own-Credentials (BYOC) Privacy Model
+
+When you distribute the Windows installer (`.exe`) or Android APK (`.apk`), **no developer
+credentials, personal client secrets, access tokens, or Google accounts are bundled or exposed.**
+Project Sunflower is strictly local-first, zero-telemetry, and zero-knowledge.
+
+Every end-user provides their own Google Cloud OAuth 2.0 Client credentials:
+
+1. Users simply follow the step-by-step **[Google Cloud Setup Guide](docs/google-setup.md)** to
+   create a free personal Google Cloud project and generate an OAuth 2.0 Client ID and Client Secret
+   with the Google Drive API enabled.
+2. On first launch of either the Windows desktop app or the Android mobile APK, the **Setup Wizard**
+   appears automatically.
+3. Users paste their **Client ID** and **Client Secret** into the setup wizard:
+   - **On Android:** Credentials and OAuth tokens are stored exclusively inside the device's private
+     app sandbox (`localStorage`).
+   - **On Windows:** Credentials are encrypted directly into the native OS Keychain (Windows
+     Credential Manager via DPAPI).
+4. Users then click **Connect with Google** to authenticate directly with Google via OAuth 2.0 PKCE.
+
+> **Privacy Guarantee:** All personal media, metadata, and authentication tokens remain 100% on the
+> user's local device. Project Sunflower contains zero telemetry, zero analytics, and zero external
+> cloud servers.
+
+---
 
 ### Windows Desktop Release
 
