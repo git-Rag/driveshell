@@ -47,7 +47,7 @@ export function MediaThumbnail({
     );
   }
 
-  const thumbUrl = getMediaThumbUrl(file.id, size);
+  const thumbUrl = getMediaThumbUrl(file.id, size, file.account_id, file.thumbnail_url);
   const src =
     retryCount > 0
       ? `${thumbUrl}${thumbUrl.includes('?') ? '&' : '?'}retry=${retryCount}`

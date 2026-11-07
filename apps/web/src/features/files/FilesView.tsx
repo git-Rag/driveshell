@@ -406,7 +406,7 @@ export function FilesView() {
                   <div className="w-full aspect-video rounded-lg overflow-hidden bg-zinc-900 flex items-center justify-center mb-2 relative">
                     {isMedia ? (
                       <img
-                        src={getMediaThumbUrl(file.id, 400)}
+                        src={getMediaThumbUrl(file.id, 400, file.account_id, file.thumbnail_url)}
                         alt={file.name}
                         className="w-full h-full object-cover"
                         loading="lazy"

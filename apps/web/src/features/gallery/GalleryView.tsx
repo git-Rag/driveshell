@@ -397,132 +397,170 @@ export function GalleryView({
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-[var(--ds-bg)] text-white relative select-none overflow-hidden">
       {/* Sleek Floating OneDrive Header */}
-      <div className="z-30 px-6 py-2.5 flex items-center justify-between border-b border-[var(--ds-border-subtle)] bg-[var(--ds-bg)]/85 backdrop-blur-xl">
-        {/* Left: Sidebar & TopBar Toggles + Dynamic Floating Month Badge */}
-        <div className="flex items-center gap-2.5">
-          {onToggleSidebar && (
-            <button
-              onClick={onToggleSidebar}
-              className={`p-2 rounded-full border transition-all ${
-                sidebarOpen
-                  ? 'bg-brand text-white border-brand ring-2 ring-brand/30'
-                  : 'bg-zinc-900/90 border-white/10 text-zinc-300 hover:text-white hover:border-white/30 active:scale-95'
-              } shadow-lg`}
-              title="Toggle sidebar (Ctrl+B)"
-            >
-              <PanelLeft size={15} />
-            </button>
-          )}
+      <div
+        className="z-30 border-b border-[var(--ds-border-subtle)] bg-[var(--ds-bg)]/90 backdrop-blur-xl transition-all"
+        style={{
+          paddingTop: 'max(env(safe-area-inset-top, 0px), 28px)',
+          paddingLeft: 'max(env(safe-area-inset-left, 0px), 16px)',
+          paddingRight: 'max(env(safe-area-inset-right, 0px), 16px)',
+        }}
+      >
+        <div className="py-2.5 flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+          {/* Row 1: Left navigation controls + Right Sync button & Zoom */}
+          <div className="flex items-center justify-between gap-2 min-w-0">
+            {/* Left: Sidebar & TopBar Toggles + Dynamic Floating Month Badge */}
+            <div className="flex items-center gap-2 min-w-0">
+              {onToggleSidebar && (
+                <button
+                  onClick={onToggleSidebar}
+                  className={`p-2 rounded-full border transition-all ${
+                    sidebarOpen
+                      ? 'bg-brand text-white border-brand ring-2 ring-brand/30'
+                      : 'bg-zinc-900/90 border-white/10 text-zinc-300 hover:text-white hover:border-white/30 active:scale-95'
+                  } shadow-lg shrink-0`}
+                  title="Toggle sidebar (Ctrl+B)"
+                >
+                  <PanelLeft size={15} />
+                </button>
+              )}
 
-          {onToggleTopBar && (
-            <button
-              onClick={onToggleTopBar}
-              className={`p-2 rounded-full border transition-all ${
-                topBarOpen
-                  ? 'bg-brand text-white border-brand ring-2 ring-brand/30'
-                  : 'bg-zinc-900/90 border-white/10 text-zinc-300 hover:text-white hover:border-white/30 active:scale-95'
-              } shadow-lg`}
-              title="Toggle search & top bar"
-            >
-              <Search size={14} />
-            </button>
-          )}
+              {onToggleTopBar && (
+                <button
+                  onClick={onToggleTopBar}
+                  className={`p-2 rounded-full border transition-all ${
+                    topBarOpen
+                      ? 'bg-brand text-white border-brand ring-2 ring-brand/30'
+                      : 'bg-zinc-900/90 border-white/10 text-zinc-300 hover:text-white hover:border-white/30 active:scale-95'
+                  } shadow-lg shrink-0`}
+                  title="Toggle search & top bar"
+                >
+                  <Search size={14} />
+                </button>
+              )}
 
-          {/* Interactive Month Chip Popover Trigger */}
-          <button
-            onClick={() => setIsJumpPopoverOpen(true)}
-            data-testid="timeline-month-chip"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-900 border border-white/10 hover:border-brand/70 text-xs font-semibold tracking-wide text-zinc-200 hover:text-white transition-all shadow-md active:scale-95 group cursor-pointer"
-            title="Jump to timeline month (G)"
-            aria-label="Open timeline month jump popover"
-          >
-            <Calendar size={13} className="text-brand group-hover:scale-110 transition-transform" />
-            <span>{currentVisibleMonth || 'Gallery'}</span>
-            <ChevronDown
-              size={12}
-              className="text-zinc-400 group-hover:text-white transition-colors"
-            />
-          </button>
+              {/* Interactive Month Chip Popover Trigger */}
+              <button
+                onClick={() => setIsJumpPopoverOpen(true)}
+                data-testid="timeline-month-chip"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-900 border border-white/10 hover:border-brand/70 text-xs font-semibold tracking-wide text-zinc-200 hover:text-white transition-all shadow-md active:scale-95 group cursor-pointer shrink-0"
+                title="Jump to timeline month (G)"
+                aria-label="Open timeline month jump popover"
+              >
+                <Calendar
+                  size={13}
+                  className="text-brand group-hover:scale-110 transition-transform"
+                />
+                <span className="truncate max-w-[120px]">{currentVisibleMonth || 'Gallery'}</span>
+                <ChevronDown
+                  size={12}
+                  className="text-zinc-400 group-hover:text-white transition-colors shrink-0"
+                />
+              </button>
 
-          <span className="hidden md:inline-block text-[11px] font-mono text-zinc-400">
-            {totalPhotos > 0 ? `${totalPhotos.toLocaleString()} items` : ''}
-          </span>
-        </div>
+              <span className="hidden xl:inline-block text-[11px] font-mono text-zinc-400 shrink-0">
+                {totalPhotos > 0 ? `${totalPhotos.toLocaleString()} items` : ''}
+              </span>
+            </div>
 
-        {/* Center: Filter Toggle Pills */}
-        <div className="flex items-center gap-1 bg-zinc-900/80 p-1 rounded-full border border-white/10 shadow-lg backdrop-blur-md">
-          <button
-            onClick={() => handleFilterChange('all')}
-            className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
-              activeFilter === 'all'
-                ? 'bg-brand text-white shadow-sm'
-                : 'text-zinc-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            All
-          </button>
-          <button
-            onClick={() => handleFilterChange('photos')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all ${
-              activeFilter === 'photos'
-                ? 'bg-brand text-white shadow-sm'
-                : 'text-zinc-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <ImageIcon size={12} />
-            <span>Photos</span>
-          </button>
-          <button
-            onClick={() => handleFilterChange('videos')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all ${
-              activeFilter === 'videos'
-                ? 'bg-brand text-white shadow-sm'
-                : 'text-zinc-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Film size={12} />
-            <span>Videos</span>
-          </button>
-          <button
-            onClick={() => handleFilterChange('favorites')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all ${
-              activeFilter === 'favorites'
-                ? 'bg-brand text-white shadow-sm'
-                : 'text-zinc-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Heart size={12} />
-            <span>Favorites</span>
-          </button>
-        </div>
+            {/* Right: Manual Sync Button + Circular Zoom Buttons */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                onClick={() => {
+                  if (account) void triggerSync(account.id);
+                }}
+                disabled={isSyncing}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all shadow-md active:scale-95 ${
+                  isSyncing
+                    ? 'bg-brand/20 border-brand/40 text-brand cursor-wait'
+                    : 'bg-zinc-900 border-white/10 text-zinc-300 hover:text-white hover:border-white/30'
+                }`}
+                title={isSyncing ? 'Syncing with Google Drive…' : 'Sync Google Drive now'}
+              >
+                <RefreshCw
+                  size={12}
+                  className={isSyncing ? 'animate-spin text-brand' : 'text-zinc-400'}
+                />
+                <span>{isSyncing ? 'Syncing…' : 'Sync'}</span>
+              </button>
 
-        {/* Right: Circular Zoom Buttons matching OneDrive reference */}
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={handleZoomOut}
-            disabled={zoom === 1}
-            className={`w-8 h-8 rounded-full flex items-center justify-center transition-all bg-zinc-900/90 border ${
-              zoom === 1
-                ? 'border-white/5 text-zinc-600 cursor-not-allowed'
-                : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/30 active:scale-95'
-            } shadow-md`}
-            title="Zoom out"
-          >
-            <Minus size={14} />
-          </button>
+              <div className="hidden sm:flex items-center gap-1">
+                <button
+                  onClick={handleZoomOut}
+                  disabled={zoom === 1}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-all bg-zinc-900/90 border ${
+                    zoom === 1
+                      ? 'border-white/5 text-zinc-600 cursor-not-allowed'
+                      : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/30 active:scale-95'
+                  } shadow-md`}
+                  title="Zoom out"
+                >
+                  <Minus size={14} />
+                </button>
 
-          <button
-            onClick={handleZoomIn}
-            disabled={zoom === 4}
-            className={`w-8 h-8 rounded-full flex items-center justify-center transition-all bg-zinc-900/90 border ${
-              zoom === 4
-                ? 'border-white/5 text-zinc-600 cursor-not-allowed'
-                : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/30 active:scale-95'
-            } shadow-md`}
-            title="Zoom in"
-          >
-            <Plus size={14} />
-          </button>
+                <button
+                  onClick={handleZoomIn}
+                  disabled={zoom === 4}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-all bg-zinc-900/90 border ${
+                    zoom === 4
+                      ? 'border-white/5 text-zinc-600 cursor-not-allowed'
+                      : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/30 active:scale-95'
+                  } shadow-md`}
+                  title="Zoom in"
+                >
+                  <Plus size={14} />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Filter Toggle Pills: on mobile renders cleanly in row 2, on md+ centered */}
+          <div className="flex items-center justify-center md:justify-start">
+            <div className="flex items-center gap-1 bg-zinc-900/80 p-1 rounded-full border border-white/10 shadow-lg backdrop-blur-md overflow-x-auto no-scrollbar">
+              <button
+                onClick={() => handleFilterChange('all')}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-all shrink-0 ${
+                  activeFilter === 'all'
+                    ? 'bg-brand text-white shadow-sm'
+                    : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => handleFilterChange('photos')}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all shrink-0 ${
+                  activeFilter === 'photos'
+                    ? 'bg-brand text-white shadow-sm'
+                    : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <ImageIcon size={12} />
+                <span>Photos</span>
+              </button>
+              <button
+                onClick={() => handleFilterChange('videos')}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all shrink-0 ${
+                  activeFilter === 'videos'
+                    ? 'bg-brand text-white shadow-sm'
+                    : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <Film size={12} />
+                <span>Videos</span>
+              </button>
+              <button
+                onClick={() => handleFilterChange('favorites')}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all shrink-0 ${
+                  activeFilter === 'favorites'
+                    ? 'bg-brand text-white shadow-sm'
+                    : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <Heart size={12} />
+                <span>Favorites</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -533,21 +571,25 @@ export function GalleryView({
           if (el && el !== scrollContainer) setScrollContainer(el);
         }}
         data-testid="gallery-scroll-container"
-        className="flex-1 overflow-y-auto px-6 sm:px-10 py-5 pb-32"
+        className="flex-1 overflow-y-auto px-4 sm:px-10 py-5 pb-32"
+        style={{
+          paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 96px)',
+        }}
       >
         {/* Sync Prompt if zero files */}
-        {!syncDone && fileCount === 0 && !loadingInitial && (
-          <div className="card p-6 mb-8 max-w-xl mx-auto text-center border-brand/30 bg-gradient-to-b from-brand/10 to-transparent">
-            <Sparkles size={28} className="text-brand mx-auto mb-3" />
-            <h3 className="text-base font-bold text-white mb-1">Your Photo Library</h3>
-            <p className="text-xs text-zinc-400 mb-4 max-w-md mx-auto">
-              Connect and sync your Google Drive to index all photos and videos with EXIF metadata
-              into high-speed local SQLite.
+        {photos.length === 0 && !loadingInitial && (
+          <div className="card p-6 my-12 max-w-xl mx-auto text-center border-brand/30 bg-gradient-to-b from-brand/10 to-transparent shadow-2xl rounded-2xl">
+            <Sparkles size={32} className="text-brand mx-auto mb-3" />
+            <h3 className="text-base font-bold text-white mb-1.5">Your Photo Library</h3>
+            <p className="text-xs text-zinc-400 mb-5 max-w-md mx-auto leading-relaxed">
+              {isSyncing
+                ? 'Syncing your media from Google Drive into high-speed local storage…'
+                : 'No photos or videos loaded yet. Tap the button below to sync and index your Google Drive.'}
             </p>
             <button
               onClick={() => account && triggerSync(account.id)}
               disabled={isSyncing || !account}
-              className="btn-primary text-xs py-2 px-5 mx-auto flex items-center gap-2"
+              className="btn-primary text-xs py-2.5 px-6 mx-auto flex items-center gap-2 rounded-full shadow-lg"
             >
               <RefreshCw size={13} className={isSyncing ? 'animate-spin' : ''} />
               {isSyncing ? 'Syncing Drive…' : 'Start Photo Sync'}

@@ -295,7 +295,14 @@ export interface SyncProgressEvent {
 export function subscribeSyncProgress(onEvent: (e: SyncProgressEvent) => void): () => void {
   if (isCapacitor()) {
     onEvent({ type: 'connected' });
-    return () => {};
+    const listener = (event: Event) => {
+      const customEvent = event as CustomEvent<SyncProgressEvent>;
+      if (customEvent.detail) {
+        onEvent(customEvent.detail);
+      }
+    };
+    window.addEventListener('sunflower-sync-progress', listener);
+    return () => window.removeEventListener('sunflower-sync-progress', listener);
   }
   const apiBase = getApiBase();
   const tokenParam = activeSessionToken ? `?token=${encodeURIComponent(activeSessionToken)}` : '';
@@ -558,9 +565,14 @@ export function searchFiles(opts: {
 // Media URLs
 // ---------------------------------------------------------------------------
 
-export function getMediaThumbUrl(fileId: string, size = 400, accountId?: string): string {
+export function getMediaThumbUrl(
+  fileId: string,
+  size = 400,
+  accountId?: string,
+  thumbnailUrl?: string | null,
+): string {
   if (isCapacitor()) {
-    return getMobileMediaThumbUrl(fileId, size);
+    return getMobileMediaThumbUrl(fileId, size, thumbnailUrl);
   }
   const params = new URLSearchParams({ size: String(size) });
   if (accountId) params.set('accountId', accountId);

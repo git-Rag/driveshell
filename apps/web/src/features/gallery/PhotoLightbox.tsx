@@ -199,7 +199,7 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
           const f = files[idx];
           if (f && !f.mime_type.startsWith('video/')) {
             const img = new Image();
-            img.src = getMediaThumbUrl(f.id, 1200);
+            img.src = getMediaThumbUrl(f.id, 1200, f.account_id, f.thumbnail_url);
           }
         }
       }
@@ -295,7 +295,7 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
       {/* Main View Area */}
       <div className="flex-1 flex flex-col min-w-0 relative overflow-hidden">
         {/* Top Floating Control Bar */}
-        <div className="absolute top-0 inset-x-0 z-20 px-6 py-4 flex items-center justify-between bg-gradient-to-b from-black/80 via-black/40 to-transparent">
+        <div className="absolute top-0 inset-x-0 z-20 px-4 sm:px-6 pt-[max(env(safe-area-inset-top),28px)] pb-4 flex items-center justify-between bg-gradient-to-b from-black/85 via-black/50 to-transparent">
           {/* File info pill */}
           <div className="flex items-center gap-3">
             <button
@@ -413,7 +413,7 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
               {/* Drive thumbnail as blurred background if available */}
               {file.thumbnail_url && (
                 <img
-                  src={getMediaThumbUrl(file.id, 800)}
+                  src={getMediaThumbUrl(file.id, 800, file.account_id, file.thumbnail_url)}
                   alt=""
                   aria-hidden="true"
                   className="absolute inset-0 w-full h-full object-cover opacity-20 filter blur-md pointer-events-none"
@@ -530,7 +530,7 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
             >
               {/* Layer 1: Instant Blur-Up Placeholder from cached 400px thumbnail */}
               <img
-                src={getMediaThumbUrl(file.id, 400)}
+                src={getMediaThumbUrl(file.id, 400, file.account_id, file.thumbnail_url)}
                 alt=""
                 aria-hidden="true"
                 className={`max-h-[82vh] max-w-[85vw] object-contain rounded-lg filter blur-sm transition-opacity duration-500 select-none ${
@@ -541,7 +541,7 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
               {/* Layer 2: High-Resolution (1200px) Smooth Crossfade with Priority */}
               <img
                 key={file.id}
-                src={getMediaThumbUrl(file.id, 1200)}
+                src={getMediaThumbUrl(file.id, 1200, file.account_id, file.thumbnail_url)}
                 alt={file.name}
                 fetchPriority="high"
                 decoding="async"

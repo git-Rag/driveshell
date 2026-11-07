@@ -84,6 +84,12 @@ interface StoredTokens {
   expiresAt: number;
 }
 
+interface TokenResponse {
+  access_token: string;
+  refresh_token?: string;
+  expires_in: number;
+}
+
 function getStoredTokens(accountId: string): StoredTokens | null {
   try {
     const raw = localStorage.getItem(`${STORAGE_KEYS.TOKENS}_${accountId}`);
@@ -96,6 +102,51 @@ function getStoredTokens(accountId: string): StoredTokens | null {
 
 function saveStoredTokens(accountId: string, tokens: StoredTokens): void {
   localStorage.setItem(`${STORAGE_KEYS.TOKENS}_${accountId}`, JSON.stringify(tokens));
+}
+
+async function getFreshAccessToken(accountId: string): Promise<string | null> {
+  const tokens = getStoredTokens(accountId);
+  if (!tokens) return null;
+
+  if (tokens.expiresAt && Date.now() < tokens.expiresAt - 120_000) {
+    return tokens.accessToken;
+  }
+
+  if (!tokens.refreshToken) {
+    return tokens.accessToken;
+  }
+
+  const clientId = localStorage.getItem(STORAGE_KEYS.CLIENT_ID);
+  const clientSecret = localStorage.getItem(STORAGE_KEYS.CLIENT_SECRET);
+  if (!clientId || !clientSecret) return tokens.accessToken;
+
+  try {
+    const res = await CapacitorHttp.post({
+      url: 'https://oauth2.googleapis.com/token',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      data: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        refresh_token: tokens.refreshToken,
+        grant_type: 'refresh_token',
+      }).toString(),
+    });
+
+    const tokenData = res.data as TokenResponse | undefined;
+    if (res.status === 200 && tokenData?.access_token) {
+      const newTokens: StoredTokens = {
+        accessToken: tokenData.access_token,
+        refreshToken: tokenData.refresh_token ?? tokens.refreshToken,
+        expiresAt: Date.now() + (tokenData.expires_in ?? 3600) * 1000,
+      };
+      saveStoredTokens(accountId, newTokens);
+      return newTokens.accessToken;
+    }
+  } catch (err) {
+    console.warn('Failed to refresh token:', err);
+  }
+
+  return tokens.accessToken;
 }
 
 // ---------------------------------------------------------------------------
@@ -212,12 +263,6 @@ function setupOAuthListeners(): void {
       console.warn('Failed to parse deep link URL:', e);
     }
   });
-}
-
-interface TokenResponse {
-  access_token: string;
-  refresh_token?: string;
-  expires_in: number;
 }
 
 interface AboutResponse {
@@ -414,27 +459,39 @@ export async function syncMobileDrive(
   const targetAccount = accountId ? accounts.find((a) => a.id === accountId) : accounts[0];
   if (!targetAccount) return { ok: false, message: 'No account configured' };
 
-  const tokens = getStoredTokens(targetAccount.id);
-  if (!tokens?.accessToken) return { ok: false, message: 'Account needs reauthorization' };
+  const accessToken = await getFreshAccessToken(targetAccount.id);
+  if (!accessToken) return { ok: false, message: 'Account needs reauthorization' };
 
   isSyncing = true;
+  window.dispatchEvent(
+    new CustomEvent('sunflower-sync-progress', {
+      detail: {
+        type: 'progress',
+        indexed: 0,
+        stage: 'media_first',
+        message: 'Starting Google Drive sync…',
+      },
+    }),
+  );
+
   try {
     const db = await openDB();
     let pageToken: string | undefined;
     let pageCount = 0;
+    let totalIndexed = 0;
 
     do {
       const queryParams = new URLSearchParams({
-        q: "trashed = false and (mimeType contains 'image/' or mimeType contains 'video/')",
+        q: 'trashed = false',
         fields:
-          'nextPageToken,files(id,name,mimeType,size,modifiedTime,createdTime,starred,trashed,thumbnailLink,webViewLink,imageMediaMetadata,videoMediaMetadata)',
-        pageSize: '100',
+          'nextPageToken,files(id,name,mimeType,parents,size,modifiedTime,createdTime,starred,trashed,thumbnailLink,webViewLink,imageMediaMetadata(width,height,time,cameraMake,cameraModel),videoMediaMetadata(width,height,durationMillis))',
+        pageSize: '250',
       });
       if (pageToken) queryParams.set('pageToken', pageToken);
 
       const res = await CapacitorHttp.get({
         url: `https://www.googleapis.com/drive/v3/files?${queryParams.toString()}`,
-        headers: { Authorization: `Bearer ${tokens.accessToken}` },
+        headers: { Authorization: `Bearer ${accessToken}` },
       });
 
       if (res.status !== 200 || !res.data) break;
@@ -445,6 +502,7 @@ export async function syncMobileDrive(
 
       const tx = db.transaction('files', 'readwrite');
       const store = tx.objectStore('files');
+      let pageMediaCount = 0;
 
       for (const f of driveFiles) {
         const id = f.id ?? '';
@@ -488,6 +546,7 @@ export async function syncMobileDrive(
         };
 
         store.put(record);
+        pageMediaCount++;
       }
 
       await new Promise<void>((resolve, reject) => {
@@ -495,13 +554,47 @@ export async function syncMobileDrive(
         tx.onerror = () => reject(new Error(tx.error ? tx.error.message : 'Transaction failed'));
       });
 
+      totalIndexed += pageMediaCount;
       pageCount++;
-    } while (pageToken && pageCount < 20);
 
+      window.dispatchEvent(
+        new CustomEvent('sunflower-sync-progress', {
+          detail: {
+            type: 'progress',
+            indexed: totalIndexed,
+            total: totalIndexed,
+            stage: 'media_first',
+            message: `Indexed ${totalIndexed} media files…`,
+          },
+        }),
+      );
+    } while (pageToken && pageCount < 100);
+
+    localStorage.setItem('sunflower_mobile_file_count', String(totalIndexed));
     localStorage.setItem(STORAGE_KEYS.LAST_SYNC, String(Date.now()));
-    return { ok: true, message: 'Sync complete' };
+
+    window.dispatchEvent(
+      new CustomEvent('sunflower-sync-progress', {
+        detail: {
+          type: 'done',
+          indexed: totalIndexed,
+          stage: 'done',
+          message: 'Sync complete',
+        },
+      }),
+    );
+
+    return { ok: true, message: `Sync complete (${totalIndexed} items indexed)` };
   } catch (err) {
     console.error('Mobile sync error:', err);
+    window.dispatchEvent(
+      new CustomEvent('sunflower-sync-progress', {
+        detail: {
+          type: 'error',
+          message: err instanceof Error ? err.message : 'Sync failed',
+        },
+      }),
+    );
     return { ok: false, message: err instanceof Error ? err.message : 'Sync failed' };
   } finally {
     isSyncing = false;
@@ -512,6 +605,8 @@ export function getMobileSyncStatus(): SyncStatus {
   const accounts = getMobileAccounts();
   const rawLastSync = localStorage.getItem(STORAGE_KEYS.LAST_SYNC);
   const lastSync = rawLastSync ? Number(rawLastSync) : null;
+  const rawFileCount = localStorage.getItem('sunflower_mobile_file_count');
+  const fileCount = rawFileCount ? Number(rawFileCount) : 0;
 
   return {
     accounts: accounts.map((a) => ({
@@ -522,7 +617,7 @@ export function getMobileSyncStatus(): SyncStatus {
       fullSyncStage: isSyncing ? 'media_first' : 'done',
       lastFullSyncAt: lastSync,
       lastIncrementalAt: lastSync,
-      fileCount: 0,
+      fileCount,
     })),
   };
 }
@@ -629,13 +724,24 @@ export async function getMobileMonths(opts?: {
   };
 }
 
-export function getMobileMediaThumbUrl(fileId: string, size = 400): string {
-  return `https://drive.google.com/thumbnail?id=${encodeURIComponent(fileId)}&sz=w${size}`;
+export function getMobileMediaThumbUrl(
+  fileId: string,
+  size = 400,
+  thumbnailUrl?: string | null,
+): string {
+  const accounts = getMobileAccounts();
+  const token = accounts[0] ? getStoredTokens(accounts[0].id)?.accessToken : null;
+  const params = new URLSearchParams({ size: String(size) });
+  if (token) params.set('token', token);
+  if (thumbnailUrl) params.set('thumbUrl', thumbnailUrl);
+  return `http://127.0.0.1:3001/api/media/${encodeURIComponent(fileId)}/thumb?${params.toString()}`;
 }
 
 export function getMobileMediaStreamUrl(fileId: string): string {
   const accounts = getMobileAccounts();
   const token = accounts[0] ? getStoredTokens(accounts[0].id)?.accessToken : null;
-  const authQuery = token ? `&access_token=${encodeURIComponent(token)}` : '';
-  return `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media${authQuery}`;
+  const params = new URLSearchParams();
+  if (token) params.set('token', token);
+  const qs = params.toString();
+  return `http://127.0.0.1:3001/api/media/${encodeURIComponent(fileId)}/stream${qs ? `?${qs}` : ''}`;
 }

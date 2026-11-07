@@ -1,4 +1,13 @@
-import { Search, RefreshCw, Moon, Sun, Bell, Menu, CheckCircle2, AlertTriangle } from 'lucide-react';
+import {
+  Search,
+  RefreshCw,
+  Moon,
+  Sun,
+  Bell,
+  Menu,
+  CheckCircle2,
+  AlertTriangle,
+} from 'lucide-react';
 import { useState } from 'react';
 import { useSyncStatus } from '../../hooks/useSyncStatus';
 
@@ -28,10 +37,10 @@ export function TopBar({
   const liveSyncState: TopBarProps['syncState'] = isSyncing
     ? 'syncing'
     : accountSync?.status === 'needs_reauth'
-    ? 'needs_reauth'
-    : accountSync?.status === 'error'
-    ? 'error'
-    : syncState;
+      ? 'needs_reauth'
+      : accountSync?.status === 'error'
+        ? 'error'
+        : syncState;
 
   const lastSyncLabel =
     !isSyncing && accountSync?.lastFullSyncAt
@@ -47,13 +56,15 @@ export function TopBar({
   return (
     <header
       className={`shrink-0 sticky top-0 z-30 transition-all duration-200 ${
-        visible
-          ? 'h-[var(--ds-topbar-height)] opacity-100 px-4'
-          : 'h-0 opacity-0 px-0 pointer-events-none overflow-hidden'
+        visible ? 'opacity-100 px-4' : 'h-0 opacity-0 px-0 pointer-events-none overflow-hidden'
       } flex items-center gap-3 backdrop-blur-xl select-none`}
       style={{
         background: 'var(--ds-topbar-bg)',
         borderBottom: visible ? '1px solid var(--ds-topbar-border)' : 'none',
+        paddingTop: visible ? 'max(env(safe-area-inset-top, 0px), 24px)' : '0px',
+        minHeight: visible
+          ? 'calc(var(--ds-topbar-height) + max(env(safe-area-inset-top, 0px), 24px))'
+          : '0px',
       }}
       role="banner"
     >
@@ -114,7 +125,11 @@ export function TopBar({
           title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
         >
           <span className="transition-transform duration-200 group-hover:rotate-45">
-            {isDark ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} className="text-indigo-400" />}
+            {isDark ? (
+              <Sun size={15} className="text-amber-400" />
+            ) : (
+              <Moon size={15} className="text-indigo-400" />
+            )}
           </span>
         </button>
 

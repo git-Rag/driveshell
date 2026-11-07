@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Sidebar } from './app/shell/Sidebar';
 import { TopBar } from './app/shell/TopBar';
 import { SetupWizard } from './features/setup/SetupWizard';
@@ -80,6 +80,23 @@ export function App() {
     }
     // auth_error is handled by the wizard via query param — no action here
   }, [refresh]);
+
+  // Auto-trigger sync on launch when authenticated
+  const hasAutoSyncedRef = useRef(false);
+  useEffect(() => {
+    if (
+      status.state === 'ready' &&
+      status.data.configured &&
+      status.data.accounts.length > 0 &&
+      !hasAutoSyncedRef.current
+    ) {
+      hasAutoSyncedRef.current = true;
+      const primaryAccount = status.data.accounts[0];
+      if (primaryAccount) {
+        void triggerSync(primaryAccount.id);
+      }
+    }
+  }, [status, triggerSync]);
 
   const handleSetupComplete = useCallback(() => {
     setSetupDone(true);
