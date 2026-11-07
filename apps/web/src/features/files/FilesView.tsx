@@ -25,7 +25,7 @@ import {
   updateFile,
   createFolder,
   getMediaThumbUrl,
-  getMediaDownloadUrl,
+  triggerFileDownload,
 } from '../../lib/api';
 import type { FileRecord, BreadcrumbItem } from '../../lib/api';
 import { PhotoLightbox } from '../gallery/PhotoLightbox';
@@ -349,15 +349,16 @@ export function FilesView() {
 
                           {/* Download */}
                           {!isFolder && (
-                            <a
-                              href={getMediaDownloadUrl(file.id)}
-                              download
-                              onClick={(e) => e.stopPropagation()}
-                              className="p-1.5 rounded-md hover:bg-white/10 text-zinc-400 hover:text-white"
-                              title="Download"
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void triggerFileDownload(file);
+                              }}
+                              className="p-1.5 rounded-md hover:bg-white/10 text-zinc-400 hover:text-white transition-all cursor-pointer"
+                              title="Download (1 click)"
                             >
                               <Download size={13} />
-                            </a>
+                            </button>
                           )}
 
                           {/* Rename */}

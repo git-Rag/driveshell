@@ -18,6 +18,8 @@ import {
   getMobileSyncStatus,
   getMobileMediaThumbUrl,
   getMobileMediaStreamUrl,
+  getMobileMediaDownloadUrl,
+  downloadMobileFile,
   updateMobileFile,
   getMobileVaultStatus,
   setupMobileVault,
@@ -610,13 +612,33 @@ export function getMediaStreamUrl(fileId: string, accountId?: string, transcode?
   return `${getApiBase()}/api/media/${encodeURIComponent(fileId)}/stream${qs ? `?${qs}` : ''}`;
 }
 
-export function getMediaDownloadUrl(fileId: string, accountId?: string): string {
+export function getMediaDownloadUrl(fileId: string, accountId?: string, fileName?: string): string {
+  if (isCapacitor()) {
+    return getMobileMediaDownloadUrl(fileId, fileName);
+  }
   const params = new URLSearchParams();
   if (accountId) params.set('accountId', accountId);
   const token = getValidToken();
   if (token) params.set('token', token);
   const qs = params.toString();
   return `${getApiBase()}/api/media/${encodeURIComponent(fileId)}/download${qs ? `?${qs}` : ''}`;
+}
+
+export async function triggerFileDownload(file: {
+  id: string;
+  name: string;
+  account_id?: string;
+}): Promise<void> {
+  if (isCapacitor()) {
+    await downloadMobileFile(file.id, file.name);
+    return;
+  }
+  const a = document.createElement('a');
+  a.href = getMediaDownloadUrl(file.id, file.account_id, file.name);
+  a.download = file.name;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 
 export interface TranscodeResponse {

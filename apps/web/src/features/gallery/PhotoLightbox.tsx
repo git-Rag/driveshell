@@ -28,7 +28,7 @@ import { registerBackButtonHandler } from '../../lib/back-button';
 import {
   getMediaThumbUrl,
   getMediaStreamUrl,
-  getMediaDownloadUrl,
+  triggerFileDownload,
   updateFile,
   listAlbums,
   createAlbum,
@@ -92,9 +92,25 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [showInfo, setShowInfo] = useState(false);
   const [isZoomed, setIsZoomed] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadSuccess, setDownloadSuccess] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [highResLoaded, setHighResLoaded] = useState(false);
   const [photoFailed, setPhotoFailed] = useState(false);
+
+  // Sync fullscreen state with document.fullscreenElement
+  useEffect(() => {
+    function onFullscreenChange() {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    }
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', onFullscreenChange);
+    };
+  }, []);
 
   // Album Picker modal state
   const [showAlbumPicker, setShowAlbumPicker] = useState(false);
@@ -106,6 +122,7 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
 
   const file = files[currentIndex];
   const isVideo = file?.mime_type?.startsWith('video/') ?? false;
+  const isExpanded = isFullscreen || isZoomed;
   const [videoFailed, setVideoFailed] = useState(false);
   const [isTranscoding, setIsTranscoding] = useState(false);
   const [useTranscodeStream, setUseTranscodeStream] = useState<Record<string, boolean>>({});
@@ -208,6 +225,53 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
     return () => clearTimeout(timer);
   }, [currentIndex, files, highResLoaded]);
 
+  // Fullscreen and 1-click Download Handlers
+  const handleToggleFullscreen = useCallback(async () => {
+    const next = !isFullscreen;
+    setIsFullscreen(next);
+    if (!next) {
+      setIsZoomed(false);
+    }
+    try {
+      if (next) {
+        const el = document.documentElement as HTMLElement & {
+          webkitRequestFullscreen?: () => Promise<void>;
+        };
+        if (el.requestFullscreen) {
+          await el.requestFullscreen();
+        } else if (el.webkitRequestFullscreen) {
+          await el.webkitRequestFullscreen();
+        }
+      } else {
+        const doc = document as Document & {
+          webkitExitFullscreen?: () => Promise<void>;
+        };
+        if (doc.exitFullscreen) {
+          await doc.exitFullscreen();
+        } else if (doc.webkitExitFullscreen) {
+          await doc.webkitExitFullscreen();
+        }
+      }
+    } catch {
+      // In webviews where requestFullscreen is not permitted, CSS expansion & scale provides fallback
+    }
+  }, [isFullscreen]);
+
+  const handleDownload = useCallback(async () => {
+    if (!file || isDownloading) return;
+    setIsDownloading(true);
+    try {
+      await triggerFileDownload(file);
+      setDownloadSuccess(true);
+      setTimeout(() => setDownloadSuccess(false), 2500);
+    } catch (err) {
+      console.error('Download failed', err);
+      alert('Could not start download. Please check your network connection.');
+    } finally {
+      setIsDownloading(false);
+    }
+  }, [file, isDownloading]);
+
   // Android system back button listener — intercept so back closes viewer instead of quitting app
   useEffect(() => {
     return registerBackButtonHandler(() => {
@@ -219,10 +283,18 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
         setShowInfo(false);
         return true;
       }
+      if (isFullscreen) {
+        void handleToggleFullscreen();
+        return true;
+      }
+      if (isZoomed) {
+        setIsZoomed(false);
+        return true;
+      }
       onClose();
       return true;
     });
-  }, [showAlbumPicker, showInfo, onClose]);
+  }, [showAlbumPicker, showInfo, isFullscreen, isZoomed, handleToggleFullscreen, onClose]);
 
   const goToNext = useCallback(() => {
     if (currentIndex < files.length - 1) {
@@ -432,26 +504,42 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
               </button>
             )}
 
-            {/* Zoom toggle */}
+            {/* Fullscreen / Expand toggle */}
             {!isVideo && (
               <button
-                onClick={() => setIsZoomed((z) => !z)}
-                className="w-8 h-8 rounded-full text-white/80 hover:text-white hover:bg-white/10 flex items-center justify-center transition-all"
-                title={isZoomed ? 'Fit to screen' : 'Zoom 100%'}
+                onClick={() => void handleToggleFullscreen()}
+                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                  isExpanded
+                    ? 'bg-brand text-white shadow-md'
+                    : 'text-white/80 hover:text-white hover:bg-white/10'
+                }`}
+                title={isExpanded ? 'Exit Fullscreen' : 'Fullscreen / Expand'}
+                aria-label={isExpanded ? 'Exit Fullscreen' : 'Fullscreen / Expand'}
               >
-                {isZoomed ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+                {isExpanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
               </button>
             )}
 
-            {/* Download */}
-            <a
-              href={getMediaDownloadUrl(file.id)}
-              download
-              className="w-8 h-8 rounded-full text-white/80 hover:text-white hover:bg-white/10 flex items-center justify-center transition-all"
-              title="Download file"
+            {/* Download (1 click) */}
+            <button
+              onClick={() => void handleDownload()}
+              disabled={isDownloading}
+              className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                downloadSuccess
+                  ? 'text-emerald-400 bg-emerald-500/20'
+                  : 'text-white/80 hover:text-white hover:bg-white/10 active:scale-95'
+              }`}
+              title={downloadSuccess ? 'Downloaded!' : 'Download file (1 click)'}
+              aria-label="Download file"
             >
-              <Download size={15} />
-            </a>
+              {isDownloading ? (
+                <Loader2 size={15} className="animate-spin text-brand" />
+              ) : downloadSuccess ? (
+                <Check size={15} className="text-emerald-400" />
+              ) : (
+                <Download size={15} />
+              )}
+            </button>
 
             {/* Open in Google Drive */}
             {file.web_view_link && (
@@ -554,14 +642,21 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
                       Open in Drive
                     </a>
                   )}
-                  <a
-                    href={getMediaDownloadUrl(file.id)}
-                    download
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium bg-white/10 hover:bg-white/20 text-white border border-white/10 active:scale-95 transition-all shadow-md"
+                  <button
+                    type="button"
+                    onClick={() => void handleDownload()}
+                    disabled={isDownloading}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium bg-white/10 hover:bg-white/20 text-white border border-white/10 active:scale-95 transition-all shadow-md cursor-pointer"
                   >
-                    <Download size={14} />
-                    Download
-                  </a>
+                    {isDownloading ? (
+                      <Loader2 size={14} className="animate-spin text-brand" />
+                    ) : downloadSuccess ? (
+                      <Check size={14} className="text-emerald-400" />
+                    ) : (
+                      <Download size={14} />
+                    )}
+                    <span>{downloadSuccess ? 'Downloaded!' : 'Download'}</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -608,8 +703,8 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
           ) : (
             /* High resolution photo presentation with Instant Blur-Up + Crossfade */
             <div
-              className={`relative flex items-center justify-center transition-transform duration-200 select-none ${
-                isZoomed ? 'scale-150 cursor-zoom-out' : 'cursor-zoom-in'
+              className={`relative flex items-center justify-center select-none ${
+                isZoomed ? 'cursor-zoom-out' : 'cursor-zoom-in'
               }`}
               onClick={() => {
                 if (!hasSwipedRef.current) {
@@ -617,9 +712,9 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
                 }
               }}
               style={{
-                transform: `rotate(${rotation}deg) translateX(${touchDeltaX}px)`,
-                transition: isSwiping ? 'none' : 'transform 200ms ease-out',
-                touchAction: 'pan-y',
+                transform: `rotate(${rotation}deg) translateX(${touchDeltaX}px) scale(${isZoomed ? 2.0 : isFullscreen ? 1.25 : 1.0})`,
+                transition: isSwiping ? 'none' : 'transform 250ms cubic-bezier(0.16, 1, 0.3, 1)',
+                touchAction: isZoomed ? 'manipulation' : 'pan-y',
               }}
             >
               {/* Layer 1: Instant Blur-Up Placeholder from cached 400px thumbnail */}
@@ -627,7 +722,11 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
                 src={getMediaThumbUrl(file.id, 400, file.account_id, file.thumbnail_url)}
                 alt=""
                 aria-hidden="true"
-                className={`max-h-[82vh] max-w-[85vw] object-contain rounded-lg filter blur-sm transition-opacity duration-500 select-none ${
+                className={`transition-all duration-300 select-none object-contain ${
+                  isExpanded
+                    ? 'max-h-[96vh] max-w-[98vw] w-full h-full'
+                    : 'max-h-[82vh] max-w-[85vw] rounded-lg'
+                } filter blur-sm ${
                   highResLoaded ? 'opacity-0 absolute pointer-events-none' : 'opacity-100'
                 }`}
               />
@@ -644,9 +743,11 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
                   setPhotoFailed(true);
                   setHighResLoaded(true);
                 }}
-                className={`max-h-[82vh] max-w-[85vw] object-contain rounded-lg shadow-2xl transition-opacity duration-300 ease-out select-none ${
-                  highResLoaded ? 'opacity-100' : 'opacity-0 absolute'
-                }`}
+                className={`transition-all duration-300 ease-out select-none shadow-2xl object-contain ${
+                  isExpanded
+                    ? 'max-h-[96vh] max-w-[98vw] w-full h-full'
+                    : 'max-h-[82vh] max-w-[85vw] rounded-lg'
+                } ${highResLoaded ? 'opacity-100' : 'opacity-0 absolute'}`}
               />
 
               {/* Discreet spinner during initial sharp render */}
@@ -689,9 +790,13 @@ export function PhotoLightbox({ files, initialIndex, onClose, onFileUpdated }: P
 
         {/* Bottom Thumbnail Strip — Uses cached 400px thumbs with low priority to never block main photo */}
         <div
-          className="h-20 sm:h-16 px-6 py-2 bg-gradient-to-t from-black/90 to-transparent flex items-center justify-center gap-2 overflow-x-auto z-10"
+          className={`h-20 sm:h-16 px-6 py-2 bg-gradient-to-t from-black/90 to-transparent flex items-center justify-center gap-2 overflow-x-auto z-10 transition-all duration-300 ${
+            isExpanded
+              ? 'opacity-0 pointer-events-none translate-y-8 max-h-0 overflow-hidden py-0'
+              : 'opacity-100 max-h-20'
+          }`}
           style={{
-            paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 12px)',
+            paddingBottom: isExpanded ? '0px' : 'max(env(safe-area-inset-bottom, 0px), 12px)',
           }}
         >
           {files.slice(Math.max(0, currentIndex - 5), currentIndex + 6).map((f) => {

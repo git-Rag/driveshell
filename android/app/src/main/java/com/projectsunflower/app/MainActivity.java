@@ -186,7 +186,17 @@ public class MainActivity extends BridgeActivity {
                     return;
                 }
 
-                // 4. OAuth loopback redirect
+                // 4. Media download proxy (/api/media/{fileId}/download)
+                if (path.startsWith("/api/media/") && path.endsWith("/download")) {
+                    String middle = path.substring("/api/media/".length(), path.length() - "/download".length());
+                    String fileId = URLDecoder.decode(middle, "UTF-8");
+                    String token = queryParams.get("token");
+                    String filename = queryParams.get("filename");
+                    handleMediaDownload(fileId, token, filename, out);
+                    return;
+                }
+
+                // 5. OAuth loopback redirect
                 String code = queryParams.get("code");
                 String state = queryParams.get("state");
 
@@ -360,6 +370,52 @@ public class MainActivity extends BridgeActivity {
         } catch (Exception e) {
             Log.e(TAG, "handleMediaStream error: " + e.getMessage());
             sendHttpError(out, 500, "Stream Error");
+        }
+    }
+
+    private void handleMediaDownload(String fileId, String token, String filename, OutputStream out) {
+        try {
+            String downloadUrl = "https://www.googleapis.com/drive/v3/files/" + Uri.encode(fileId) + "?alt=media";
+            HttpURLConnection conn = (HttpURLConnection) new URL(downloadUrl).openConnection();
+            conn.setConnectTimeout(15000);
+            conn.setReadTimeout(60000);
+            if (token != null && !token.isEmpty()) {
+                conn.setRequestProperty("Authorization", "Bearer " + token);
+            }
+
+            int responseCode = conn.getResponseCode();
+            InputStream inStream = (responseCode >= 200 && responseCode < 300)
+                ? conn.getInputStream()
+                : conn.getErrorStream();
+
+            String safeName = (filename != null && !filename.isEmpty())
+                ? filename.replaceAll("[\"\\r\\n]", "_")
+                : fileId;
+
+            StringBuilder respHeader = new StringBuilder("HTTP/1.1 200 OK\r\n");
+            respHeader.append("Access-Control-Allow-Origin: *\r\n");
+            respHeader.append("Content-Disposition: attachment; filename=\"").append(safeName).append("\"\r\n");
+
+            String contentType = conn.getContentType();
+            if (contentType != null) respHeader.append("Content-Type: ").append(contentType).append("\r\n");
+            String contentLength = conn.getHeaderField("Content-Length");
+            if (contentLength != null) respHeader.append("Content-Length: ").append(contentLength).append("\r\n");
+            respHeader.append("Connection: close\r\n\r\n");
+
+            out.write(respHeader.toString().getBytes(StandardCharsets.UTF_8));
+
+            if (inStream != null) {
+                byte[] buf = new byte[32768];
+                int n;
+                while ((n = inStream.read(buf)) != -1) {
+                    out.write(buf, 0, n);
+                }
+                inStream.close();
+            }
+            out.flush();
+        } catch (Exception e) {
+            Log.e(TAG, "handleMediaDownload error: " + e.getMessage());
+            sendHttpError(out, 500, "Download Error");
         }
     }
 

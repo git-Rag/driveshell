@@ -779,6 +779,54 @@ export function getMobileMediaStreamUrl(fileId: string): string {
   return `http://127.0.0.1:3001/api/media/${encodeURIComponent(fileId)}/stream${qs ? `?${qs}` : ''}`;
 }
 
+export function getMobileMediaDownloadUrl(fileId: string, fileName?: string): string {
+  const accounts = getMobileAccounts();
+  const token = accounts[0] ? getStoredTokens(accounts[0].id)?.accessToken : null;
+  const params = new URLSearchParams();
+  if (token) params.set('token', token);
+  if (fileName) params.set('filename', fileName);
+  const qs = params.toString();
+  return `http://127.0.0.1:3001/api/media/${encodeURIComponent(fileId)}/download${qs ? `?${qs}` : ''}`;
+}
+
+export async function downloadMobileFile(fileId: string, fileName: string): Promise<void> {
+  const accounts = getMobileAccounts();
+  const token = accounts[0] ? getStoredTokens(accounts[0].id)?.accessToken : null;
+
+  // 1. First attempt: In-app fetch & Blob object URL trigger
+  try {
+    const streamUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`;
+    const res = await fetch(streamUrl, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (res.ok) {
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
+      return;
+    }
+  } catch (err) {
+    console.warn('In-app blob download fallback:', err);
+  }
+
+  // 2. Second attempt: Android system Download Manager via direct authenticated Drive URL
+  const directUrl = token
+    ? `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&access_token=${encodeURIComponent(token)}`
+    : `http://127.0.0.1:3001/api/media/${encodeURIComponent(fileId)}/download?filename=${encodeURIComponent(fileName)}`;
+
+  try {
+    await Browser.open({ url: directUrl });
+  } catch {
+    window.open(directUrl, '_system');
+  }
+}
+
 // ---------------------------------------------------------------------------
 // File Updates (Starred / Favorites, Rename, Trashed)
 // ---------------------------------------------------------------------------
